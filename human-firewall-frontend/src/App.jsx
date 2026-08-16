@@ -13,10 +13,13 @@ import ChallengesHub from './pages/ChallengesHub';
 import WifiGame from './pages/simulations/WifiGame';
 import PasswordGame from './pages/simulations/PasswordGame';
 import SocialEngineeringGame from './pages/simulations/SocialEngineeringGame';
+import PointsHistory from './pages/PointsHistory';
+import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
   return (
     <BrowserRouter>
+      <PuntosProvider>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -25,6 +28,7 @@ function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/challenges" element={<ChallengesHub />} />
+        <Route path="/points" element={<PointsHistory />} />
         
         {/* Rutas Simulaciones */}
         <Route path="/simulation/phishing" element={<PhishingGame />} />
@@ -38,6 +42,7 @@ function App() {
 
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
+      </PuntosProvider>
     </BrowserRouter>
   );
 }

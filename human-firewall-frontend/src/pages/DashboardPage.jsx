@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ShieldCheck, BookOpen, Target, Trophy, LogOut } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { PointsWidget } from '../components/PointsWidget';
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState("Admin");
@@ -51,6 +52,7 @@ export default function DashboardPage() {
             <p className="text-text-secondary mt-1">Aquí está el resumen de tu ciber-entrenamiento.</p>
           </div>
           <div className="flex items-center gap-4">
+            <PointsWidget compacto />
             <div className="text-right">
               <p className="text-sm text-text-secondary">Nivel Actual</p>
               <p className="font-bold text-brand-light">Cinturón Blanco</p>
@@ -64,8 +66,7 @@ export default function DashboardPage() {
         {/* Widgets Gamificación (Epic 6 & 7) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           <Card className="p-6">
-            <h3 className="text-lg font-bold mb-2">Puntos de Seguridad</h3>
-            <div className="text-4xl font-black text-brand-blue">0 <span className="text-lg text-text-secondary">pts</span></div>
+            <PointsWidget />
           </Card>
           
           <Card className="p-6">

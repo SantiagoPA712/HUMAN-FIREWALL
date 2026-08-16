@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const eventBus = require('../services/eventBus');
 
 exports.createCourse = async (req, res) => {
     try {
@@ -89,6 +90,102 @@ exports.getCourseDetails = async (req, res) => {
         res.status(200).json({
             ...courseRows[0],
             contents: contentRows
+        });
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * POST /api/courses/contents/:contentId/complete
+ *
+ * Marca una leccion como completada y encola el evento lesson.completed.
+ *
+ * La asignacion de puntos NO ocurre aca: solo se encola el evento y se
+ * responde (criterio tecnico 1). Por eso la respuesta incluye
+ * puntos_estimados y no puntos_otorgados: sirve para que el frontend muestre
+ * el toast de inmediato, pero el valor definitivo queda en el historial.
+ */
+exports.completeLesson = async (req, res) => {
+    try {
+        const contentId = Number.parseInt(req.params.contentId, 10);
+        const userId = req.user.id;
+
+        if (!Number.isInteger(contentId) || contentId <= 0) {
+            return res.status(400).json({ msg: "contentId invalido" });
+        }
+
+        const { rows: contentRows } = await db.query(
+            "SELECT id, course_id, points_reward FROM course_contents WHERE id = $1",
+            [contentId]
+        );
+        if (contentRows.length === 0) {
+            return res.status(404).json({ msg: "Leccion no encontrada" });
+        }
+
+        // ON CONFLICT DO NOTHING: completar dos veces la misma leccion no
+        // genera un segundo evento, asi que tampoco duplica puntos.
+        const { rows: insertadas } = await db.query(
+            `INSERT INTO lesson_progress (user_id, content_id)
+             VALUES ($1, $2)
+             ON CONFLICT (user_id, content_id) DO NOTHING
+             RETURNING id, completed_at`,
+            [userId, contentId]
+        );
+
+        if (insertadas.length === 0) {
+            return res.status(200).json({
+                msg: "Esta leccion ya estaba completada",
+                ya_completada: true,
+                puntos_estimados: 0
+            });
+        }
+
+        await eventBus.publish('lesson.completed', { userId, contentId });
+
+        res.status(201).json({
+            msg: "Leccion completada",
+            ya_completada: false,
+            content_id: contentId,
+            course_id: contentRows[0].course_id,
+            puntos_estimados: contentRows[0].points_reward,
+            completed_at: insertadas[0].completed_at
+        });
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/courses/:courseId/progress
+ * Progreso del usuario autenticado en un curso: cuantas lecciones completo.
+ */
+exports.getCourseProgress = async (req, res) => {
+    try {
+        const courseId = Number.parseInt(req.params.courseId, 10);
+        const userId = req.user.id;
+
+        const { rows } = await db.query(
+            `SELECT
+                COUNT(cc.id)::int                                   AS total_lecciones,
+                COUNT(lc.id)::int                                   AS completadas,
+                COALESCE(ARRAY_AGG(lc.content_id) FILTER (WHERE lc.id IS NOT NULL), '{}') AS ids_completados
+               FROM course_contents cc
+               LEFT JOIN lesson_progress lc
+                      ON lc.content_id = cc.id AND lc.user_id = $2
+              WHERE cc.course_id = $1`,
+            [courseId, userId]
+        );
+
+        const p = rows[0];
+        res.status(200).json({
+            course_id: courseId,
+            total_lecciones: p.total_lecciones,
+            completadas: p.completadas,
+            porcentaje: p.total_lecciones > 0
+                ? Math.round(p.completadas * 100 / p.total_lecciones)
+                : 0,
+            ids_completados: p.ids_completados
         });
     } catch (error) {
         res.status(500).json({ msg: error.message });

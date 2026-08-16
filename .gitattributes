@@ -1,0 +1,13 @@
+# Normaliza los finales de linea en el repositorio.
+# Sin esto, si un integrante trabaja con CRLF y el otro con LF, Git marca
+# archivos enteros como modificados aunque nadie los haya tocado, y cada
+# merge se vuelve un conflicto artificial.
+* text=auto eol=lf
+
+# Binarios: Git no debe tocarlos nunca.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary

@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Wifi, AlertTriangle, ShieldCheck, ArrowRight } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import axios from 'axios';
+import { api } from '../../lib/api';
+import { usePuntos } from '../../context/PuntosContext';
 
 export default function WifiGame() {
+  const { notificarPuntos } = usePuntos();
   const [gameState, setGameState] = useState('playing'); // playing, won, lost
   const [loading, setLoading] = useState(false);
 
@@ -20,15 +22,13 @@ export default function WifiGame() {
     setLoading(true);
     try {
       // Registrar puntos reales al backend (Axios Request Real). Epic 6
-      const token = localStorage.getItem('token'); 
-      if (token && network.points > 0) {
-          // Aqui el backend actualizaría el usuario via API real, 
-          // usaremos un trycatch para que no muera si el bypass en login no dio token válido
-          await axios.post('http://localhost:3000/api/gamification/challenge', {
-             challengeId: 'wifi', // Endpoint nativo antifraude
-          }, { 
-             headers: { Authorization: `Bearer ${token}` }
-          }).catch(e => console.warn('Mock Mode Only - DB disconnected'));
+      if (network.points > 0) {
+          try {
+              const { data } = await api.post('/api/gamification/challenge', { challengeId: 'wifi' });
+              notificarPuntos(data.puntos_estimados, 'Wi-Fi Seguro');
+          } catch (e) {
+              console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
+          }
       }
       
       if (network.danger) {

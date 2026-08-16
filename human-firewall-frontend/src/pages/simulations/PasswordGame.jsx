@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Lock, ShieldCheck, CheckCircle, ArrowLeft } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import axios from 'axios';
+import { api } from '../../lib/api';
+import { usePuntos } from '../../context/PuntosContext';
 
 export default function PasswordGame() {
+  const { notificarPuntos } = usePuntos();
   const [password, setPassword] = useState('');
   const [gameState, setGameState] = useState('playing'); // playing, won
 
@@ -28,9 +30,15 @@ export default function PasswordGame() {
   const submitPassword = async () => {
     if (score === 4) {
       try {
-        const token = localStorage.getItem('token'); 
-        if (token) {
-           await axios.post('http://localhost:3000/api/gamification/challenge', { challengeId: 'password' }, { headers: { Authorization: `Bearer ${token}` } }).catch(e=>e);
+        // El .catch(e=>e) anterior tragaba el error: el usuario veia "ganaste"
+        // aunque los puntos nunca se hubieran otorgado. Ahora se avisa.
+        try {
+           const { data } = await api.post('/api/gamification/challenge', { challengeId: 'password' });
+           notificarPuntos(data.puntos_estimados, 'Maestro de Contraseñas');
+        } catch (e) {
+           console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
+        }
+        {
         }
       } finally {
         setGameState('won');

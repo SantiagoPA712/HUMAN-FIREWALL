@@ -1,4 +1,6 @@
 const db = require('../config/db');
+const pointsService = require('../services/points.service');
+const eventBus = require('../services/eventBus');
 
 exports.getLeaderboard = async (req, res) => {
     try {
@@ -73,6 +75,18 @@ exports.assignBadge = async (req, res) => {
     }
 };
 
+/**
+ * POST /api/gamification/challenge
+ *
+ * FALLO CORREGIDO: la version anterior hacia INSERT en user_challenge_results
+ * y despues UPDATE users en dos queries sueltas, sin transaccion. Si el UPDATE
+ * fallaba, el UNIQUE(user_id, challenge_id) bloqueaba el reintento y el usuario
+ * perdia los puntos para siempre.
+ *
+ * Ahora el desafio se trata como una evaluacion aprobada: se registra el
+ * intento y se encola quiz.approved. Los puntos los asigna el servicio de
+ * gamificacion de forma asincrona contra el historial inmutable.
+ */
 exports.completeChallenge = async (req, res) => {
     try {
         const { challengeId } = req.body;
@@ -83,34 +97,95 @@ exports.completeChallenge = async (req, res) => {
         const { rows: challengeRows } = await db.query(
             "SELECT * FROM challenges WHERE id = $1", [challengeId]
         );
-
-        if (challengeRows.length === 0) return res.status(404).json({ msg: "Desafío remoto no encontrado" });
+        if (challengeRows.length === 0) return res.status(404).json({ msg: "Desafío no encontrado" });
 
         const challenge = challengeRows[0];
 
-        try {
-            await db.query(
-                "INSERT INTO user_challenge_results (user_id, challenge_id, won) VALUES ($1, $2, true)",
-                [userId, challengeId]
-            );
-            
-            await db.query(
-                "UPDATE users SET total_points = total_points + $1 WHERE id = $2",
-                [challenge.points_reward, userId]
-            );
+        // Registro del resultado. ON CONFLICT DO NOTHING en lugar de dejar
+        // explotar el UNIQUE: repetir un desafio ya ganado no es un error.
+        const { rows: nuevas } = await db.query(
+            `INSERT INTO user_challenge_results (user_id, challenge_id, won)
+             VALUES ($1, $2, true)
+             ON CONFLICT (user_id, challenge_id) DO NOTHING
+             RETURNING id`,
+            [userId, challengeId]
+        );
 
-            res.status(200).json({
-                msg: "Desafío superado con éxito", 
-                points_earned: challenge.points_reward
+        const yaGanado = nuevas.length === 0;
+
+        // Historial de intentos: alimenta la regla de "no duplicar puntos por
+        // el mismo logro" y deja trazabilidad de cada aprobacion.
+        // course_id se guarda desnormalizado: el intento debe conservar a que
+        // curso pertenecia la evaluacion en ese momento, aunque despues cambie.
+        await db.query(
+            `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
+             VALUES ($1, $2, 'challenge', $3, 100, 60, true,
+                     (SELECT COUNT(*) + 1 FROM quiz_attempts WHERE user_id = $1 AND quiz_ref = $2))`,
+            [userId, challengeId, challenge.course_id || null]
+        );
+
+        // Solo se encola si es la primera vez. Aun asi, el servicio vuelve a
+        // verificar contra el historial antes de otorgar nada.
+        if (!yaGanado) {
+            await eventBus.publish('quiz.approved', {
+                userId,
+                quizRef: challengeId,
+                quizType: 'challenge',
+                score: 100,
+                passed: true,
+                basePoints: challenge.points_reward
             });
-
-        } catch (dbError) {
-            if (dbError.code === '23505') { // Postgres Unique Violation
-                return res.status(400).json({ msg: "Ya cobraste los puntos de este desafío." });
-            }
-            throw dbError;
         }
 
+        res.status(200).json({
+            msg: yaGanado ? "Ya habías superado este desafío" : "Desafío superado con éxito",
+            ya_completado: yaGanado,
+            puntos_estimados: yaGanado ? 0 : challenge.points_reward
+        });
+
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/points/:userId
+ *
+ * Criterio tecnico 3: retorna el total acumulado y el detalle paginado del
+ * historial. El control de acceso (propio usuario, admin o rh) lo aplica el
+ * middleware selfOrRoles en la definicion de la ruta.
+ *
+ * Query params: ?page=1&limit=20
+ */
+exports.getUserPoints = async (req, res) => {
+    try {
+        const userId = Number.parseInt(req.params.userId, 10);
+
+        const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
+
+        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
+        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+
+        const resultado = await pointsService.obtenerHistorial(userId, { page, limit });
+        res.status(200).json(resultado);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/points/:userId/rules
+ * Reglas de puntuacion vigentes. Sirve para que el frontend muestre cuantos
+ * puntos otorga cada accion sin hardcodearlos.
+ */
+exports.getPointsRules = async (req, res) => {
+    try {
+        const { rows } = await db.query(
+            `SELECT code, source_type, points_mode, points, allow_repeat, description
+               FROM points_rules WHERE is_active = true ORDER BY source_type`
+        );
+        res.status(200).json(rows);
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }

@@ -2,16 +2,22 @@ import React, { useState } from 'react';
 import { Target, MessageCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import axios from 'axios';
+import { api } from '../../lib/api';
+import { usePuntos } from '../../context/PuntosContext';
 
 export default function SocialEngineeringGame() {
+  const { notificarPuntos } = usePuntos();
   const [gameState, setGameState] = useState('playing'); // playing, won, lost
 
   const submitDecision = async (isCorrect) => {
     try {
-      const token = localStorage.getItem('token'); 
-      if (token) {
-         await axios.post('http://localhost:3000/api/gamification/challenge', { challengeId: 'social' }, { headers: { Authorization: `Bearer ${token}` } }).catch(e=>e);
+      try {
+         const { data } = await api.post('/api/gamification/challenge', { challengeId: 'social' });
+         notificarPuntos(data.puntos_estimados, 'Ingeniería Social');
+      } catch (e) {
+         console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
+      }
+      {
       }
     } finally {
       if(isCorrect) setGameState('won');
