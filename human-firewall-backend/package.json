@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs",
+    "test:migraciones": "node tests/migraciones.test.mjs",
+    "test:gamificacion": "node tests/gamificacion.test.mjs"
   },
   "keywords": [],
   "author": "",
@@ -20,13 +23,13 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
-    "mysql2": "^3.22.2",
     "nodemailer": "^8.0.5",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.20.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "@electric-sql/pglite": "^0.2.0"
   }
 }

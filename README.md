@@ -42,6 +42,16 @@ cp .env.example .env
 npm run dev        # http://localhost:5173
 ```
 
+### 3. Pruebas
+
+```bash
+cd human-firewall-backend
+npm test
+```
+
+Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
+base levantada ni credenciales, y no tocan Supabase. Ver `tests/README.md`.
+
 ---
 
 ## Flujo de trabajo con Git
@@ -88,6 +98,34 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 
 ---
 
+## API de gamificacion
+
+| Metodo | Ruta                                          | Acceso                        |
+|--------|-----------------------------------------------|-------------------------------|
+| GET    | `/api/gamification/points/:userId`             | Propio usuario, admin o rh    |
+| GET    | `/api/gamification/points/rules`               | Autenticado                   |
+| GET    | `/api/gamification/leaderboard`                | Autenticado                   |
+| GET    | `/api/gamification/me`                         | Autenticado                   |
+| POST   | `/api/gamification/challenge`                  | Autenticado                   |
+| POST   | `/api/courses/contents/:contentId/complete`    | Autenticado                   |
+| GET    | `/api/courses/:courseId/progress`              | Autenticado                   |
+
+`GET /points/:userId` acepta `?page=1&limit=20` y devuelve el total acumulado
+junto al detalle paginado del historial.
+
+### Como se asignan los puntos
+
+1. Una accion del usuario (completar leccion, superar desafio) inserta un
+   evento en `event_outbox` y responde de inmediato.
+2. Un worker toma el evento y ejecuta la regla correspondiente de
+   `points_rules`.
+3. La regla inserta un movimiento en `points_ledger`, que es inmutable.
+4. `users.total_points` se recalcula desde el historial, nunca se incrementa
+   a mano.
+
+Cada movimiento lleva una `idempotency_key`, asi que reintentar un evento no
+duplica puntos. Las reglas se editan en la tabla `points_rules` sin tocar codigo.
+
 ## Reparto del sprint
 
 | Historia                                              | Responsable | Rama                          |
@@ -130,22 +168,27 @@ merge.
 
 ---
 
-## Deuda tecnica conocida
+## Deuda tecnica
 
-Fallos detectados y pendientes de correccion:
+### Corregido
 
-1. `simulation.submitDecision` permite sumar puntos ilimitados reenviando la misma opcion.
-2. `gamification.completeChallenge` no usa transaccion: si falla el UPDATE, el usuario
-   pierde los puntos sin poder reintentar.
-3. `config/db.js` desactiva la verificacion TLS de todo el proceso Node.
-4. `JWT_SECRET` tiene un fallback a `'secret'` si falta la variable de entorno.
-5. `user_badges.badge_id` usa `ON DELETE CASCADE`: borrar una insignia del catalogo
-   borra el historial de todos los usuarios.
-6. `init_db.js` esta desincronizado con `schema.sql` (le faltan `challenges` y
-   `user_challenge_results`).
-7. `auth.forgotPassword` devuelve el mensaje de error real, lo que permite enumerar
-   usuarios registrados.
-8. `middlewares/role.middleware.js` esta vacio.
-9. `users.level` nunca se calcula; el dashboard lo muestra fijo en 1.
-10. El frontend tiene `http://localhost:3000` escrito a mano en 6 archivos.
-11. No hay framework de pruebas configurado.
+| # | Fallo | Como se corrigio |
+|---|-------|------------------|
+| 1 | `simulation.submitDecision` permitia sumar puntos ilimitados reenviando la misma opcion | Cada opcion paga una sola vez por usuario, via `idempotency_key` |
+| 2 | `completeChallenge` no usaba transaccion y podia dejar al usuario sin sus puntos sin reintento posible | Reescrito sobre el ledger, con `ON CONFLICT DO NOTHING` y evento reintentable |
+| 8 | `middlewares/role.middleware.js` estaba vacio | Implementado con `selfOrRoles` y `requireRoles` |
+| 10 | `http://localhost:3000` escrito a mano en 6 archivos del frontend | Cliente unico en `src/lib/api.js` con `VITE_API_URL` |
+| 11 | No habia framework de pruebas | 33 pruebas contra PostgreSQL real (`npm test`) |
+| - | Los juegos usaban `.catch(e => e)` y mostraban "ganaste" aunque los puntos fallaran | Ahora se registra el error en consola y no se muestra un exito falso |
+| - | `mysql2` como dependencia en un proyecto 100% PostgreSQL | Eliminada |
+
+### Pendiente
+
+| # | Fallo | Nota |
+|---|-------|------|
+| 3 | `config/db.js` desactiva la verificacion TLS de **todo** el proceso Node | Prioridad alta, fuera del alcance de estas historias |
+| 4 | `JWT_SECRET` cae a `'secret'` si falta la variable | Mitigado con un aviso al arrancar; falta quitar el fallback |
+| 5 | `user_badges.badge_id` usa `ON DELETE CASCADE`: borrar una insignia borra el historial de todos | Se corrige en la HU de recompensas |
+| 6 | `init_db.js` desincronizado con `schema.sql` | Reemplazar por el runner de `migrations/` |
+| 7 | `auth.forgotPassword` devuelve el error real y permite enumerar usuarios registrados | |
+| 9 | `users.level` nunca se calcula; el dashboard lo muestra fijo en 1 | Depende de la HU de niveles |

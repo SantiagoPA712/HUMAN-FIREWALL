@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const pointsService = require('../services/points.service');
 
 exports.createSimulation = async (req, res) => {
     try {
@@ -77,29 +78,51 @@ exports.getSimulationDetails = async (req, res) => {
     }
 };
 
+/**
+ * POST /api/simulations/decision
+ *
+ * FALLO CORREGIDO: la version anterior hacia
+ *     UPDATE users SET total_points = total_points + X
+ * sin registrar el intento. Reenviando el mismo optionId N veces se podian
+ * sumar puntos ilimitados. Ahora cada opcion otorga puntos una sola vez por
+ * usuario, garantizado por la idempotency_key del historial.
+ */
 exports.submitDecision = async (req, res) => {
     try {
         const { optionId } = req.body;
         const userId = req.user.id;
 
-        const { rows: optRows } = await db.query("SELECT * FROM simulation_options WHERE id = $1", [optionId]);
-        
+        if (!optionId) return res.status(400).json({ msg: "optionId es obligatorio" });
+
+        const { rows: optRows } = await db.query(
+            "SELECT * FROM simulation_options WHERE id = $1",
+            [optionId]
+        );
         if (optRows.length === 0) return res.status(404).json({ msg: "Opción no encontrada" });
 
         const option = optRows[0];
-        
-        // Sumar puntos en la base de datos de usuarios (Epic 6 & 7)
+        let puntosOtorgados = 0;
+
         if (option.points_awarded > 0) {
-            await db.query(
-                "UPDATE users SET total_points = total_points + $1 WHERE id = $2",
-                [option.points_awarded, userId]
-            );
+            const movimiento = await pointsService.registrarMovimiento({
+                userId,
+                sourceType: 'simulation',
+                sourceId: option.id,
+                points: option.points_awarded,
+                ruleCode: 'simulation.step',
+                // Una opcion concreta paga una sola vez por usuario.
+                idempotencyKey: `simulation:${userId}:${option.id}`
+            });
+
+            // null significa que ya habia cobrado esta opcion antes.
+            puntosOtorgados = movimiento ? movimiento.points : 0;
         }
 
         res.status(200).json({
             is_correct: option.is_correct,
             feedback: option.feedback_text,
-            points_earned: option.points_awarded
+            points_earned: puntosOtorgados,
+            ya_contabilizada: option.points_awarded > 0 && puntosOtorgados === 0
         });
 
     } catch (error) {
