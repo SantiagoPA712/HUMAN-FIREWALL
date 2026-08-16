@@ -126,7 +126,7 @@ exports.completeLesson = async (req, res) => {
         // ON CONFLICT DO NOTHING: completar dos veces la misma leccion no
         // genera un segundo evento, asi que tampoco duplica puntos.
         const { rows: insertadas } = await db.query(
-            `INSERT INTO lesson_completions (user_id, content_id)
+            `INSERT INTO lesson_progress (user_id, content_id)
              VALUES ($1, $2)
              ON CONFLICT (user_id, content_id) DO NOTHING
              RETURNING id, completed_at`,
@@ -171,7 +171,7 @@ exports.getCourseProgress = async (req, res) => {
                 COUNT(lc.id)::int                                   AS completadas,
                 COALESCE(ARRAY_AGG(lc.content_id) FILTER (WHERE lc.id IS NOT NULL), '{}') AS ids_completados
                FROM course_contents cc
-               LEFT JOIN lesson_completions lc
+               LEFT JOIN lesson_progress lc
                       ON lc.content_id = cc.id AND lc.user_id = $2
               WHERE cc.course_id = $1`,
             [courseId, userId]

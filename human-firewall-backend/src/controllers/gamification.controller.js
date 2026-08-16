@@ -115,11 +115,13 @@ exports.completeChallenge = async (req, res) => {
 
         // Historial de intentos: alimenta la regla de "no duplicar puntos por
         // el mismo logro" y deja trazabilidad de cada aprobacion.
+        // course_id se guarda desnormalizado: el intento debe conservar a que
+        // curso pertenecia la evaluacion en ese momento, aunque despues cambie.
         await db.query(
-            `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, score, passing_score, passed, attempt_no)
-             VALUES ($1, $2, 'challenge', 100, 60, true,
+            `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
+             VALUES ($1, $2, 'challenge', $3, 100, 60, true,
                      (SELECT COUNT(*) + 1 FROM quiz_attempts WHERE user_id = $1 AND quiz_ref = $2))`,
-            [userId, challengeId]
+            [userId, challengeId, challenge.course_id || null]
         );
 
         // Solo se encola si es la primera vez. Aun asi, el servicio vuelve a

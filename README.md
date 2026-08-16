@@ -128,21 +128,89 @@ duplica puntos. Las reglas se editan en la tabla `points_rules` sin tocar codigo
 
 ## Reparto del sprint
 
-| Historia                                              | Responsable | Rama                          |
-|-------------------------------------------------------|-------------|-------------------------------|
-| Asignacion automatica de puntos                        | Santi       | `feat/puntos-automaticos`     |
-| Asignacion de recompensas e insignias                  | Santi       | `feat/recompensas-insignias`  |
-| (por definir)                                          | Companero   | -                             |
-| (por definir)                                          | Companero   | -                             |
+| Historia                                    | Responsable | Rama                          |
+|---------------------------------------------|-------------|-------------------------------|
+| Asignacion automatica de puntos              | Santi       | `feat/puntos-automaticos`     |
+| Recompensas e insignias por logros           | Santi       | `feat/recompensas-insignias`  |
+| Nivel actual y progreso al siguiente nivel   | Companero   | `feat/niveles`                |
+| Recomendaciones personalizadas               | Companero   | `feat/recomendaciones`        |
 
-### Dependencias entre historias
+### Orden obligatorio
 
-El motor de recompensas consume el evento `points_assigned` que emite el motor de
-puntos. Por eso **puntos va primero** y recompensas despues.
+Las cuatro historias dependen de la infraestructura que introduce **puntos
+automaticos**: `points_ledger`, `quiz_attempts`, `lesson_progress`, el bus de
+eventos y el middleware `selfOrRoles`. Esa historia se mergea primero; las otras
+tres se pueden desarrollar en paralelo despues.
 
-Si alguna de las historias del companero lee la tabla `points_ledger` o
-`user_rewards`, hay que acordar el esquema **antes** de empezar a codear, no en el
-merge.
+## Contrato compartido (leer antes de tocar gamificacion)
+
+Todo el modulo se apoya en las mismas piezas. Respetar estos puntos evita
+conflictos de merge y datos inconsistentes.
+
+### 1. La fuente de verdad es `points_ledger`
+
+`users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
+debe hacer `UPDATE users SET total_points = total_points + X`: asi se
+desincronizaban antes. El total se lee de la vista `v_user_points`, que suma el
+historial.
+
+Lo mismo aplica al nivel: se calcula contra `levels_config`, no se lee de
+`users.level`.
+
+### 2. Para reaccionar a puntos nuevos, suscribirse al evento
+
+El servicio de puntos emite `points_assigned` cada vez que otorga puntos. Para
+recalcular el nivel o evaluar recompensas, **no hay que modificar
+`points.service.js`**: alcanza con suscribirse desde el archivo propio.
+
+```js
+const eventBus = require('./eventBus');
+
+eventBus.subscribe('points_assigned', async ({ userId, points, sourceType }) => {
+    // recalcular nivel, evaluar recompensas, etc.
+});
+```
+
+Registrar el handler en `server.js`, junto a `pointsService.registrarHandlers()`.
+Si el handler lanza una excepcion, el evento se reintenta solo con backoff.
+
+### 3. Control de acceso por rol
+
+Los endpoints de `/api/gamification/*` que reciben un `:userId` usan siempre el
+mismo middleware, que ya resuelve la regla propio-usuario / admin / rh:
+
+```js
+const { selfOrRoles } = require('../middlewares/role.middleware');
+
+router.get('/level/:userId',
+    verifyToken(),
+    selfOrRoles(['admin', 'rh'], 'userId'),
+    controlador
+);
+```
+
+Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
+
+### 4. Tablas disponibles
+
+| Tabla            | Contenido                                                        |
+|------------------|------------------------------------------------------------------|
+| `points_ledger`  | Historial inmutable de puntos. Solo INSERT                        |
+| `v_user_points`  | Vista con el total recalculado por usuario                        |
+| `points_rules`   | Reglas de puntuacion configurables                                |
+| `lesson_progress`| Lecciones completadas por usuario                                 |
+| `quiz_attempts`  | Intentos de evaluacion con `score`, `passed` y `course_id`        |
+| `event_outbox`   | Cola de eventos con reintentos                                    |
+
+`quiz_attempts.course_id` guarda a que curso pertenecia la evaluacion en el
+momento del intento. `simulations` y `challenges` tambien tienen `course_id`
+nullable, agregado para que las recomendaciones puedan relacionar una
+evaluacion con lecciones de refuerzo del mismo curso.
+
+### 5. Rangos de migraciones
+
+Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
+`main` no se edita: se corrige con una nueva.
 
 ---
 

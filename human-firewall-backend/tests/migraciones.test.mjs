@@ -66,11 +66,11 @@ check('event_outbox arranca en pending', o.status==='pending' && o.attempts===0)
 const { rows:[v2] } = await db.query(`SELECT total_points FROM v_user_points WHERE user_id=$1`,[uid]);
 check('total refleja el ajuste negativo', v2.total_points===80, `(dio ${v2.total_points})`);
 
-// quiz_attempts y lesson_completions
+// quiz_attempts y lesson_progress
 await db.exec(`INSERT INTO courses (title) VALUES ('Curso 1');
                INSERT INTO course_contents (course_id, content_type, body, points_reward) VALUES (1,'text','Leccion 1',15);`);
-await db.query(`INSERT INTO lesson_completions (user_id, content_id) VALUES ($1,1)`,[uid]);
-try { await db.query(`INSERT INTO lesson_completions (user_id, content_id) VALUES ($1,1)`,[uid]); check('leccion no se completa dos veces', false, '(duplico!)'); }
+await db.query(`INSERT INTO lesson_progress (user_id, content_id) VALUES ($1,1)`,[uid]);
+try { await db.query(`INSERT INTO lesson_progress (user_id, content_id) VALUES ($1,1)`,[uid]); check('leccion no se completa dos veces', false, '(duplico!)'); }
 catch (e) { check('leccion no se completa dos veces', /duplicate key/i.test(msg(e))); }
 
 await db.query(`INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, score, passed) VALUES ($1,'wifi','challenge',80,true)`,[uid]);
@@ -79,6 +79,28 @@ check('quiz_attempts registra intento aprobado', qa.n===1);
 
 try { await db.query(`INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, score, passed) VALUES ($1,'wifi','challenge',150,true)`,[uid]); check('score fuera de rango rechazado', false, '(acepto 150!)'); }
 catch (e) { check('score fuera de rango rechazado', /check constraint/i.test(msg(e))); }
+
+// --- Enlace evaluaciones-cursos (lo necesita la HU de recomendaciones) ---
+await db.query(`UPDATE challenges SET course_id = 1 WHERE id = 'wifi'`);
+const { rows:[ch] } = await db.query(`SELECT course_id FROM challenges WHERE id='wifi'`);
+check('challenges puede asociarse a un curso', ch.course_id === 1);
+
+await db.exec(`INSERT INTO simulations (title, course_id) VALUES ('Sim con curso', 1)`);
+const { rows:[si] } = await db.query(`SELECT course_id FROM simulations WHERE title='Sim con curso'`);
+check('simulations puede asociarse a un curso', si.course_id === 1);
+
+await db.query(`INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passed)
+                VALUES ($1,'wifi','challenge',1,90,true)`, [uid]);
+const { rows:[qc] } = await db.query(
+  `SELECT COUNT(*)::int n FROM quiz_attempts WHERE user_id=$1 AND course_id=1`, [uid]);
+check('el intento conserva el curso al que pertenecia', qc.n === 1);
+
+// Borrar el curso no debe borrar el historial de intentos
+await db.query(`DELETE FROM course_contents WHERE course_id = 1`);
+await db.query(`DELETE FROM lesson_progress WHERE content_id IN (SELECT id FROM course_contents)`);
+await db.query(`DELETE FROM courses WHERE id = 1`);
+const { rows:[qd] } = await db.query(`SELECT COUNT(*)::int n FROM quiz_attempts WHERE user_id=$1`, [uid]);
+check('borrar un curso no borra el historial de intentos', qd.n >= 1, `(quedan ${qd.n})`);
 
 console.log(`\nRESULTADO: ${ok} OK, ${fallos} fallos`);
 process.exit(fallos>0?1:0);
