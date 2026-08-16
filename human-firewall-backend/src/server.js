@@ -13,8 +13,10 @@ const app = require('./app');
 // --- Gamificacion: cola de eventos asincrona ---
 const eventBus = require('./services/eventBus');
 const pointsService = require('./services/points.service');
+const rewardsService = require('./services/rewards.service');
 
 pointsService.registrarHandlers();
+rewardsService.registrarHandlers();
 eventBus.iniciarWorker();
 
 const PORT = process.env.PORT || 3000;

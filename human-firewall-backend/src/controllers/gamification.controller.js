@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const pointsService = require('../services/points.service');
 const eventBus = require('../services/eventBus');
+const rewardsService = require('../services/rewards.service');
 
 exports.getLeaderboard = async (req, res) => {
     try {
@@ -24,11 +25,15 @@ exports.getMyStatus = async (req, res) => {
 
         if (userRows.length === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
 
+        // Los datos salen del snapshot guardado en user_rewards, no del
+        // catalogo: asi la respuesta no cambia si la recompensa se edito o se
+        // elimino despues de otorgarse.
         const { rows: badgeRows } = await db.query(`
-            SELECT b.name, b.description, b.icon_url, ub.earned_at 
-            FROM user_badges ub 
-            JOIN badges b ON ub.badge_id = b.id 
-            WHERE ub.user_id = $1
+            SELECT reward_name AS name, reward_description AS description,
+                   reward_icon_url AS icon_url, earned_at
+            FROM user_rewards
+            WHERE user_id = $1
+            ORDER BY earned_at DESC
         `, [userId]);
 
         res.status(200).json({
@@ -42,34 +47,71 @@ exports.getMyStatus = async (req, res) => {
 
 exports.createBadge = async (req, res) => {
     try {
-        const { name, description, points_required, icon_url } = req.body;
+        const {
+            name, description, icon_url,
+            condition_type = 'points_total',
+            threshold,
+            points_required,
+            is_repeatable = false
+        } = req.body;
+
         if (!name) return res.status(400).json({ msg: "El nombre de la insignia es obligatorio" });
 
+        // points_required se sigue aceptando por compatibilidad con el cliente
+        // viejo, pero internamente ya es un parametro de condicion mas.
+        const umbral = threshold != null ? threshold : (points_required || 0);
+
         const { rows } = await db.query(
-            "INSERT INTO badges (name, description, points_required, icon_url) VALUES ($1, $2, $3, $4) RETURNING *",
-            [name, description, points_required || 0, icon_url]
+            `INSERT INTO rewards_catalog
+                (name, description, icon_url, condition_type, condition_params, is_repeatable, points_required)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING *`,
+            [name, description, icon_url, condition_type,
+             JSON.stringify({ threshold: umbral }), is_repeatable, umbral]
         );
 
         res.status(201).json(rows[0]);
     } catch (error) {
+        if (error.code === '23514') {
+            return res.status(400).json({ msg: "Tipo de condicion no valido" });
+        }
         res.status(500).json({ msg: error.message });
     }
 };
 
 exports.assignBadge = async (req, res) => {
     try {
-        const { user_id, badge_id } = req.body;
+        // badge_id se mantiene como alias por compatibilidad.
+        const { user_id, reward_id, badge_id } = req.body;
+        const recompensaId = reward_id || badge_id;
 
-        const { rows } = await db.query(
-            "INSERT INTO user_badges (user_id, badge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *",
-            [user_id, badge_id]
+        if (!user_id || !recompensaId) {
+            return res.status(400).json({ msg: "user_id y reward_id son obligatorios" });
+        }
+
+        const { rows: catalogo } = await db.query(
+            "SELECT * FROM rewards_catalog WHERE id = $1",
+            [recompensaId]
         );
+        if (catalogo.length === 0) {
+            return res.status(404).json({ msg: "Recompensa no encontrada en el catalogo" });
+        }
 
-        if (rows.length === 0) {
+        // Se otorga por el mismo camino que el motor automatico, para que la
+        // asignacion manual tambien quede con snapshot y sin duplicados.
+        const otorgada = await rewardsService.otorgarRecompensa({
+            recompensa: catalogo[0],
+            userId: user_id,
+            sourceType: 'manual',
+            sourceId: req.user.id,
+            valorAlcanzado: null
+        });
+
+        if (!otorgada) {
             return res.status(200).json({ msg: "El usuario ya tiene esta insignia" });
         }
 
-        res.status(201).json({ msg: "Insignia asignada exitosamente", data: rows[0] });
+        res.status(201).json({ msg: "Insignia asignada exitosamente", data: otorgada });
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
@@ -184,6 +226,49 @@ exports.getPointsRules = async (req, res) => {
         const { rows } = await db.query(
             `SELECT code, source_type, points_mode, points, allow_repeat, description
                FROM points_rules WHERE is_active = true ORDER BY source_type`
+        );
+        res.status(200).json(rows);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/rewards/:userId
+ *
+ * Criterio tecnico 4: recompensas obtenidas por el usuario, con las mismas
+ * reglas de acceso por rol que el resto del modulo. El control lo aplica
+ * selfOrRoles en la definicion de la ruta.
+ *
+ * Devuelve tambien las bloqueadas, con el progreso hacia cada una, para la
+ * galeria de logros.
+ */
+exports.getUserRewards = async (req, res) => {
+    try {
+        const userId = Number.parseInt(req.params.userId, 10);
+
+        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
+        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+
+        const resultado = await rewardsService.obtenerRecompensasDeUsuario(userId);
+        res.status(200).json(resultado);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/rewards
+ * Catalogo completo de recompensas activas.
+ */
+exports.getRewardsCatalog = async (req, res) => {
+    try {
+        const { rows } = await db.query(
+            `SELECT id, name, description, icon_url, condition_type,
+                    condition_params, is_repeatable
+               FROM rewards_catalog
+              WHERE is_active = true
+              ORDER BY condition_type, id`
         );
         res.status(200).json(rows);
     } catch (error) {

@@ -14,6 +14,7 @@ import WifiGame from './pages/simulations/WifiGame';
 import PasswordGame from './pages/simulations/PasswordGame';
 import SocialEngineeringGame from './pages/simulations/SocialEngineeringGame';
 import PointsHistory from './pages/PointsHistory';
+import RewardsGallery from './pages/RewardsGallery';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/challenges" element={<ChallengesHub />} />
         <Route path="/points" element={<PointsHistory />} />
+        <Route path="/rewards" element={<RewardsGallery />} />
         
         {/* Rutas Simulaciones */}
         <Route path="/simulation/phishing" element={<PhishingGame />} />

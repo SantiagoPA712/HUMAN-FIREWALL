@@ -17,6 +17,15 @@ router.get('/points/:userId',
     gamificationController.getUserPoints
 );
 
+// Recompensas e insignias (HU: recompensas por cumplimiento de logros)
+// El catalogo va antes que /:userId para que "rewards" no se lea como un id.
+router.get('/rewards', verifyToken(), gamificationController.getRewardsCatalog);
+router.get('/rewards/:userId',
+    verifyToken(),
+    selfOrRoles(['admin', 'rh'], 'userId'),
+    gamificationController.getUserRewards
+);
+
 // Administración de insignias y recompensas
 router.post('/badges', verifyToken(['admin']), gamificationController.createBadge);
 router.post('/badges/assign', verifyToken(['admin', 'instructor']), gamificationController.assignBadge);

@@ -50,7 +50,8 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Ver `tests/README.md`.
+base levantada ni credenciales, y no tocan Supabase. Son 56 pruebas sobre
+migraciones, asignacion de puntos y motor de recompensas. Ver `tests/README.md`.
 
 ---
 
@@ -109,6 +110,8 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | POST   | `/api/gamification/challenge`                  | Autenticado                   |
 | POST   | `/api/courses/contents/:contentId/complete`    | Autenticado                   |
 | GET    | `/api/courses/:courseId/progress`              | Autenticado                   |
+| GET    | `/api/gamification/rewards/:userId`            | Propio usuario, admin o rh    |
+| GET    | `/api/gamification/rewards`                    | Autenticado                   |
 
 `GET /points/:userId` acepta `?page=1&limit=20` y devuelve el total acumulado
 junto al detalle paginado del historial.
@@ -125,6 +128,24 @@ junto al detalle paginado del historial.
 
 Cada movimiento lleva una `idempotency_key`, asi que reintentar un evento no
 duplica puntos. Las reglas se editan en la tabla `points_rules` sin tocar codigo.
+
+### Como se otorgan las recompensas
+
+1. Tras cada `points_assigned`, `course.completed` o `quiz.approved`, el motor
+   revisa **todas** las recompensas activas de `rewards_catalog`.
+2. Cada recompensa define un `condition_type` y un umbral en `condition_params`:
+   `points_total`, `lessons_completed`, `courses_completed`, `quizzes_approved`
+   o `quiz_streak`.
+3. Si la condicion se cumple, se inserta en `user_rewards` **con un snapshot**
+   del nombre, la descripcion y el icono tal como estaban en ese momento.
+4. Editar o eliminar la recompensa del catalogo no altera lo ya otorgado.
+
+Las no repetibles se otorgan una sola vez; las repetibles, una vez por logro
+que las dispara. Ambos casos se controlan con `dedupe_key`, el mismo patron que
+usa `points_ledger`.
+
+Para agregar un tipo de condicion nuevo: una entrada en `CALCULADORES`
+(`rewards.service.js`) y un valor mas en el CHECK de la migracion `006`.
 
 ## Reparto del sprint
 
@@ -201,6 +222,8 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `lesson_progress`| Lecciones completadas por usuario                                 |
 | `quiz_attempts`  | Intentos de evaluacion con `score`, `passed` y `course_id`        |
 | `event_outbox`   | Cola de eventos con reintentos                                    |
+| `rewards_catalog`| Catalogo de recompensas con condiciones configurables             |
+| `user_rewards`   | Historial inmutable de recompensas, con snapshot. Solo INSERT     |
 
 `quiz_attempts.course_id` guarda a que curso pertenecia la evaluacion en el
 momento del intento. `simulations` y `challenges` tambien tienen `course_id`
@@ -249,6 +272,9 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | 11 | No habia framework de pruebas | 33 pruebas contra PostgreSQL real (`npm test`) |
 | - | Los juegos usaban `.catch(e => e)` y mostraban "ganaste" aunque los puntos fallaran | Ahora se registra el error en consola y no se muestra un exito falso |
 | - | `mysql2` como dependencia en un proyecto 100% PostgreSQL | Eliminada |
+| 5 | `user_badges.badge_id` con `ON DELETE CASCADE`: borrar una insignia borraba el historial de todos los usuarios | Se elimino la clave foranea y se guarda un snapshot; el historial ya no depende del catalogo |
+| - | Las insignias nunca se otorgaban solas, solo manualmente por un admin | Motor de evaluacion automatico sobre eventos |
+| - | Un curso nunca se marcaba como finalizado | `completeLesson` cierra la asignacion y emite `course.completed` |
 
 ### Pendiente
 
@@ -256,7 +282,6 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 |---|-------|------|
 | 3 | `config/db.js` desactiva la verificacion TLS de **todo** el proceso Node | Prioridad alta, fuera del alcance de estas historias |
 | 4 | `JWT_SECRET` cae a `'secret'` si falta la variable | Mitigado con un aviso al arrancar; falta quitar el fallback |
-| 5 | `user_badges.badge_id` usa `ON DELETE CASCADE`: borrar una insignia borra el historial de todos | Se corrige en la HU de recompensas |
 | 6 | `init_db.js` desincronizado con `schema.sql` | Reemplazar por el runner de `migrations/` |
 | 7 | `auth.forgotPassword` devuelve el error real y permite enumerar usuarios registrados | |
 | 9 | `users.level` nunca se calcula; el dashboard lo muestra fijo en 1 | Depende de la HU de niveles |

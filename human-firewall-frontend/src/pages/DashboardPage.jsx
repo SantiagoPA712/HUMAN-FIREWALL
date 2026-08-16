@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
+import { usePuntos } from '../context/PuntosContext';
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState("Admin");
+  const { recompensas } = usePuntos();
   
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -29,6 +31,10 @@ export default function DashboardPage() {
           <a href="/challenges" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <Target className="w-5 h-5" />
             Desafíos & Retos
+          </a>
+          <a href="/rewards" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+            <Award className="w-5 h-5" />
+            Mis Logros
           </a>
           <a href="/courses" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <BookOpen className="w-5 h-5" />
@@ -76,9 +82,24 @@ export default function DashboardPage() {
 
           <Card className="p-6 bg-gradient-to-br from-brand-dark/40 to-brand-blue/20">
             <h3 className="text-lg font-bold mb-2 text-brand-light">Insignias Ganadas</h3>
-            <div className="flex gap-2">
-              <span className="text-sm text-text-secondary">Aún no tienes insignias. ¡Completa tu primer curso!</span>
-            </div>
+            {recompensas.length === 0 ? (
+              <span className="text-sm text-text-secondary">Aún no tienes insignias. ¡Completa tu primera lección!</span>
+            ) : (
+              <>
+                <div className="text-4xl font-black text-brand-light mb-2">{recompensas.length}</div>
+                <div className="flex flex-wrap gap-1 text-xs text-text-secondary">
+                  {recompensas.slice(0, 3).map(r => (
+                    <span key={r.id} className="rounded-full border border-brand-blue/40 px-2 py-0.5">
+                      {r.reward_name}
+                    </span>
+                  ))}
+                  {recompensas.length > 3 && <span className="px-1">+{recompensas.length - 3}</span>}
+                </div>
+              </>
+            )}
+            <a href="/rewards" className="mt-3 inline-block text-sm text-brand-light hover:underline">
+              Ver mis logros
+            </a>
           </Card>
         </div>
 
