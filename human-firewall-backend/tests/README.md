@@ -13,6 +13,7 @@ npm test
 |---------------------------|---------------------------------------------------------------------|
 | `migraciones.test.mjs`    | Que las migraciones apliquen y que las restricciones funcionen: trigger de inmutabilidad, idempotencia, CHECKs, recalculo de totales |
 | `gamificacion.test.mjs`   | El flujo asincrono completo: evento encolado, puntos asignados por regla, sin duplicados, backoff ante fallos, paginacion |
+| `recompensas.test.mjs`    | Migracion de `badges` sin perder datos, otorgamiento automatico por condicion, repetibles vs no repetibles, y que el snapshot sobreviva a editar o borrar el catalogo |
 
 Las pruebas de gamificacion inyectan un adaptador de PGlite en lugar del pool
 de `pg`, asi que ejercitan el codigo real de `eventBus.js` y `points.service.js`.

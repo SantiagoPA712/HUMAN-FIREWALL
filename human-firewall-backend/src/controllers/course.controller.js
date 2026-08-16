@@ -143,7 +143,42 @@ exports.completeLesson = async (req, res) => {
 
         await eventBus.publish('lesson.completed', { userId, contentId });
 
+        // Si con esta leccion el usuario termino el curso, se marca la
+        // asignacion y se emite course.completed. Sin esto, la condicion
+        // "cursos finalizados" del catalogo de recompensas nunca se cumpliria:
+        // no habia nada en el sistema que cerrara un curso.
+        const courseId = contentRows[0].course_id;
+        const { rows: pendientes } = await db.query(
+            `SELECT COUNT(*)::int AS faltan
+               FROM course_contents cc
+              WHERE cc.course_id = $1
+                AND NOT EXISTS (
+                    SELECT 1 FROM lesson_progress lp
+                     WHERE lp.content_id = cc.id AND lp.user_id = $2
+                )`,
+            [courseId, userId]
+        );
+
+        let cursoCompletado = false;
+        if (pendientes[0].faltan === 0) {
+            const { rows: cerradas } = await db.query(
+                `UPDATE course_assignments
+                    SET status = 'completed', completed_at = now()
+                  WHERE course_id = $1 AND user_id = $2 AND status <> 'completed'
+                  RETURNING id`,
+                [courseId, userId]
+            );
+
+            // Solo se emite si la asignacion paso a completada en esta llamada,
+            // para no disparar el evento cada vez que se reabre el curso.
+            if (cerradas.length > 0) {
+                cursoCompletado = true;
+                await eventBus.publish('course.completed', { userId, courseId });
+            }
+        }
+
         res.status(201).json({
+            curso_completado: cursoCompletado,
             msg: "Leccion completada",
             ya_completada: false,
             content_id: contentId,
