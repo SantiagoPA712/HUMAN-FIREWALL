@@ -1,0 +1,122 @@
+{
+  "info": {
+    "name": "Human Firewall API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api"
+    },
+    {
+      "key": "token",
+      "value": "pega_tu_token_aqui"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Autenticación",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"usuario@test.com\",\n    \"password\": \"TuPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Cursos",
+      "item": [
+        {
+          "name": "Crear Curso (Admin/Inst)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Introducción a Phishing\",\n    \"description\": \"Curso básico sobre suplantación de identidad\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/courses",
+              "host": ["{{base_url}}"],
+              "path": ["courses"]
+            }
+          }
+        },
+        {
+          "name": "Ver Cursos",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/courses",
+              "host": ["{{base_url}}"],
+              "path": ["courses"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Simulaciones",
+      "item": [
+        {
+          "name": "Crear Simulación",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Ataque de Ransomware Simul.\",\n    \"description\": \"Escenario donde la pantalla se bloquea.\",\n    \"difficulty\": \"intermediate\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/simulations",
+              "host": ["{{base_url}}"],
+              "path": ["simulations"]
+            }
+          }
+        },
+        {
+          "name": "Registrar Decisión de Usuario",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"optionId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/simulations/submit-decision",
+              "host": ["{{base_url}}"],
+              "path": ["simulations", "submit-decision"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

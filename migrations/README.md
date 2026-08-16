@@ -1,0 +1,41 @@
+# Migraciones
+
+Cada cambio en la base de datos va en un archivo **nuevo y numerado**. Nadie edita
+`schema.sql` ni `init_db.js` directamente.
+
+## Por que
+
+Las cuatro historias de usuario del sprint tocan tablas de gamificacion. Si dos personas
+editan `schema.sql` a la vez, Git genera un conflicto en cada push. Con un archivo por
+migracion, Git no tiene nada que resolver: son archivos distintos.
+
+## Convencion de nombres
+
+```
+NNN_descripcion_corta.sql
+```
+
+Ejemplo: `001_points_ledger.sql`
+
+## Rangos reservados
+
+Para que los numeros no choquen, cada integrante tiene su propio rango:
+
+| Integrante | Rango     | Historias                          |
+|------------|-----------|------------------------------------|
+| Santi      | 001 - 019 | Puntos automaticos + Recompensas   |
+| Companero  | 020 - 039 | (sus dos historias)                |
+| Comunes    | 090 - 099 | Cambios acordados entre los dos    |
+
+## Reglas
+
+1. Una migracion ya mergeada a `main` **no se edita jamas**. Si algo salio mal, se
+   corrige con una migracion nueva.
+2. Toda migracion debe poder ejecutarse sobre una base que ya la tiene aplicada sin
+   romper: usar `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `ON CONFLICT DO NOTHING`.
+3. Si tu migracion depende de una tabla que crea otra migracion, decilo en un comentario
+   al inicio del archivo.
+
+## Como aplicarlas
+
+Por ahora, manualmente en el editor SQL de Supabase, en orden numerico ascendente.

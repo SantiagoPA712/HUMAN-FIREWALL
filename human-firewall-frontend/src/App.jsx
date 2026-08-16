@@ -1,0 +1,45 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import DashboardPage from './pages/DashboardPage';
+import PhishingGame from './pages/simulations/PhishingGame';
+import RansomwareGame from './pages/simulations/RansomwareGame';
+import AdminDashboard from './pages/AdminDashboard';
+import ChallengesHub from './pages/ChallengesHub';
+import WifiGame from './pages/simulations/WifiGame';
+import PasswordGame from './pages/simulations/PasswordGame';
+import SocialEngineeringGame from './pages/simulations/SocialEngineeringGame';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/challenges" element={<ChallengesHub />} />
+        
+        {/* Rutas Simulaciones */}
+        <Route path="/simulation/phishing" element={<PhishingGame />} />
+        <Route path="/simulation/ransomware" element={<RansomwareGame />} />
+        <Route path="/simulation/password" element={<PasswordGame />} />
+        <Route path="/simulation/wifi" element={<WifiGame />} />
+        <Route path="/simulation/social" element={<SocialEngineeringGame />} />
+        
+        {/* Rutas Admin */}
+        <Route path="/admin" element={<AdminDashboard />} />
+
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
