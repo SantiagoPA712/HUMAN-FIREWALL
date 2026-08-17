@@ -1,7 +1,11 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 
-const DIR = new URL('../../', import.meta.url).pathname;
+// fileURLToPath en lugar de .pathname: en Windows, .pathname devuelve
+// "/C:/..." con los espacios y acentos codificados (%20, %C3%A1), y la ruta
+// resultante no existe. fileURLToPath decodifica y resuelve la unidad.
+const DIR = fileURLToPath(new URL('../../', import.meta.url));
 const db = new PGlite();
 let fallos = 0, ok = 0;
 const check = (n, cond, extra='') => {

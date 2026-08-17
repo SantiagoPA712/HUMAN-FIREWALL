@@ -1,8 +1,12 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'module';
 
-const DIR = new URL('../../', import.meta.url).pathname;
+// fileURLToPath en lugar de .pathname: en Windows, .pathname devuelve
+// "/C:/..." con los espacios y acentos codificados (%20, %C3%A1), y la ruta
+// resultante no existe. fileURLToPath decodifica y resuelve la unidad.
+const DIR = fileURLToPath(new URL('../../', import.meta.url));
 const BACK = `${DIR}human-firewall-backend/src`;
 const require_ = createRequire(`${BACK}/server.js`);
 
