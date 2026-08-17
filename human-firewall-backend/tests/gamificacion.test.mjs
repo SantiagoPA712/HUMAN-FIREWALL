@@ -16,9 +16,21 @@ const check = (n, c, e='') => { if (c) { console.log(`  OK    ${n}`); ok++; } el
 
 // Adaptador: expone la API de pg.Pool que usa el codigo (query + connect).
 // PGlite es una sola sesion, asi que BEGIN/COMMIT funcionan como SQL normal.
+// El adaptador lleva la cuenta de conexiones tomadas y devueltas.
+// Antes tenia un release() vacio, y eso escondio una fuga real: el worker se
+// quedaba con la conexion cuando no habia eventos pendientes y agotaba el pool
+// en produccion. Con este contador, una fuga asi hace fallar la prueba.
+let conexionesAbiertas = 0;
 const adapter = {
   query: (t, p) => pg.query(t, p),
-  connect: async () => ({ query: (t, p) => pg.query(t, p), release: () => {} })
+  connect: async () => {
+    conexionesAbiertas++;
+    let devuelta = false;
+    return {
+      query: (t, p) => pg.query(t, p),
+      release: () => { if (!devuelta) { devuelta = true; conexionesAbiertas--; } }
+    };
+  }
 };
 
 // Inyecta el adaptador en lugar del modulo real de conexion.
@@ -121,6 +133,17 @@ for (let i=0;i<5;i++) await points.registrarMovimiento({userId:uid, sourceType:'
 const h = await points.obtenerHistorial(uid, { page:1, limit:3 });
 check('historial pagina correctamente', h.historial.length===3 && h.movimientos===8, `(${h.historial.length} filas, ${h.movimientos} mov.)`);
 check('el total acompana al historial', h.total_points===310, `(${h.total_points})`);
+
+// Regresion directa del bug: drenar la cola vacia muchas veces no debe
+// consumir conexiones. Con el release() mal ubicado, esto dejaba 20 abiertas.
+await pg.query(`UPDATE event_outbox SET status='done' WHERE status='pending'`);
+const antes = conexionesAbiertas;
+for (let i = 0; i < 20; i++) await eventBus.procesarUno();
+check('drenar la cola vacia no filtra conexiones', conexionesAbiertas === antes,
+      `(paso de ${antes} a ${conexionesAbiertas})`);
+
+check('todas las conexiones se devolvieron al pool', conexionesAbiertas === 0,
+      `(quedaron ${conexionesAbiertas} sin devolver)`);
 
 console.log(`\nRESULTADO: ${ok} OK, ${fallos} fallos`);
 process.exit(fallos>0?1:0);

@@ -97,7 +97,7 @@ export default function DashboardPage() {
                 </div>
               </>
             )}
-            <a href="/rewards" className="mt-3 inline-block text-sm text-brand-light hover:underline">
+            <a href="/rewards" className="mt-3 block text-sm text-brand-light hover:underline">
               Ver mis logros
             </a>
           </Card>

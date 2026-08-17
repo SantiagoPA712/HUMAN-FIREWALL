@@ -102,11 +102,16 @@ async function procesarUno() {
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
-        client.release();
         throw err;
+    } finally {
+        // Tiene que ser finally, no una llamada al final del try.
+        // Con release() suelto, el `return false` de "no hay pendientes" se
+        // llevaba la conexion sin devolverla. Como el worker corre cada 5
+        // segundos, filtraba una por vuelta y en menos de un minuto agotaba
+        // el pool (10 conexiones por defecto): a partir de ahi, cualquier
+        // consulta de la aplicacion quedaba esperando para siempre.
+        client.release();
     }
-
-    client.release();
 
     // Los handlers corren fuera de la transaccion de reserva: si tardan, no
     // mantienen bloqueada la fila del outbox.

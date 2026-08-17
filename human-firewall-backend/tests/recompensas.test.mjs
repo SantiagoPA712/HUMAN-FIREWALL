@@ -14,9 +14,21 @@ let ok = 0, fallos = 0;
 const check = (n, c, e='') => { if (c) { console.log(`  OK    ${n}`); ok++; } else { console.log(`  FALLA ${n} ${e}`); fallos++; } };
 const msg = e => e?.message || String(e);
 
+// El adaptador lleva la cuenta de conexiones tomadas y devueltas.
+// Antes tenia un release() vacio, y eso escondio una fuga real: el worker se
+// quedaba con la conexion cuando no habia eventos pendientes y agotaba el pool
+// en produccion. Con este contador, una fuga asi hace fallar la prueba.
+let conexionesAbiertas = 0;
 const adapter = {
   query: (t, p) => pg.query(t, p),
-  connect: async () => ({ query: (t, p) => pg.query(t, p), release: () => {} })
+  connect: async () => {
+    conexionesAbiertas++;
+    let devuelta = false;
+    return {
+      query: (t, p) => pg.query(t, p),
+      release: () => { if (!devuelta) { devuelta = true; conexionesAbiertas--; } }
+    };
+  }
 };
 const dbPath = require_.resolve('./config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
@@ -143,6 +155,9 @@ await pg.exec(`INSERT INTO users (email,password,role) VALUES ('otro@hf.com','x'
 const { rows:[o] } = await pg.query(`SELECT id FROM users WHERE email='otro@hf.com'`);
 const otra = await rewards.obtenerRecompensasDeUsuario(o.id);
 check('otro usuario no hereda recompensas ajenas', otra.total_obtenidas === 0, `(${otra.total_obtenidas})`);
+
+check('todas las conexiones se devolvieron al pool', conexionesAbiertas === 0,
+      `(quedaron ${conexionesAbiertas} sin devolver)`);
 
 console.log(`\nRESULTADO: ${ok} OK, ${fallos} fallos`);
 process.exit(fallos > 0 ? 1 : 0);
