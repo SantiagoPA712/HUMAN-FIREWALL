@@ -39,13 +39,18 @@ require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: 
 
 // Esquema + migraciones
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
-for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_tracking','004_event_outbox','005_rol_rh'])
+for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_tracking','004_event_outbox','005_rol_rh','006_rewards_catalog','007_user_rewards','008_desafios_faltantes'])
   await pg.exec(readFileSync(`${DIR}migrations/${f}.sql`, 'utf8'));
 console.log('Esquema y migraciones listos\n');
 
 const eventBus = require_('./services/eventBus');
 const points   = require_('./services/points.service');
+const rewards  = require_('./services/rewards.service');
+
+// Igual que en server.js: los dos motores escuchan el bus. Sin registrar
+// recompensas, nada evalua las condiciones y los logros nunca se otorgan.
 points.registrarHandlers();
+rewards.registrarHandlers();
 
 // Datos
 await pg.exec(`
@@ -187,6 +192,42 @@ check('repetir el desafio no duplica puntos', r2.cuerpo?.ya_completado === true 
 const r3 = await llamar(gamificacion.completeChallenge,
   { body: { challengeId: 'no-existe' }, user: { id: uid, role: 'employee' } });
 check('desafio inexistente devuelve 404', r3.estado === 404, `(estado ${r3.estado})`);
+
+// --- TODOS LOS DESAFIOS DEL PORTAL ---
+// El portal ofrece cinco. Antes solo tres existian en la base, y los otros dos
+// mostraban su pantalla de victoria sin otorgar nada.
+console.log('\n--- LOS CINCO DESAFIOS ---');
+const { rows: catalogoDesafios } = await pg.query(`SELECT id, name, points_reward FROM challenges ORDER BY id`);
+check('estan los cinco desafios del portal', catalogoDesafios.length === 5, `(hay ${catalogoDesafios.length})`);
+
+await pg.exec(`INSERT INTO users (email,password,role) VALUES ('jugador@hf.com','x','employee')`);
+const { rows:[jug] } = await pg.query(`SELECT id FROM users WHERE email='jugador@hf.com'`);
+let esperado = 0;
+
+for (const d of catalogoDesafios) {
+  const r = await llamar(gamificacion.completeChallenge,
+    { body: { challengeId: d.id }, user: { id: jug.id, role: 'employee' } });
+  await eventBus.procesarPendientes();
+
+  esperado += d.points_reward;
+  const { rows:[t] } = await pg.query(`SELECT total_points FROM v_user_points WHERE user_id=$1`, [jug.id]);
+  check(`el desafio "${d.name}" suma ${d.points_reward} puntos`,
+        r.estado === 200 && t.total_points === esperado,
+        `(total ${t.total_points}, esperado ${esperado})`);
+}
+
+// Con los cinco superados: 750 puntos y racha de 5
+const { rows:[final] } = await pg.query(`SELECT total_points FROM v_user_points WHERE user_id=$1`, [jug.id]);
+check('los cinco desafios suman el total del catalogo', final.total_points === esperado, `(${final.total_points})`);
+
+const logros = await rewards.obtenerRecompensasDeUsuario(jug.id);
+const nombres = logros.obtenidas.map(r => r.reward_name);
+check('desbloquea "Centinela" al pasar los 500 puntos', nombres.includes('Centinela'), `(${nombres.join(', ')})`);
+check('desbloquea "Sin Fallar" con la racha de aprobadas', nombres.includes('Sin Fallar'), `(${nombres.join(', ')})`);
+
+const guardian = logros.bloqueadas.find(b => b.name === 'Guardian');
+check('el progreso de los logros bloqueados avanza',
+      guardian?.progreso === esperado, `(${guardian?.progreso} de ${guardian?.threshold})`);
 
 check('todas las conexiones se devolvieron al pool', conexionesAbiertas === 0,
       `(quedaron ${conexionesAbiertas} sin devolver)`);

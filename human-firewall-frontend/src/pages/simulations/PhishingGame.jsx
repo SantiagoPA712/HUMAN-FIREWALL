@@ -1,16 +1,30 @@
 import React, { useState } from 'react';
 import { ShieldAlert, CheckCircle, Mail, Paperclip, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
+import { api } from '../../lib/api';
+import { usePuntos } from '../../context/PuntosContext';
 import { Button } from '../../components/ui/Button';
 
 export default function PhishingGame() {
   const [gameState, setGameState] = useState('playing'); // 'playing', 'won', 'lost'
-  
-  const handleDecision = (decision) => {
-    if (decision === 'report') {
-      setGameState('won');
-    } else {
+  const [puntosGanados, setPuntosGanados] = useState(0);
+  const { notificarPuntos } = usePuntos();
+
+  const handleDecision = async (decision) => {
+    if (decision !== 'report') {
       setGameState('lost');
+      return;
+    }
+
+    setGameState('won');
+
+    // Los puntos los define la base (challenges.points_reward), no la pantalla.
+    try {
+      const { data } = await api.post('/api/gamification/challenge', { challengeId: 'phishing' });
+      setPuntosGanados(data.puntos_estimados);
+      notificarPuntos(data.puntos_estimados, 'Detector de Phishing');
+    } catch (e) {
+      console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
     }
   };
 
@@ -112,7 +126,7 @@ export default function PhishingGame() {
               <CheckCircle className="w-16 h-16 text-emerald-400 mb-4" />
               <h3 className="text-xl font-bold text-emerald-300 mb-2">¡Misión Cumplida!</h3>
               <p className="text-sm text-emerald-100 mb-4">Detectaste el remitente sospechoso y la doble extensión (.pdf.exe). Acabas de proteger a toda la compañía.</p>
-              <div className="bg-emerald-950 px-4 py-2 rounded-full font-bold text-emerald-400 mb-4">+50 Puntos de Seguridad</div>
+              <div className="bg-emerald-950 px-4 py-2 rounded-full font-bold text-emerald-400 mb-4">+{puntosGanados} Puntos de Seguridad</div>
               <Button onClick={() => window.location.href = '/dashboard'} className="w-full bg-emerald-500 hover:bg-emerald-400">Volver al Dashboard</Button>
             </Card>
           )}

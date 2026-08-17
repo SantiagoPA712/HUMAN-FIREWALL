@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Skull, HardDrive, AlertTriangle, FileText, ImageIcon, Settings, Lock } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
+import { api } from '../../lib/api';
+import { usePuntos } from '../../context/PuntosContext';
 import { Button } from '../../components/ui/Button';
 
 export default function RansomwareGame() {
   const [gameState, setGameState] = useState('exploring'); // 'exploring', 'infected', 'won', 'lost'
   const [timer, setTimer] = useState(60);
+  const [puntosGanados, setPuntosGanados] = useState(0);
+  const { notificarPuntos } = usePuntos();
 
   // Efecto del tiempo cuando está infectado
   useEffect(() => {
@@ -22,11 +26,20 @@ export default function RansomwareGame() {
     setGameState('infected');
   };
 
-  const handleDecision = (decision) => {
-    if (decision === 'disconnect') {
-      setGameState('won');
-    } else {
-      setGameState('lost'); // Pay or Wait = fail
+  const handleDecision = async (decision) => {
+    if (decision !== 'disconnect') {
+      setGameState('lost'); // Pagar o esperar = fallo
+      return;
+    }
+
+    setGameState('won');
+
+    try {
+      const { data } = await api.post('/api/gamification/challenge', { challengeId: 'data' });
+      setPuntosGanados(data.puntos_estimados);
+      notificarPuntos(data.puntos_estimados, 'Proteccion de Datos');
+    } catch (e) {
+      console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
     }
   };
 
@@ -110,7 +123,7 @@ export default function RansomwareGame() {
           <ShieldCheck className="w-20 h-20 text-emerald-400 mb-6" />
           <h3 className="text-3xl font-bold text-emerald-300 mb-4">¡Excelente Reacción!</h3>
           <p className="text-lg text-emerald-100 mb-6">Al desconectar el cable de red o apagar el Wi-Fi inmediatamente, evitaste que el Ransomware continuara cifrando los archivos de red y los servidores principales de la empresa.</p>
-          <div className="bg-emerald-950 px-6 py-3 rounded-full font-bold text-emerald-400 text-xl mb-8">+100 Puntos de Seguridad</div>
+          <div className="bg-emerald-950 px-6 py-3 rounded-full font-bold text-emerald-400 text-xl mb-8">+{puntosGanados} Puntos de Seguridad</div>
           <Button onClick={() => window.location.href = '/dashboard'} className="w-full bg-emerald-500 hover:bg-emerald-400">Excelente. Volver al Dashboard</Button>
         </Card>
       )}
