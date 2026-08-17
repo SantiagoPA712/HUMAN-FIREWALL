@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wifi, AlertTriangle, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Wifi, AlertTriangle, ShieldCheck, ArrowRight, Lock } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { api } from '../../lib/api';

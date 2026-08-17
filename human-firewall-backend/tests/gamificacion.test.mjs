@@ -142,6 +142,52 @@ for (let i = 0; i < 20; i++) await eventBus.procesarUno();
 check('drenar la cola vacia no filtra conexiones', conexionesAbiertas === antes,
       `(paso de ${antes} a ${conexionesAbiertas})`);
 
+// --- CONTROLADOR REAL ---
+// Estas pruebas invocan el controlador, no el bus directamente. Faltaban, y
+// por eso paso inadvertido un error de tipos en la consulta a quiz_attempts:
+// el desafio se guardaba pero el evento nunca se encolaba, asi que el usuario
+// jugaba y no recibia puntos, sin ningun error visible en pantalla.
+console.log('\n--- CONTROLADOR completeChallenge ---');
+const gamificacion = require_('./controllers/gamification.controller');
+
+async function llamar(controlador, req) {
+  let estado = 200, cuerpo = null;
+  const res = {
+    status(c) { estado = c; return this; },
+    json(p) { cuerpo = p; return this; }
+  };
+  await controlador(req, res);
+  return { estado, cuerpo };
+}
+
+const r1 = await llamar(gamificacion.completeChallenge,
+  { body: { challengeId: 'wifi' }, user: { id: uid, role: 'employee' } });
+check('completeChallenge responde sin error', r1.estado === 200,
+      `(estado ${r1.estado}: ${JSON.stringify(r1.cuerpo)})`);
+check('informa los puntos estimados', r1.cuerpo?.puntos_estimados === 200, `(${r1.cuerpo?.puntos_estimados})`);
+
+const { rows:[qa] } = await pg.query(`SELECT COUNT(*)::int n FROM quiz_attempts WHERE quiz_ref='wifi' AND user_id=$1`, [uid]);
+check('registra el intento en quiz_attempts', qa.n === 1, `(hay ${qa.n})`);
+
+const { rows:[ev] } = await pg.query(`SELECT COUNT(*)::int n FROM event_outbox WHERE event_name='quiz.approved' AND status='pending'`);
+check('encola el evento quiz.approved', ev.n >= 1, `(hay ${ev.n})`);
+
+await eventBus.procesarPendientes();
+const { rows:[pw] } = await pg.query(`SELECT points FROM points_ledger WHERE source_id='wifi' AND user_id=$1`, [uid]);
+check('el desafio termina otorgando sus puntos', pw?.points === 200, `(dio ${pw?.points})`);
+
+// Repetir el desafio no vuelve a pagar
+const r2 = await llamar(gamificacion.completeChallenge,
+  { body: { challengeId: 'wifi' }, user: { id: uid, role: 'employee' } });
+await eventBus.procesarPendientes();
+const { rows:[pw2] } = await pg.query(`SELECT COUNT(*)::int n FROM points_ledger WHERE source_id='wifi' AND user_id=$1`, [uid]);
+check('repetir el desafio no duplica puntos', r2.cuerpo?.ya_completado === true && pw2.n === 1, `(${pw2.n} movimientos)`);
+
+// Desafio inexistente
+const r3 = await llamar(gamificacion.completeChallenge,
+  { body: { challengeId: 'no-existe' }, user: { id: uid, role: 'employee' } });
+check('desafio inexistente devuelve 404', r3.estado === 404, `(estado ${r3.estado})`);
+
 check('todas las conexiones se devolvieron al pool', conexionesAbiertas === 0,
       `(quedaron ${conexionesAbiertas} sin devolver)`);
 

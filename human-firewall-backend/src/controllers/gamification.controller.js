@@ -130,22 +130,30 @@ exports.assignBadge = async (req, res) => {
  * gamificacion de forma asincrona contra el historial inmutable.
  */
 exports.completeChallenge = async (req, res) => {
+    const client = await db.connect();
+
     try {
         const { challengeId } = req.body;
         const userId = req.user.id;
 
         if (!challengeId) return res.status(400).json({ msg: "El ID del desafío es obligatorio" });
 
-        const { rows: challengeRows } = await db.query(
+        const { rows: challengeRows } = await client.query(
             "SELECT * FROM challenges WHERE id = $1", [challengeId]
         );
         if (challengeRows.length === 0) return res.status(404).json({ msg: "Desafío no encontrado" });
 
         const challenge = challengeRows[0];
 
-        // Registro del resultado. ON CONFLICT DO NOTHING en lugar de dejar
-        // explotar el UNIQUE: repetir un desafio ya ganado no es un error.
-        const { rows: nuevas } = await db.query(
+        // Todo dentro de una transaccion: el registro del desafio, el intento y
+        // el encolado del evento se confirman juntos o no se confirma ninguno.
+        //
+        // Sin esto, si una de las escrituras falla, la fila de
+        // user_challenge_results queda igual y su UNIQUE bloquea el reintento:
+        // el usuario pierde los puntos de forma definitiva y en silencio.
+        await client.query('BEGIN');
+
+        const { rows: nuevas } = await client.query(
             `INSERT INTO user_challenge_results (user_id, challenge_id, won)
              VALUES ($1, $2, true)
              ON CONFLICT (user_id, challenge_id) DO NOTHING
@@ -155,19 +163,17 @@ exports.completeChallenge = async (req, res) => {
 
         const yaGanado = nuevas.length === 0;
 
-        // Historial de intentos: alimenta la regla de "no duplicar puntos por
-        // el mismo logro" y deja trazabilidad de cada aprobacion.
-        // course_id se guarda desnormalizado: el intento debe conservar a que
-        // curso pertenecia la evaluacion en ese momento, aunque despues cambie.
-        await db.query(
+        // Los tipos van explicitos: $1 y $2 se usan en el VALUES y en la
+        // subconsulta, y sin cast Postgres deduce tipos distintos en cada
+        // contexto y rechaza la consulta.
+        await client.query(
             `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
-             VALUES ($1, $2, 'challenge', $3, 100, 60, true,
-                     (SELECT COUNT(*) + 1 FROM quiz_attempts WHERE user_id = $1 AND quiz_ref = $2))`,
+             VALUES ($1::int, $2::varchar, 'challenge', $3::int, 100, 60, true,
+                     (SELECT COUNT(*) + 1 FROM quiz_attempts
+                       WHERE user_id = $1::int AND quiz_ref = $2::varchar))`,
             [userId, challengeId, challenge.course_id || null]
         );
 
-        // Solo se encola si es la primera vez. Aun asi, el servicio vuelve a
-        // verificar contra el historial antes de otorgar nada.
         if (!yaGanado) {
             await eventBus.publish('quiz.approved', {
                 userId,
@@ -176,8 +182,10 @@ exports.completeChallenge = async (req, res) => {
                 score: 100,
                 passed: true,
                 basePoints: challenge.points_reward
-            });
+            }, client);
         }
+
+        await client.query('COMMIT');
 
         res.status(200).json({
             msg: yaGanado ? "Ya habías superado este desafío" : "Desafío superado con éxito",
@@ -186,9 +194,13 @@ exports.completeChallenge = async (req, res) => {
         });
 
     } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
         res.status(500).json({ msg: error.message });
+    } finally {
+        client.release();
     }
 };
+
 
 /**
  * GET /api/gamification/points/:userId

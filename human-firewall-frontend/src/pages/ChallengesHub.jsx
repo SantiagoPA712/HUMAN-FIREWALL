@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, Lock, Wifi, Target, ShieldCheck, Trophy, ArrowLeft, BookOpen } from 'lucide-react';
+import { Mail, Lock, Wifi, Target, ShieldCheck, Trophy, ArrowLeft, BookOpen, Award, History } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 
@@ -76,9 +76,17 @@ export default function ChallengesHub() {
             <Trophy className="w-5 h-5" />
             Mi Desempeño
           </a>
+          <a href="/points" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+            <History className="w-5 h-5" />
+            Historial de Puntos
+          </a>
           <a href="/challenges" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-brand-blue/10 text-brand-light font-medium">
             <Target className="w-5 h-5" />
             Desafíos & Retos
+          </a>
+          <a href="/rewards" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+            <Award className="w-5 h-5" />
+            Mis Logros
           </a>
           <a href="/courses" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <BookOpen className="w-5 h-5" />
