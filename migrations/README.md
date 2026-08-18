@@ -38,4 +38,22 @@ Para que los numeros no choquen, cada integrante tiene su propio rango:
 
 ## Como aplicarlas
 
-Por ahora, manualmente en el editor SQL de Supabase, en orden numerico ascendente.
+Solas. `npm run dev` y `npm run start` ejecutan primero el runner, que aplica
+en orden lo que falte. Tambien se puede correr suelto:
+
+```bash
+cd human-firewall-backend
+npm run migrate
+```
+
+El estado se guarda en la tabla `schema_migrations`: cada archivo aplicado
+queda registrado con su nombre, asi que correr el runner dos veces no repite
+nada. Cada migracion va dentro de una transaccion; si falla a la mitad no queda
+a medio aplicar ni se marca como hecha.
+
+`schema.sql` se trata como la migracion `000`. Sobre una base que ya venia
+funcionando de antes (por ejemplo la de Supabase, cargada a mano), el runner
+detecta que las tablas ya existen y solo registra el estado, sin reejecutarla.
+
+Por eso sigue siendo obligatoria la regla 2 de mas abajo: toda migracion tiene
+que poder ejecutarse dos veces sin romper.

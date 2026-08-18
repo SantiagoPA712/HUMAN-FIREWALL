@@ -4,8 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "setup": "node scripts/setup-env.js",
+    "migrate": "node src/config/migrate.js",
+    "dev": "npm run migrate && nodemon src/server.js",
+    "start": "npm run migrate && node src/server.js",
     "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs && node tests/recompensas.test.mjs && node tests/niveles.test.mjs && node tests/recomendaciones.test.mjs && node tests/simulaciones.test.mjs",
     "test:migraciones": "node tests/migraciones.test.mjs",
     "test:gamificacion": "node tests/gamificacion.test.mjs",

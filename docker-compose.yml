@@ -1,0 +1,40 @@
+# Base de datos para desarrollo local.
+#
+# Levanta un PostgreSQL igual para todo el equipo, sin que nadie tenga que
+# instalarlo ni crear una cuenta en ningun servicio:
+#
+#     docker compose up -d
+#
+# El puerto expuesto es el 5433 y no el 5432 a proposito: si alguien ya tiene
+# PostgreSQL instalado en su maquina (el instalador oficial de Windows deja el
+# servicio corriendo y arrancando solo), el 5432 esta ocupado. Node se conecta
+# a ese otro Postgres, falla con "password authentication failed for user
+# postgres" y se pierde un buen rato buscando el error en el lugar equivocado.
+# Con el 5433 conviven los dos sin pisarse.
+#
+# Los datos viven en un volumen, asi que sobreviven a `docker compose down` y
+# a reiniciar la maquina. Para empezar de cero: `docker compose down -v`.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: human-firewall-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # El runner de migraciones corre apenas arranca el backend; sin este
+      # chequeo se conectaria mientras Postgres todavia esta inicializando.
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  pgdata:
