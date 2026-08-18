@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
+import { LevelBadge } from '../components/LevelBadge';
 import { usePuntos } from '../context/PuntosContext';
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState("Admin");
-  const { recompensas } = usePuntos();
+  const { recompensas, nivel } = usePuntos();
   
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -27,6 +28,10 @@ export default function DashboardPage() {
           <a href="/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-brand-blue/10 text-brand-light font-medium">
             <Trophy className="w-5 h-5" />
             Mi Desempeño
+          </a>
+          <a href="/level" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+            <Shield className="w-5 h-5" />
+            Mi Nivel
           </a>
           <a href="/points" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <History className="w-5 h-5" />
@@ -63,13 +68,12 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4">
             <PointsWidget compacto />
-            <div className="text-right">
-              <p className="text-sm text-text-secondary">Nivel Actual</p>
-              <p className="font-bold text-brand-light">Cinturón Blanco</p>
-            </div>
-            <div className="w-12 h-12 rounded-full border-2 border-brand-blue bg-gray-800 flex items-center justify-center font-bold">
-              1
-            </div>
+            {/* El nivel salia fijo en "Cinturón Blanco" / 1 para todo el mundo
+                porque users.level nunca se calculaba (deuda tecnica 9).
+                Ahora viene derivado de points_ledger + levels_config. */}
+            <a href="/level" title="Ver mi nivel">
+              <LevelBadge nivel={nivel} compacto />
+            </a>
           </div>
         </header>
 
@@ -79,9 +83,13 @@ export default function DashboardPage() {
             <PointsWidget />
           </Card>
           
+          {/* Reemplaza a "Simulaciones Fallidas", que mostraba un 0 fijo
+              escrito a mano y no se calculaba de ningun lado. */}
           <Card className="p-6">
-            <h3 className="text-lg font-bold mb-2">Simulaciones Fallidas</h3>
-            <div className="text-4xl font-black text-white">0</div>
+            <LevelBadge nivel={nivel} />
+            <a href="/level" className="mt-3 block text-sm text-brand-light hover:underline">
+              Ver mi nivel
+            </a>
           </Card>
 
           <Card className="p-6 bg-gradient-to-br from-brand-dark/40 to-brand-blue/20">
