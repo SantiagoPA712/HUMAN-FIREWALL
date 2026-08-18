@@ -15,6 +15,7 @@ import PasswordGame from './pages/simulations/PasswordGame';
 import SocialEngineeringGame from './pages/simulations/SocialEngineeringGame';
 import PointsHistory from './pages/PointsHistory';
 import RewardsGallery from './pages/RewardsGallery';
+import MyLevel from './pages/MyLevel';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
         <Route path="/challenges" element={<ChallengesHub />} />
         <Route path="/points" element={<PointsHistory />} />
         <Route path="/rewards" element={<RewardsGallery />} />
+        <Route path="/level" element={<MyLevel />} />
         
         {/* Rutas Simulaciones */}
         <Route path="/simulation/phishing" element={<PhishingGame />} />

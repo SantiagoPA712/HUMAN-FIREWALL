@@ -2,6 +2,7 @@ const db = require('../config/db');
 const pointsService = require('../services/points.service');
 const eventBus = require('../services/eventBus');
 const rewardsService = require('../services/rewards.service');
+const levelsService = require('../services/levels.service');
 
 exports.getLeaderboard = async (req, res) => {
     try {
@@ -264,6 +265,45 @@ exports.getUserRewards = async (req, res) => {
 
         const resultado = await rewardsService.obtenerRecompensasDeUsuario(userId);
         res.status(200).json(resultado);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/level/:userId
+ *
+ * Criterio tecnico 2: calcula el nivel a partir del total de puntos derivado
+ * de points_ledger y devuelve nivel actual, puntos actuales, puntos para el
+ * siguiente nivel y porcentaje de avance.
+ *
+ * Criterio de aceptacion 3 / criterio tecnico 4: el 403 ante el nivel de otro
+ * usuario lo aplica selfOrRoles en la definicion de la ruta, igual que en el
+ * endpoint de puntos.
+ */
+exports.getUserLevel = async (req, res) => {
+    try {
+        const userId = Number.parseInt(req.params.userId, 10);
+
+        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
+        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+
+        const resultado = await levelsService.obtenerNivelDeUsuario(userId);
+        res.status(200).json(resultado);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/levels
+ * Escalera completa de niveles. Permite mostrar todos los tramos sin
+ * hardcodear los umbrales en el frontend.
+ */
+exports.getLevelsConfig = async (req, res) => {
+    try {
+        const escalera = await levelsService.obtenerEscalera();
+        res.status(200).json(escalera);
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }

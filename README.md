@@ -50,8 +50,8 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 56 pruebas sobre
-migraciones, asignacion de puntos y motor de recompensas. Ver `tests/README.md`.
+base levantada ni credenciales, y no tocan Supabase. Son 104 pruebas sobre
+migraciones, asignacion de puntos, motor de recompensas y niveles. Ver `tests/README.md`.
 
 ---
 
@@ -112,6 +112,8 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/courses/:courseId/progress`              | Autenticado                   |
 | GET    | `/api/gamification/rewards/:userId`            | Propio usuario, admin o rh    |
 | GET    | `/api/gamification/rewards`                    | Autenticado                   |
+| GET    | `/api/gamification/level/:userId`              | Propio usuario, admin o rh    |
+| GET    | `/api/gamification/levels`                     | Autenticado                   |
 
 `GET /points/:userId` acepta `?page=1&limit=20` y devuelve el total acumulado
 junto al detalle paginado del historial.
@@ -146,6 +148,25 @@ usa `points_ledger`.
 
 Para agregar un tipo de condicion nuevo: una entrada en `CALCULADORES`
 (`rewards.service.js`) y un valor mas en el CHECK de la migracion `006`.
+
+### Como se calcula el nivel
+
+1. `levels_config` guarda, por nivel, el **limite inferior** de puntos
+   (`min_points`). El limite superior es el del nivel siguiente menos uno, asi
+   que no puede haber huecos ni solapamientos.
+2. El nivel es el mayor cuyo `min_points` no supera el total del usuario, leido
+   de `v_user_points`. **Es derivado**: cambiar un umbral cambia el nivel que
+   ve el usuario, sin migrar datos.
+3. `users.level` es solo cache, igual que `total_points`. Se recalcula ante
+   cada `points_assigned` y nunca se lee como fuente de verdad.
+4. Al cruzar un umbral se inserta en `user_level_history` (inmutable, con
+   snapshot del nombre y el umbral vigentes) y se emite `level_up`.
+
+Un movimiento grande puede saltar varios niveles: se registran todos los
+intermedios, para que el historial pueda responder cuando se alcanzo cada uno.
+
+Para cambiar la escalera no hace falta tocar codigo: es un UPDATE sobre
+`levels_config`.
 
 ## Reparto del sprint
 
@@ -275,13 +296,13 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | 5 | `user_badges.badge_id` con `ON DELETE CASCADE`: borrar una insignia borraba el historial de todos los usuarios | Se elimino la clave foranea y se guarda un snapshot; el historial ya no depende del catalogo |
 | - | Las insignias nunca se otorgaban solas, solo manualmente por un admin | Motor de evaluacion automatico sobre eventos |
 | - | Un curso nunca se marcaba como finalizado | `completeLesson` cierra la asignacion y emite `course.completed` |
+| 9 | `users.level` nunca se calculaba y el dashboard mostraba "Nivel 1 / Cinturon Blanco" fijo para todos | Nivel derivado de `points_ledger` + `levels_config`, con la cache sincronizada en cada `points_assigned` |
+| 3 | `config/db.js` desactivaba la verificacion TLS de todo el proceso Node | Ya estaba corregido en `9f48d97`: el SSL se decide por URL y queda acotado al pool |
 
 ### Pendiente
 
 | # | Fallo | Nota |
 |---|-------|------|
-| 3 | `config/db.js` desactiva la verificacion TLS de **todo** el proceso Node | Prioridad alta, fuera del alcance de estas historias |
 | 4 | `JWT_SECRET` cae a `'secret'` si falta la variable | Mitigado con un aviso al arrancar; falta quitar el fallback |
 | 6 | `init_db.js` desincronizado con `schema.sql` | Reemplazar por el runner de `migrations/` |
 | 7 | `auth.forgotPassword` devuelve el error real y permite enumerar usuarios registrados | |
-| 9 | `users.level` nunca se calcula; el dashboard lo muestra fijo en 1 | Depende de la HU de niveles |

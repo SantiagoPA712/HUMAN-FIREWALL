@@ -14,9 +14,11 @@ const app = require('./app');
 const eventBus = require('./services/eventBus');
 const pointsService = require('./services/points.service');
 const rewardsService = require('./services/rewards.service');
+const levelsService = require('./services/levels.service');
 
 pointsService.registrarHandlers();
 rewardsService.registrarHandlers();
+levelsService.registrarHandlers();
 eventBus.iniciarWorker();
 
 const PORT = process.env.PORT || 3000;
