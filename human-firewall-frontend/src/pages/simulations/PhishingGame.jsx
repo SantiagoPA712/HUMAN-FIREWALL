@@ -133,8 +133,9 @@ export default function PhishingGame() {
               <AlertTriangle className="w-16 h-16 text-red-500 mb-4 animate-bounce" />
               <h3 className="text-xl font-bold text-red-400 mb-2">Incidente Crítico</h3>
               <p className="text-sm text-red-100 mb-4">Descargaste malware. Fíjate en el correo del remitente: era un portal falso (`admin-portal-login.com`), no el oficial de la empresa.</p>
-              <div className="bg-red-950 px-4 py-2 rounded-full font-bold text-red-400 mb-4">0 Puntos obtenidos</div>
-              <Button onClick={() => window.location.href = '/dashboard'} variant="outline" className="w-full border-red-500 text-red-400 hover:bg-red-500/10">Volver al Dashboard</Button>
+              <div className="bg-red-950 px-4 py-2 rounded-full font-bold text-red-400 mb-3">0 Puntos obtenidos</div>
+              <p className="mb-4 text-xs text-red-200">El intento quedó registrado en <strong>Mi desempeño</strong>.</p>
+              <Button onClick={() => window.location.href = '/performance'} variant="outline" className="w-full border-red-500 text-red-400 hover:bg-red-500/10">Ver qué repasar</Button>
             </Card>
           )}
         </div>

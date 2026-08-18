@@ -141,8 +141,14 @@ export default function RansomwareGame() {
           <Lock className="w-20 h-20 text-red-500 mb-6" />
           <h3 className="text-3xl font-bold text-red-400 mb-4">Totalmente Comprometido</h3>
           <p className="text-lg text-red-100 mb-6">Pagar a un atacante JAMÁS asegura la devolución de los archivos, y te marca como un objetivo fácil para el futuro. Además, dejaste la máquina conectada a la red permitiendo que la infección se esparciera.</p>
-          <div className="bg-red-950 px-6 py-3 rounded-full font-bold text-red-400 text-xl mb-8">Pésima decisión. -50 Puntos</div>
-          <Button onClick={() => window.location.href = '/dashboard'} variant="outline" className="w-full border-red-500 text-red-500 hover:bg-red-900">Aprender del error (Dashboard)</Button>
+          {/* Decia "-50 Puntos", pero el sistema nunca resto nada: la HU de
+              puntos define que un intento reprobado otorga 0, no negativo. */}
+          <div className="bg-red-950 px-6 py-3 rounded-full font-bold text-red-400 text-xl mb-4">0 Puntos obtenidos</div>
+          <p className="mb-8 text-sm text-red-200">
+            El intento quedó registrado. Vas a ver este tema en <strong>Mi desempeño</strong>,
+            junto con las lecciones que te conviene repasar.
+          </p>
+          <Button onClick={() => window.location.href = '/performance'} variant="outline" className="w-full border-red-500 text-red-400 hover:bg-red-900">Ver qué repasar</Button>
         </Card>
       )}
 

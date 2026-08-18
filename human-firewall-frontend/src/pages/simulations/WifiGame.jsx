@@ -10,12 +10,15 @@ export default function WifiGame() {
   const [gameState, setGameState] = useState('playing'); // playing, won, lost
   const [loading, setLoading] = useState(false);
 
-  // Redes con su lógica de peligro
+  // Redes con su lógica de peligro.
+  // El campo `points` que tenían (-50 para las peligrosas) se quitó: no se
+  // usaba para nada y sugería un castigo que el sistema nunca aplicó. Los
+  // puntos los define la base en challenges.points_reward.
   const networks = [
-    { id: 1, name: "Starbucks_Free_WiFi", danger: true, points: -50, reason: "Red abierta, frecuentemente interceptada 'Man In The Middle'." },
-    { id: 2, name: "G00GLE_STARBUCKS", danger: true, points: -50, reason: "Ataque 'Evil Twin' (Gemelo malicioso). Un hacker creó este nombre." },
-    { id: 3, name: "AirPort-Free-Net", danger: true, points: -50, reason: "Red abierta que requiere registro por captive portal sospechoso." },
-    { id: 4, name: "iPhone de Laura", danger: false, points: 200, reason: "Red personal protegida por WPA3 controlada por un compañero. Segura." }
+    { id: 1, name: "Starbucks_Free_WiFi", danger: true, reason: "Red abierta, frecuentemente interceptada 'Man In The Middle'." },
+    { id: 2, name: "G00GLE_STARBUCKS", danger: true, reason: "Ataque 'Evil Twin' (Gemelo malicioso). Un hacker creó este nombre." },
+    { id: 3, name: "AirPort-Free-Net", danger: true, reason: "Red abierta que requiere registro por captive portal sospechoso." },
+    { id: 4, name: "iPhone de Laura", danger: false, reason: "Red personal protegida por WPA3 controlada por un compañero. Segura." }
   ];
 
   const connectToNetwork = async (network) => {
@@ -73,8 +76,9 @@ export default function WifiGame() {
            <div className="absolute inset-0 bg-red-950/95 p-6 flex flex-col items-center justify-center text-center z-10 animate-in fade-in">
              <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
              <h3 className="text-2xl font-bold text-red-500 mb-2">Tráfico Interceptado</h3>
-             <p className="text-sm text-red-100 mb-6 font-medium">Al conectarte a una red abierta, un atacante capturó tus credenciales en texto plano antes de llegar a los servidores de la empresa. Reprobaste.</p>
-             <Button variant="outline" onClick={() => window.location.href='/challenges'} className="w-full text-red-400 border-red-500">Aceptar y Continuar</Button>
+             <p className="text-sm text-red-100 mb-4 font-medium">Al conectarte a una red abierta, un atacante capturó tus credenciales en texto plano antes de llegar a los servidores de la empresa. Reprobaste.</p>
+             <p className="mb-6 text-xs text-red-200">0 puntos. El intento quedó registrado en <strong>Mi desempeño</strong>.</p>
+             <Button variant="outline" onClick={() => window.location.href='/performance'} className="w-full text-red-400 border-red-500">Ver qué repasar</Button>
            </div>
         )}
       </Card>

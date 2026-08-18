@@ -35,7 +35,7 @@ await pg.exec(`
 for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_tracking',
                  '004_event_outbox','005_rol_rh','006_rewards_catalog','007_user_rewards',
                  '008_desafios_faltantes','020_levels_config','021_user_level_history',
-                 '022_recommendation_rules']) {
+                 '022_recommendation_rules','023_cursos_de_refuerzo']) {
   try { await pg.exec(readFileSync(`${DIR}migrations/${f}.sql`, 'utf8')); }
   catch (e) { console.log(`ERROR en ${f}: ${msg(e)}`); fallos++; }
 }
@@ -177,17 +177,32 @@ console.log('\n--- PENDIENTES Y AVANCE ---');
 const pendientes = await reco.obtenerPendientes(ana);
 check('las evaluaciones ya intentadas no figuran como pendientes',
   !pendientes.some(p => p.quiz_ref === '50' || p.quiz_ref === 'wifi'));
-check('los desafios sin curso se ofrecen a todos',
+check('los desafios del portal se ofrecen a todos, con o sin curso asignado',
   pendientes.some(p => p.quiz_ref === 'phishing'));
-check('no ofrece evaluaciones de cursos que no tiene asignados',
+check('las simulaciones si respetan la asignacion del curso (RN-01)',
   !pendientes.some(p => p.quiz_ref === '51'),
   `(pendientes: ${pendientes.map(p=>p.quiz_ref).join(',')})`);
 
+// Un desafio enlazado a un curso que el usuario NO tiene asignado igual se
+// ofrece: es la regresion que introdujo la migracion 023 al ponerles course_id.
+await pg.query(`UPDATE challenges SET course_id = 11 WHERE id = 'data'`);
+const trasEnlazar = await reco.obtenerPendientes(ana);
+check('enlazar un desafio a un curso no lo esconde del portal',
+  trasEnlazar.some(p => p.quiz_ref === 'data'),
+  `(pendientes: ${trasEnlazar.map(p=>p.quiz_ref).join(',')})`);
+await pg.query(`UPDATE challenges SET course_id = NULL WHERE id = 'data'`);
+
 const cursos = await reco.obtenerAvanceCursos(ana);
+// La migracion 023 asigna sus cinco cursos de refuerzo a todos los usuarios,
+// asi que aca hay 6: esos cinco mas el curso 10 que arma esta prueba.
+const curso10 = cursos.find(c => c.course_id === 10);
 check('calcula el avance del curso asignado',
-  cursos.length === 1 && cursos[0].lecciones_totales === 2 && cursos[0].lecciones_completadas === 1,
-  `(${JSON.stringify(cursos)})`);
-check('el porcentaje de avance es correcto', cursos[0].porcentaje === 50, `(dio ${cursos[0].porcentaje}%)`);
+  curso10?.lecciones_totales === 2 && curso10?.lecciones_completadas === 1,
+  `(${JSON.stringify(curso10)})`);
+check('el porcentaje de avance es correcto', curso10?.porcentaje === 50, `(dio ${curso10?.porcentaje}%)`);
+check('los cursos de refuerzo de la migracion 023 quedan asignados',
+  cursos.filter(c => c.course_id >= 901 && c.course_id <= 905).length === 5,
+  `(hay ${cursos.length} cursos)`);
 
 // ---------------------------------------------------------------------
 console.log('\n--- SOLO LECTURA (criterio tecnico 4) ---');

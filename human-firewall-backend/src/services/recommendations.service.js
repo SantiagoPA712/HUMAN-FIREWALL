@@ -97,8 +97,14 @@ function filtrarAreasDeOportunidad(evaluaciones, regla) {
 /**
  * Evaluaciones que el usuario todavia no intento ni una vez.
  *
- * Incluye las de sus cursos asignados y las que no pertenecen a ningun curso,
- * porque el portal ofrece esos desafios a todo el mundo.
+ * Los desafios del portal (ChallengesHub) se le ofrecen a cualquier usuario
+ * autenticado, sin asignacion previa, asi que se listan todos los que no haya
+ * intentado. Antes se filtraban tambien por curso asignado, y eso dejo de
+ * funcionar cuando la migracion 023 les puso course_id: un usuario recien
+ * registrado, sin asignaciones, se quedaba sin ver ninguno.
+ *
+ * Las simulaciones si respetan la asignacion: son contenido de un curso
+ * concreto, no del portal abierto (regla de negocio RN-01).
  */
 async function obtenerPendientes(userId) {
     const { rows } = await db.query(
@@ -111,9 +117,6 @@ async function obtenerPendientes(userId) {
                     SELECT 1 FROM quiz_attempts q
                      WHERE q.user_id = $1 AND q.quiz_type = 'challenge' AND q.quiz_ref = ch.id
                 )
-            AND (ch.course_id IS NULL OR ch.course_id IN (
-                    SELECT course_id FROM course_assignments WHERE user_id = $1
-                ))
 
           UNION ALL
 

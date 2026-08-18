@@ -80,8 +80,9 @@ export default function SocialEngineeringGame() {
            <div className="absolute inset-0 bg-red-900/95 p-6 flex flex-col items-center justify-center text-center z-20">
              <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
              <h3 className="text-2xl font-bold text-white mb-2">Pérdida Financiera Crítica</h3>
-             <p className="text-sm text-red-100 mb-6 font-medium">Le acabas de enviar el dinero de la empresa a un hacker en Nigeria. La urgencia y pedir discreción son las mayores banderas rojas en la ingeniería social.</p>
-             <Button variant="outline" onClick={() => window.location.href='/challenges'} className="w-full text-red-100 border-red-500">Siguiente</Button>
+             <p className="text-sm text-red-100 mb-4 font-medium">Le acabas de enviar el dinero de la empresa a un atacante. La urgencia y pedir discreción son las mayores banderas rojas en la ingeniería social.</p>
+             <p className="mb-6 text-xs text-red-200">0 puntos. El intento quedó registrado en <strong>Mi desempeño</strong>.</p>
+             <Button variant="outline" onClick={() => window.location.href='/performance'} className="w-full text-red-100 border-red-500">Ver qué repasar</Button>
            </div>
         )}
       </Card>
