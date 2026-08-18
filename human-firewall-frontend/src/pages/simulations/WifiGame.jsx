@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Wifi, AlertTriangle, ShieldCheck, ArrowRight, Lock } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { api } from '../../lib/api';
+import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
 
 export default function WifiGame() {
@@ -21,20 +21,15 @@ export default function WifiGame() {
   const connectToNetwork = async (network) => {
     setLoading(true);
     try {
-      // Registrar puntos reales al backend (Axios Request Real). Epic 6
-      if (network.points > 0) {
-          try {
-              const { data } = await api.post('/api/gamification/challenge', { challengeId: 'wifi' });
-              notificarPuntos(data.puntos_estimados, 'Wi-Fi Seguro');
-          } catch (e) {
-              console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
-          }
-      }
-      
-      if (network.danger) {
-        setGameState('lost');
-      } else {
-        setGameState('won');
+      const acerto = !network.danger;
+      setGameState(acerto ? 'won' : 'lost');
+
+      // Antes esto solo se registraba cuando la red elegida era segura
+      // (`if (network.points > 0)`), asi que conectarse a una red maliciosa no
+      // dejaba rastro y el error nunca llegaba al resumen de desempeno.
+      const data = await registrarDesafio('wifi', acerto);
+      if (data?.puntos_estimados > 0) {
+        notificarPuntos(data.puntos_estimados, 'Wi-Fi Seguro');
       }
     } finally {
       setLoading(false);

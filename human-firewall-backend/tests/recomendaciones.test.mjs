@@ -200,6 +200,73 @@ const { rows:[despuesL] } = await pg.query(`SELECT COUNT(*)::int n FROM lesson_p
 check('generar el resumen no toca quiz_attempts', antesQ.n === despuesQ.n);
 check('generar el resumen no toca lesson_progress', antesL.n === despuesL.n);
 
+// ---------------------------------------------------------------------
+// Sin esto, la HU entera queda muerta: si un fallo no se registra, no hay
+// areas de oportunidad y por lo tanto no hay nada que recomendar.
+console.log('\n--- REGISTRO DE INTENTOS FALLIDOS ---');
+
+const controller = require_('./controllers/gamification.controller');
+const eventBus2 = require_('./services/eventBus');
+
+// Stubs minimos de req/res para ejercitar el controlador real.
+const llamar = async (userId, body) => {
+    let estado = 0, cuerpo = null;
+    const res = {
+        status(c) { estado = c; return this; },
+        json(b) { cuerpo = b; return this; }
+    };
+    await controller.completeChallenge({ body, user: { id: userId } }, res);
+    return { estado, cuerpo };
+};
+
+const perdido = await llamar(beto, { challengeId: 'phishing', passed: false });
+check('perder devuelve 0 puntos estimados', perdido.cuerpo?.puntos_estimados === 0,
+  `(${JSON.stringify(perdido.cuerpo)})`);
+check('la respuesta dice que no se aprobo', perdido.cuerpo?.aprobado === false);
+
+const { rows:[fallido] } = await pg.query(
+  `SELECT score, passed FROM quiz_attempts WHERE user_id=$1 AND quiz_ref='phishing'`, [beto]);
+check('el intento fallido SI queda en quiz_attempts',
+  fallido?.passed === false && fallido?.score === 0, `(${JSON.stringify(fallido)})`);
+
+const { rows: ganados } = await pg.query(
+  `SELECT 1 FROM user_challenge_results WHERE user_id=$1 AND challenge_id='phishing'`, [beto]);
+check('perder no marca el desafio como ganado', ganados.length === 0);
+
+await eventBus2.procesarPendientes();
+const { rows:[puntosTrasFallo] } = await pg.query(
+  `SELECT COALESCE(SUM(points),0)::int AS t FROM points_ledger WHERE user_id=$1`, [beto]);
+check('perder no otorga puntos', puntosTrasFallo.t === 0, `(dio ${puntosTrasFallo.t})`);
+
+// Y ahora el fallo se traduce en una recomendacion real.
+await pg.query(`UPDATE challenges SET course_id = 11 WHERE id = 'phishing'`);
+await pg.query(`UPDATE quiz_attempts SET course_id = 11 WHERE user_id=$1 AND quiz_ref='phishing'`, [beto]);
+await pg.query(`INSERT INTO course_assignments (course_id, user_id, status) VALUES (11, $1, 'assigned')
+                ON CONFLICT DO NOTHING`, [beto]);
+
+const resumenTrasFallo = await reco.obtenerResumenDesempeno(beto);
+check('el fallo aparece como area de oportunidad',
+  resumenTrasFallo.areas_de_oportunidad.some(a => a.quiz_ref === 'phishing'),
+  `(areas: ${resumenTrasFallo.areas_de_oportunidad.length})`);
+check('y genera una recomendacion de refuerzo del curso relacionado',
+  resumenTrasFallo.recomendaciones.length > 0 && resumenTrasFallo.recomendaciones[0].course_id === 11,
+  `(recos: ${resumenTrasFallo.recomendaciones.length})`);
+check('el motivo dice que todavia no la aprobo',
+  /no aprobás|no aprobas/i.test(resumenTrasFallo.areas_de_oportunidad.find(a => a.quiz_ref === 'phishing').motivo));
+
+// Reintentar y aprobar si otorga puntos.
+const ganado = await llamar(beto, { challengeId: 'phishing', passed: true });
+check('reintentar y aprobar si otorga puntos', ganado.cuerpo?.puntos_estimados > 0,
+  `(${JSON.stringify(ganado.cuerpo)})`);
+
+const { rows:[intentos] } = await pg.query(
+  `SELECT COUNT(*)::int n FROM quiz_attempts WHERE user_id=$1 AND quiz_ref='phishing'`, [beto]);
+check('quedan los dos intentos en el historial', intentos.n === 2, `(hay ${intentos.n})`);
+
+// Compatibilidad: un cliente viejo que no manda `passed` sigue funcionando.
+const sinCampo = await llamar(beto, { challengeId: 'wifi' });
+check('sin el campo passed se asume aprobado (cliente viejo)', sinCampo.cuerpo?.aprobado === true);
+
 check('todas las conexiones se devolvieron al pool', conexionesAbiertas === 0, `(quedaron ${conexionesAbiertas})`);
 
 console.log(`\nRESULTADO: ${ok} OK, ${fallos} fallos`);

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShieldCheck, Skull, HardDrive, AlertTriangle, FileText, ImageIcon, Settings, Lock } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
-import { api } from '../../lib/api';
+import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
 import { Button } from '../../components/ui/Button';
 
@@ -11,6 +11,22 @@ export default function RansomwareGame() {
   const [puntosGanados, setPuntosGanados] = useState(0);
   const { notificarPuntos } = usePuntos();
 
+  // Esta simulacion tiene dos formas de perder: pagar el rescate o quedarse
+  // sin tiempo. El flag evita que el intento se registre dos veces si el
+  // efecto del reloj vuelve a correr.
+  const registrado = useRef(false);
+
+  const registrarResultado = useCallback(async (acerto) => {
+    if (registrado.current) return;
+    registrado.current = true;
+
+    const data = await registrarDesafio('data', acerto);
+    if (data?.puntos_estimados > 0) {
+      setPuntosGanados(data.puntos_estimados);
+      notificarPuntos(data.puntos_estimados, 'Proteccion de Datos');
+    }
+  }, [notificarPuntos]);
+
   // Efecto del tiempo cuando está infectado
   useEffect(() => {
     let interval;
@@ -18,29 +34,21 @@ export default function RansomwareGame() {
       interval = setInterval(() => setTimer(t => t - 1), 1000);
     } else if (timer === 0 && gameState === 'infected') {
       setGameState('lost');
+      // Quedarse sin tiempo tambien es un fallo, y tambien tiene que quedar
+      // registrado en el historial.
+      registrarResultado(false);
     }
     return () => clearInterval(interval);
-  }, [gameState, timer]);
+  }, [gameState, timer, registrarResultado]);
 
   const triggerInfection = () => {
     setGameState('infected');
   };
 
   const handleDecision = async (decision) => {
-    if (decision !== 'disconnect') {
-      setGameState('lost'); // Pagar o esperar = fallo
-      return;
-    }
-
-    setGameState('won');
-
-    try {
-      const { data } = await api.post('/api/gamification/challenge', { challengeId: 'data' });
-      setPuntosGanados(data.puntos_estimados);
-      notificarPuntos(data.puntos_estimados, 'Proteccion de Datos');
-    } catch (e) {
-      console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
-    }
+    const acerto = decision === 'disconnect';
+    setGameState(acerto ? 'won' : 'lost');
+    await registrarResultado(acerto);
   };
 
   return (

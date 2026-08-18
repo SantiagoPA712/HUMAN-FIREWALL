@@ -167,7 +167,7 @@ Un movimiento grande puede saltar varios niveles: se registran todos los
 intermedios, para que el historial pueda responder cuando se alcanzo cada uno.
 
 Para cambiar la escalera no hace falta tocar codigo: es un UPDATE sobre
-.
+`levels_config`.
 
 ### Como se generan las recomendaciones
 
@@ -318,6 +318,8 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | 5 | `user_badges.badge_id` con `ON DELETE CASCADE`: borrar una insignia borraba el historial de todos los usuarios | Se elimino la clave foranea y se guarda un snapshot; el historial ya no depende del catalogo |
 | - | Las insignias nunca se otorgaban solas, solo manualmente por un admin | Motor de evaluacion automatico sobre eventos |
 | - | Un curso nunca se marcaba como finalizado | `completeLesson` cierra la asignacion y emite `course.completed` |
+| - | Un desafio perdido no se registraba en ningun lado y el motor de recomendaciones se quedaba sin datos | El resultado real viaja al backend; el intento se guarda con su `passed` y `score` verdaderos |
+| - | El juego de ingenieria social otorgaba los puntos completos tambien al caer en la estafa | El endpoint ya no da el resultado por aprobado: lo recibe del cliente |
 | 9 | `users.level` nunca se calculaba y el dashboard mostraba "Nivel 1 / Cinturon Blanco" fijo para todos | Nivel derivado de `points_ledger` + `levels_config`, con la cache sincronizada en cada `points_assigned` |
 | 3 | `config/db.js` desactivaba la verificacion TLS de todo el proceso Node | Ya estaba corregido en `9f48d97`: el SSL se decide por URL y queda acotado al pool |
 

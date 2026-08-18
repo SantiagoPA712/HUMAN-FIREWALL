@@ -33,6 +33,38 @@ api.interceptors.response.use(
 );
 
 /**
+ * Registra el resultado de un desafio, se haya ganado o perdido.
+ *
+ * Antes cada juego llamaba al endpoint solo cuando el usuario ganaba, asi que
+ * un fallo no quedaba registrado en ningun lado y las recomendaciones de
+ * refuerzo no tenian sobre que trabajar. Ahora el resultado real viaja
+ * siempre, y es el backend el que decide si corresponden puntos.
+ *
+ * Nunca lanza: que falle el registro no debe romper la pantalla del juego.
+ *
+ * @param {string}  challengeId  id en la tabla challenges
+ * @param {boolean} aprobado     si el usuario resolvio bien el escenario
+ * @param {number}  [score]      0..100; por defecto 100 al ganar y 0 al perder
+ * @returns {Promise<object|null>} respuesta del backend, o null si fallo
+ */
+export async function registrarDesafio(challengeId, aprobado, score) {
+    try {
+        const { data } = await api.post('/api/gamification/challenge', {
+            challengeId,
+            passed: aprobado,
+            ...(Number.isInteger(score) ? { score } : {})
+        });
+        return data;
+    } catch (e) {
+        console.warn(
+            `No se pudo registrar el desafio ${challengeId}:`,
+            e.response?.data?.msg || e.message
+        );
+        return null;
+    }
+}
+
+/**
  * Lee el payload del JWT guardado. El backend firma { id, role }.
  * Solo sirve para pintar la interfaz: la autorizacion real la valida el backend.
  */

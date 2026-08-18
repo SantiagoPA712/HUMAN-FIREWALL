@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Target, MessageCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { api } from '../../lib/api';
+import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
 
 export default function SocialEngineeringGame() {
@@ -10,18 +10,14 @@ export default function SocialEngineeringGame() {
   const [gameState, setGameState] = useState('playing'); // playing, won, lost
 
   const submitDecision = async (isCorrect) => {
-    try {
-      try {
-         const { data } = await api.post('/api/gamification/challenge', { challengeId: 'social' });
-         notificarPuntos(data.puntos_estimados, 'Ingeniería Social');
-      } catch (e) {
-         console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
-      }
-      {
-      }
-    } finally {
-      if(isCorrect) setGameState('won');
-      else setGameState('lost');
+    setGameState(isCorrect ? 'won' : 'lost');
+
+    // FALLO CORREGIDO: antes se registraba el desafio sin decir como habia
+    // salido, y el backend lo daba por aprobado siempre. Transferirle el
+    // dinero al falso CEO otorgaba los mismos puntos que detectar la estafa.
+    const data = await registrarDesafio('social', isCorrect);
+    if (data?.puntos_estimados > 0) {
+      notificarPuntos(data.puntos_estimados, 'Ingeniería Social');
     }
   };
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldAlert, CheckCircle, Mail, Paperclip, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
-import { api } from '../../lib/api';
+import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
 import { Button } from '../../components/ui/Button';
 
@@ -11,20 +11,17 @@ export default function PhishingGame() {
   const { notificarPuntos } = usePuntos();
 
   const handleDecision = async (decision) => {
-    if (decision !== 'report') {
-      setGameState('lost');
-      return;
-    }
+    const acerto = decision === 'report';
+    setGameState(acerto ? 'won' : 'lost');
 
-    setGameState('won');
-
+    // El intento se registra tambien al fallar: antes la pantalla hacia
+    // `return` sin avisarle a nadie, y el error no quedaba en el historial,
+    // asi que nunca aparecia como area de oportunidad.
     // Los puntos los define la base (challenges.points_reward), no la pantalla.
-    try {
-      const { data } = await api.post('/api/gamification/challenge', { challengeId: 'phishing' });
+    const data = await registrarDesafio('phishing', acerto);
+    if (data?.puntos_estimados > 0) {
       setPuntosGanados(data.puntos_estimados);
       notificarPuntos(data.puntos_estimados, 'Detector de Phishing');
-    } catch (e) {
-      console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
     }
   };
 
