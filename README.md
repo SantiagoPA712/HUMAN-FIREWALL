@@ -50,9 +50,9 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 163 pruebas sobre
-migraciones, asignacion de puntos, motor de recompensas, niveles y
-recomendaciones. Ver `tests/README.md`.
+base levantada ni credenciales, y no tocan Supabase. Son 189 pruebas sobre
+migraciones, asignacion de puntos, motor de recompensas, niveles,
+recomendaciones y simulaciones. Ver `tests/README.md`.
 
 ---
 
@@ -116,6 +116,8 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/gamification/level/:userId`              | Propio usuario, admin o rh    |
 | GET    | `/api/gamification/levels`                     | Autenticado                   |
 | GET    | `/api/gamification/performance/:userId`        | Propio usuario, admin o rh    |
+| GET    | `/api/simulations`                             | Autenticado (filtrado por rol) |
+| POST   | `/api/simulations/:id/complete`                | Autenticado                   |
 
 `GET /points/:userId` acepta `?page=1&limit=20` y devuelve el total acumulado
 junto al detalle paginado del historial.
@@ -187,6 +189,26 @@ Para cambiar la escalera no hace falta tocar codigo: es un UPDATE sobre
 El modulo es de solo lectura: no escribe en `quiz_attempts` ni en
 `lesson_progress`. Cambiar la exigencia de la organizacion es un UPDATE sobre
 `recommendation_rules`, no un despliegue.
+
+### Dos tipos de evaluacion, y por que conviene saberlo
+
+El portal tiene dos cosas que parecen lo mismo y no lo son:
+
+| | Minijuegos | Simulaciones guiadas |
+|---|---|---|
+| Donde vive el contenido | Escrito a mano en el componente React | En la base: `simulations` + `simulation_steps` + `simulation_options` |
+| Agregar uno nuevo | Programar una pantalla | `POST /api/simulations` y sus pasos, sin tocar codigo |
+| Cuales son | Phishing, Contrasenas, Wi-Fi, Ingenieria Social, Proteccion de Datos | Las que cargue un instructor (la 024 siembra una de ejemplo) |
+| Como puntuan | `challenges.points_reward`, al ganar | `simulation_options.points_awarded`, opcion por opcion |
+| Registro del intento | `POST /api/gamification/challenge` | `POST /api/simulations/:id/complete` |
+
+Las dos terminan en `quiz_attempts`, que es lo que alimenta el resumen de
+desempeno, las recomendaciones y la racha de evaluaciones aprobadas.
+
+En las simulaciones el puntaje **se calcula en el servidor** a partir de las
+opciones elegidas: el porcentaje sale de comparar lo obtenido contra la mejor
+opcion de cada paso. Aceptarlo del cliente permitiria aprobar mandando
+`{"score": 100}` sin jugar.
 
 ## Reparto del sprint
 
