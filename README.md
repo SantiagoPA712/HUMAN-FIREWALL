@@ -10,30 +10,42 @@ gamificacion (puntos, niveles, insignias y rankings).
 
 ## Puesta en marcha
 
-Requisitos: Node.js 18 o superior y una base PostgreSQL accesible.
+Requisitos: **Node.js 18 o superior** y **Docker Desktop**. Nada mas: la base de
+datos la levanta el propio repositorio, no hace falta instalar PostgreSQL ni
+crear cuenta en ningun servicio.
 
-### 1. Backend
+### 1. Base de datos
+
+Desde la raiz del repositorio:
+
+```bash
+docker compose up -d
+```
+
+Levanta un PostgreSQL 16 en el puerto **5433**. Los datos quedan en un volumen,
+asi que sobreviven a apagar la maquina. Para empezar de cero: `docker compose down -v`.
+
+> El puerto es el 5433 y no el 5432 a proposito. Si alguien ya tiene PostgreSQL
+> instalado en su equipo, el 5432 esta ocupado, Node se conecta a **ese otro**
+> Postgres y falla con `password authentication failed for user "postgres"`.
+> Con el 5433 conviven los dos.
+
+### 2. Backend
 
 ```bash
 cd human-firewall-backend
 npm install
-cp .env.example .env      # Windows: copy .env.example .env
+npm run setup      # crea el .env con un JWT_SECRET generado al azar
+npm run dev        # aplica las migraciones pendientes y arranca en :3000
 ```
 
-Rellenar `.env` con la cadena de conexion real y un `JWT_SECRET`. Para generarlo:
+No hay que rellenar nada a mano ni ejecutar SQL: `npm run setup` deja el `.env`
+listo apuntando al contenedor, y `npm run dev` aplica solo las migraciones que
+falten antes de levantar el servidor.
 
-```bash
-openssl rand -hex 32
-```
+### 3. Frontend
 
-Aplicar las migraciones de `migrations/` en orden numerico desde el editor SQL de
-Supabase, y luego levantar el servidor:
-
-```bash
-npm run dev        # http://localhost:3000
-```
-
-### 2. Frontend
+En otra terminal:
 
 ```bash
 cd human-firewall-frontend
@@ -41,6 +53,22 @@ npm install
 cp .env.example .env
 npm run dev        # http://localhost:5173
 ```
+
+### Despues de cada `git pull`
+
+```bash
+cd human-firewall-backend && npm install && npm run dev
+```
+
+Si la rama traia migraciones nuevas, `npm run dev` las detecta y las aplica
+antes de arrancar. No hay que acordarse de nada.
+
+### Si preferis usar Supabase en vez del contenedor
+
+Reemplaza `DATABASE_URL` en tu `.env` por la cadena del panel
+(*Settings > Database > Connection string*, modo URI). El runner de migraciones
+funciona igual: si la base ya tenia las tablas creadas a mano, las detecta y no
+las vuelve a aplicar.
 
 ### 3. Pruebas
 
