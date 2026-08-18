@@ -16,6 +16,7 @@ import SocialEngineeringGame from './pages/simulations/SocialEngineeringGame';
 import PointsHistory from './pages/PointsHistory';
 import RewardsGallery from './pages/RewardsGallery';
 import MyLevel from './pages/MyLevel';
+import Performance from './pages/Performance';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
         <Route path="/points" element={<PointsHistory />} />
         <Route path="/rewards" element={<RewardsGallery />} />
         <Route path="/level" element={<MyLevel />} />
+        <Route path="/performance" element={<Performance />} />
         
         {/* Rutas Simulaciones */}
         <Route path="/simulation/phishing" element={<PhishingGame />} />

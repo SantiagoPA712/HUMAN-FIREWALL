@@ -3,6 +3,7 @@ const pointsService = require('../services/points.service');
 const eventBus = require('../services/eventBus');
 const rewardsService = require('../services/rewards.service');
 const levelsService = require('../services/levels.service');
+const recommendationsService = require('../services/recommendations.service');
 
 exports.getLeaderboard = async (req, res) => {
     try {
@@ -289,6 +290,32 @@ exports.getUserLevel = async (req, res) => {
         if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
 
         const resultado = await levelsService.obtenerNivelDeUsuario(userId);
+        res.status(200).json(resultado);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/performance/:userId
+ *
+ * Criterio tecnico 1: agrega quiz_attempts y lesson_progress del usuario para
+ * armar el resumen de desempeno, las areas de oportunidad y las
+ * recomendaciones de refuerzo.
+ *
+ * Criterio tecnico 3: mismas reglas de acceso que el resto del modulo. El 403
+ * lo aplica selfOrRoles en la definicion de la ruta; el servicio, ademas,
+ * filtra siempre por el user_id recibido, asi que no hay forma de que se
+ * cuelen datos de otro usuario.
+ */
+exports.getUserPerformance = async (req, res) => {
+    try {
+        const userId = Number.parseInt(req.params.userId, 10);
+
+        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
+        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+
+        const resultado = await recommendationsService.obtenerResumenDesempeno(userId);
         res.status(200).json(resultado);
     } catch (error) {
         res.status(500).json({ msg: error.message });
