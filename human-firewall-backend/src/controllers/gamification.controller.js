@@ -3,6 +3,7 @@ const pointsService = require('../services/points.service');
 const eventBus = require('../services/eventBus');
 const rewardsService = require('../services/rewards.service');
 const levelsService = require('../services/levels.service');
+const recommendationsService = require('../services/recommendations.service');
 
 exports.getLeaderboard = async (req, res) => {
     try {
@@ -134,10 +135,28 @@ exports.completeChallenge = async (req, res) => {
     const client = await db.connect();
 
     try {
-        const { challengeId } = req.body;
+        const { challengeId, passed, score } = req.body;
         const userId = req.user.id;
 
         if (!challengeId) return res.status(400).json({ msg: "El ID del desafío es obligatorio" });
+
+        // FALLO CORREGIDO: este endpoint escribia score=100 y passed=true fijos,
+        // sin mirar como le habia ido al usuario. Consecuencias:
+        //   1. Un intento reprobado no se podia registrar de ninguna manera, asi
+        //      que quiz_attempts.passed nunca valia false. Las areas de
+        //      oportunidad y las recomendaciones de refuerzo, que se calculan
+        //      justamente sobre eso, no tenian de donde salir.
+        //   2. Peor: el juego de ingenieria social llamaba a este endpoint
+        //      tambien al perder, y como el resultado venia fijo, caer en la
+        //      estafa otorgaba los mismos puntos que detectarla.
+        //
+        // El resultado ahora viene del cliente. `passed` se acepta como
+        // opcional y por defecto true para no romper a un cliente viejo que no
+        // lo mande, pero las cinco pantallas del portal ya envian el real.
+        const aprobado = passed !== false;
+        const puntaje = Number.isInteger(score)
+            ? Math.max(0, Math.min(100, score))
+            : (aprobado ? 100 : 0);
 
         const { rows: challengeRows } = await client.query(
             "SELECT * FROM challenges WHERE id = $1", [challengeId]
@@ -154,33 +173,44 @@ exports.completeChallenge = async (req, res) => {
         // el usuario pierde los puntos de forma definitiva y en silencio.
         await client.query('BEGIN');
 
-        const { rows: nuevas } = await client.query(
-            `INSERT INTO user_challenge_results (user_id, challenge_id, won)
-             VALUES ($1, $2, true)
-             ON CONFLICT (user_id, challenge_id) DO NOTHING
-             RETURNING id`,
-            [userId, challengeId]
-        );
+        // Solo un desafio superado se marca como ganado. Un fallo queda
+        // unicamente en el historial de intentos, para que el usuario pueda
+        // volver a intentarlo y ganarlo despues.
+        let yaGanado = false;
 
-        const yaGanado = nuevas.length === 0;
+        if (aprobado) {
+            const { rows: nuevas } = await client.query(
+                `INSERT INTO user_challenge_results (user_id, challenge_id, won)
+                 VALUES ($1, $2, true)
+                 ON CONFLICT (user_id, challenge_id) DO NOTHING
+                 RETURNING id`,
+                [userId, challengeId]
+            );
+            yaGanado = nuevas.length === 0;
+        }
 
+        // El intento SIEMPRE se registra, se haya ganado o perdido: es la
+        // materia prima del resumen de desempeno y de las recomendaciones.
+        //
         // Los tipos van explicitos: $1 y $2 se usan en el VALUES y en la
         // subconsulta, y sin cast Postgres deduce tipos distintos en cada
         // contexto y rechaza la consulta.
         await client.query(
             `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
-             VALUES ($1::int, $2::varchar, 'challenge', $3::int, 100, 60, true,
+             VALUES ($1::int, $2::varchar, 'challenge', $3::int, $4::int, 60, $5::boolean,
                      (SELECT COUNT(*) + 1 FROM quiz_attempts
                        WHERE user_id = $1::int AND quiz_ref = $2::varchar))`,
-            [userId, challengeId, challenge.course_id || null]
+            [userId, challengeId, challenge.course_id || null, puntaje, aprobado]
         );
 
-        if (!yaGanado) {
+        // Criterio de aceptacion 2 de la HU de puntos: no se asignan puntos si
+        // el intento fue reprobado. El evento solo se emite al aprobar.
+        if (aprobado && !yaGanado) {
             await eventBus.publish('quiz.approved', {
                 userId,
                 quizRef: challengeId,
                 quizType: 'challenge',
-                score: 100,
+                score: puntaje,
                 passed: true,
                 basePoints: challenge.points_reward
             }, client);
@@ -189,9 +219,13 @@ exports.completeChallenge = async (req, res) => {
         await client.query('COMMIT');
 
         res.status(200).json({
-            msg: yaGanado ? "Ya habías superado este desafío" : "Desafío superado con éxito",
+            msg: !aprobado
+                ? "Intento registrado: esta vez no lo superaste"
+                : yaGanado ? "Ya habías superado este desafío" : "Desafío superado con éxito",
+            aprobado,
+            score: puntaje,
             ya_completado: yaGanado,
-            puntos_estimados: yaGanado ? 0 : challenge.points_reward
+            puntos_estimados: (aprobado && !yaGanado) ? challenge.points_reward : 0
         });
 
     } catch (error) {
@@ -289,6 +323,32 @@ exports.getUserLevel = async (req, res) => {
         if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
 
         const resultado = await levelsService.obtenerNivelDeUsuario(userId);
+        res.status(200).json(resultado);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/performance/:userId
+ *
+ * Criterio tecnico 1: agrega quiz_attempts y lesson_progress del usuario para
+ * armar el resumen de desempeno, las areas de oportunidad y las
+ * recomendaciones de refuerzo.
+ *
+ * Criterio tecnico 3: mismas reglas de acceso que el resto del modulo. El 403
+ * lo aplica selfOrRoles en la definicion de la ruta; el servicio, ademas,
+ * filtra siempre por el user_id recibido, asi que no hay forma de que se
+ * cuelen datos de otro usuario.
+ */
+exports.getUserPerformance = async (req, res) => {
+    try {
+        const userId = Number.parseInt(req.params.userId, 10);
+
+        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
+        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+
+        const resultado = await recommendationsService.obtenerResumenDesempeno(userId);
         res.status(200).json(resultado);
     } catch (error) {
         res.status(500).json({ msg: error.message });

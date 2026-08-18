@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
@@ -25,8 +25,15 @@ export default function DashboardPage() {
         </div>
         
         <nav className="flex-1 flex flex-col gap-2">
+          {/* Este enlace decia "Mi Desempeño" y apuntaba al propio dashboard.
+              Ahora "Mi Desempeño" es una seccion real, asi que este pasa a
+              llamarse Panel para que no haya dos cosas con el mismo nombre. */}
           <a href="/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-brand-blue/10 text-brand-light font-medium">
             <Trophy className="w-5 h-5" />
+            Panel
+          </a>
+          <a href="/performance" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+            <TrendingUp className="w-5 h-5" />
             Mi Desempeño
           </a>
           <a href="/level" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">

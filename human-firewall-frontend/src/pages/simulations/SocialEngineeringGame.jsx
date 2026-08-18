@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Target, MessageCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { api } from '../../lib/api';
+import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
 
 export default function SocialEngineeringGame() {
@@ -10,18 +10,14 @@ export default function SocialEngineeringGame() {
   const [gameState, setGameState] = useState('playing'); // playing, won, lost
 
   const submitDecision = async (isCorrect) => {
-    try {
-      try {
-         const { data } = await api.post('/api/gamification/challenge', { challengeId: 'social' });
-         notificarPuntos(data.puntos_estimados, 'Ingeniería Social');
-      } catch (e) {
-         console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
-      }
-      {
-      }
-    } finally {
-      if(isCorrect) setGameState('won');
-      else setGameState('lost');
+    setGameState(isCorrect ? 'won' : 'lost');
+
+    // FALLO CORREGIDO: antes se registraba el desafio sin decir como habia
+    // salido, y el backend lo daba por aprobado siempre. Transferirle el
+    // dinero al falso CEO otorgaba los mismos puntos que detectar la estafa.
+    const data = await registrarDesafio('social', isCorrect);
+    if (data?.puntos_estimados > 0) {
+      notificarPuntos(data.puntos_estimados, 'Ingeniería Social');
     }
   };
 
@@ -84,8 +80,9 @@ export default function SocialEngineeringGame() {
            <div className="absolute inset-0 bg-red-900/95 p-6 flex flex-col items-center justify-center text-center z-20">
              <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
              <h3 className="text-2xl font-bold text-white mb-2">Pérdida Financiera Crítica</h3>
-             <p className="text-sm text-red-100 mb-6 font-medium">Le acabas de enviar el dinero de la empresa a un hacker en Nigeria. La urgencia y pedir discreción son las mayores banderas rojas en la ingeniería social.</p>
-             <Button variant="outline" onClick={() => window.location.href='/challenges'} className="w-full text-red-100 border-red-500">Siguiente</Button>
+             <p className="text-sm text-red-100 mb-4 font-medium">Le acabas de enviar el dinero de la empresa a un atacante. La urgencia y pedir discreción son las mayores banderas rojas en la ingeniería social.</p>
+             <p className="mb-6 text-xs text-red-200">0 puntos. El intento quedó registrado en <strong>Mi desempeño</strong>.</p>
+             <Button variant="outline" onClick={() => window.location.href='/performance'} className="w-full text-red-100 border-red-500">Ver qué repasar</Button>
            </div>
         )}
       </Card>

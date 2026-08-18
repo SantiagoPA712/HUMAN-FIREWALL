@@ -50,8 +50,9 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 104 pruebas sobre
-migraciones, asignacion de puntos, motor de recompensas y niveles. Ver `tests/README.md`.
+base levantada ni credenciales, y no tocan Supabase. Son 189 pruebas sobre
+migraciones, asignacion de puntos, motor de recompensas, niveles,
+recomendaciones y simulaciones. Ver `tests/README.md`.
 
 ---
 
@@ -114,6 +115,9 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/gamification/rewards`                    | Autenticado                   |
 | GET    | `/api/gamification/level/:userId`              | Propio usuario, admin o rh    |
 | GET    | `/api/gamification/levels`                     | Autenticado                   |
+| GET    | `/api/gamification/performance/:userId`        | Propio usuario, admin o rh    |
+| GET    | `/api/simulations`                             | Autenticado (filtrado por rol) |
+| POST   | `/api/simulations/:id/complete`                | Autenticado                   |
 
 `GET /points/:userId` acepta `?page=1&limit=20` y devuelve el total acumulado
 junto al detalle paginado del historial.
@@ -167,6 +171,44 @@ intermedios, para que el historial pueda responder cuando se alcanzo cada uno.
 
 Para cambiar la escalera no hace falta tocar codigo: es un UPDATE sobre
 `levels_config`.
+
+### Como se generan las recomendaciones
+
+1. `recommendation_rules` define el umbral (`score_threshold`, por defecto 70),
+   si las reprobadas cuentan siempre y cuantas sugerencias devolver.
+2. Una evaluacion es **area de oportunidad** si nunca se aprobo, o si su
+   **mejor** puntaje quedo por debajo del umbral. Se mira el mejor y no el
+   ultimo: quien saco 45 y despues 90 ya domina el tema.
+3. Por cada area se sugieren lecciones **del mismo curso** que el usuario
+   todavia no completo. El enlace evaluacion-curso sale de
+   `quiz_attempts.course_id`, que la migracion 003 agrego para esto.
+4. La evolucion compara los intentos recientes contra los anteriores **del
+   mismo usuario**. No se usa ningun dato de terceros, ni promedios globales
+   ni rankings.
+
+El modulo es de solo lectura: no escribe en `quiz_attempts` ni en
+`lesson_progress`. Cambiar la exigencia de la organizacion es un UPDATE sobre
+`recommendation_rules`, no un despliegue.
+
+### Dos tipos de evaluacion, y por que conviene saberlo
+
+El portal tiene dos cosas que parecen lo mismo y no lo son:
+
+| | Minijuegos | Simulaciones guiadas |
+|---|---|---|
+| Donde vive el contenido | Escrito a mano en el componente React | En la base: `simulations` + `simulation_steps` + `simulation_options` |
+| Agregar uno nuevo | Programar una pantalla | `POST /api/simulations` y sus pasos, sin tocar codigo |
+| Cuales son | Phishing, Contrasenas, Wi-Fi, Ingenieria Social, Proteccion de Datos | Las que cargue un instructor (la 024 siembra una de ejemplo) |
+| Como puntuan | `challenges.points_reward`, al ganar | `simulation_options.points_awarded`, opcion por opcion |
+| Registro del intento | `POST /api/gamification/challenge` | `POST /api/simulations/:id/complete` |
+
+Las dos terminan en `quiz_attempts`, que es lo que alimenta el resumen de
+desempeno, las recomendaciones y la racha de evaluaciones aprobadas.
+
+En las simulaciones el puntaje **se calcula en el servidor** a partir de las
+opciones elegidas: el porcentaje sale de comparar lo obtenido contra la mejor
+opcion de cada paso. Aceptarlo del cliente permitiria aprobar mandando
+`{"score": 100}` sin jugar.
 
 ## Reparto del sprint
 
@@ -245,6 +287,9 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `event_outbox`   | Cola de eventos con reintentos                                    |
 | `rewards_catalog`| Catalogo de recompensas con condiciones configurables             |
 | `user_rewards`   | Historial inmutable de recompensas, con snapshot. Solo INSERT     |
+| `levels_config`  | Escalera de niveles: limite inferior de puntos de cada tramo      |
+| `user_level_history` | Historial inmutable de niveles alcanzados, con snapshot       |
+| `recommendation_rules` | Umbral y limites del motor de recomendaciones               |
 
 `quiz_attempts.course_id` guarda a que curso pertenecia la evaluacion en el
 momento del intento. `simulations` y `challenges` tambien tienen `course_id`
@@ -296,6 +341,8 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | 5 | `user_badges.badge_id` con `ON DELETE CASCADE`: borrar una insignia borraba el historial de todos los usuarios | Se elimino la clave foranea y se guarda un snapshot; el historial ya no depende del catalogo |
 | - | Las insignias nunca se otorgaban solas, solo manualmente por un admin | Motor de evaluacion automatico sobre eventos |
 | - | Un curso nunca se marcaba como finalizado | `completeLesson` cierra la asignacion y emite `course.completed` |
+| - | Un desafio perdido no se registraba en ningun lado y el motor de recomendaciones se quedaba sin datos | El resultado real viaja al backend; el intento se guarda con su `passed` y `score` verdaderos |
+| - | El juego de ingenieria social otorgaba los puntos completos tambien al caer en la estafa | El endpoint ya no da el resultado por aprobado: lo recibe del cliente |
 | 9 | `users.level` nunca se calculaba y el dashboard mostraba "Nivel 1 / Cinturon Blanco" fijo para todos | Nivel derivado de `points_ledger` + `levels_config`, con la cache sincronizada en cada `points_assigned` |
 | 3 | `config/db.js` desactivaba la verificacion TLS de todo el proceso Node | Ya estaba corregido en `9f48d97`: el SSL se decide por URL y queda acotado al pool |
 

@@ -1,9 +1,25 @@
-import React from 'react';
-import { Mail, Lock, Wifi, Target, ShieldCheck, Trophy, ArrowLeft, BookOpen, Award, History } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Mail, Lock, Wifi, Target, ShieldCheck, Trophy, ArrowLeft, BookOpen, Award, History, Play, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { api } from '../lib/api';
 
 export default function ChallengesHub() {
+  // Simulaciones guiadas cargadas en la base.
+  //
+  // Esta pagina solo mostraba los cinco minijuegos de abajo, que estan escritos
+  // a mano en React. Las simulaciones creadas por un instructor desde la API
+  // (tablas simulations / simulation_steps / simulation_options) no aparecian
+  // en ningun lado, asi que no habia forma de llegar a jugarlas.
+  const [simulaciones, setSimulaciones] = useState([]);
+
+  useEffect(() => {
+    api.get('/api/simulations')
+      .then(({ data }) => setSimulaciones(data))
+      // Silencioso: si falla, la pagina sigue mostrando los minijuegos.
+      .catch(() => setSimulaciones([]));
+  }, []);
+
   const challenges = [
     {
       id: "phishing",
@@ -112,6 +128,56 @@ export default function ChallengesHub() {
         </div>
 
         <div className="w-full max-w-4xl space-y-6">
+
+        {/* Simulaciones interactivas: contenido de base de datos, editable por
+            un instructor sin tocar codigo. Van primero porque son el formato
+            que el sistema esta pensado para escalar; los minijuegos de abajo
+            son cinco pantallas fijas. */}
+        {simulaciones.length > 0 && (
+          <>
+            <h2 className="text-xl font-bold flex items-center gap-2 pt-2">
+              <Play className="w-5 h-5 text-brand-light" />
+              Simulaciones interactivas
+            </h2>
+
+            {simulaciones.map(sim => (
+              <Card key={sim.id} className="p-6 border-l-4 border-l-purple-500 flex flex-col">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <h3 className="text-xl font-bold">{sim.title}</h3>
+                  {sim.intentada && (
+                    <span className="shrink-0 flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-400">
+                      <Check className="w-3 h-3" /> ya la hiciste
+                    </span>
+                  )}
+                </div>
+
+                {sim.description && (
+                  <p className="text-sm text-text-secondary mb-4">{sim.description}</p>
+                )}
+
+                <div className="flex justify-between items-center mb-6 text-xs">
+                  <span className="px-3 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">
+                    {sim.difficulty}
+                  </span>
+                  <span className="text-text-secondary">
+                    {sim.pasos} {sim.pasos === 1 ? 'decisión' : 'decisiones'}
+                    {sim.curso && ` · ${sim.curso}`}
+                  </span>
+                </div>
+
+                <Button
+                  className="w-full font-bold bg-purple-600 hover:bg-purple-500"
+                  onClick={() => window.location.href = `/simulation/play/${sim.id}`}
+                >
+                  {sim.intentada ? 'Volver a intentar' : 'Comenzar'}
+                </Button>
+              </Card>
+            ))}
+
+            <h2 className="text-xl font-bold pt-6">Minijuegos rápidos</h2>
+          </>
+        )}
+
         
         {challenges.map(chal => (
           <Card key={chal.id} className="p-6 transition-all duration-300 hover:border-brand-blue/50 flex flex-col bg-gradient-to-br from-bg-deep/80 to-brand-blue/5 hover:to-brand-blue/20">

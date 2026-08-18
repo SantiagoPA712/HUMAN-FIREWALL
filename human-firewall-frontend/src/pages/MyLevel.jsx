@@ -37,6 +37,12 @@ export default function MyLevel() {
     const formatearFecha = (iso) =>
         new Date(iso).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' });
 
+    // Que niveles ya alcanzo, para pintar la escalera.
+    //
+    // Sale del historial (user_level_history) y no de comparar contra el nivel
+    // actual, porque son cosas distintas: si manana suben los umbrales, el
+    // nivel actual puede bajar, pero lo que el usuario ya alcanzo alguna vez
+    // no se le quita.
     const alcanzados = new Set((nivel?.historial || []).map((h) => h.level));
 
     return (

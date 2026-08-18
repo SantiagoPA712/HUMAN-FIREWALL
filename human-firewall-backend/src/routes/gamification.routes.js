@@ -35,6 +35,13 @@ router.get('/level/:userId',
     gamificationController.getUserLevel
 );
 
+// Desempeño y recomendaciones (HU: cómo mejorar mi desempeño)
+router.get('/performance/:userId',
+    verifyToken(),
+    selfOrRoles(['admin', 'rh'], 'userId'),
+    gamificationController.getUserPerformance
+);
+
 // Administración de insignias y recompensas
 router.post('/badges', verifyToken(['admin']), gamificationController.createBadge);
 router.post('/badges/assign', verifyToken(['admin', 'instructor']), gamificationController.assignBadge);
