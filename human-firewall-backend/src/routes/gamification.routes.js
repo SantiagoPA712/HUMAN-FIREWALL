@@ -26,6 +26,22 @@ router.get('/rewards/:userId',
     gamificationController.getUserRewards
 );
 
+// Nivel y progreso (HU: nivel actual y avance hacia el siguiente)
+// La escalera va antes que /:userId para que "levels" no se lea como un id.
+router.get('/levels', verifyToken(), gamificationController.getLevelsConfig);
+router.get('/level/:userId',
+    verifyToken(),
+    selfOrRoles(['admin', 'rh'], 'userId'),
+    gamificationController.getUserLevel
+);
+
+// Desempeño y recomendaciones (HU: cómo mejorar mi desempeño)
+router.get('/performance/:userId',
+    verifyToken(),
+    selfOrRoles(['admin', 'rh'], 'userId'),
+    gamificationController.getUserPerformance
+);
+
 // Administración de insignias y recompensas
 router.post('/badges', verifyToken(['admin']), gamificationController.createBadge);
 router.post('/badges/assign', verifyToken(['admin', 'instructor']), gamificationController.assignBadge);

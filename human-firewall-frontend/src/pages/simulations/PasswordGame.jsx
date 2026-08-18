@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, ShieldCheck, CheckCircle, ArrowLeft } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { api } from '../../lib/api';
+import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
 
 export default function PasswordGame() {
@@ -28,21 +28,18 @@ export default function PasswordGame() {
   const strength = getStrengthLabel();
 
   const submitPassword = async () => {
-    if (score === 4) {
-      try {
-        // El .catch(e=>e) anterior tragaba el error: el usuario veia "ganaste"
-        // aunque los puntos nunca se hubieran otorgado. Ahora se avisa.
-        try {
-           const { data } = await api.post('/api/gamification/challenge', { challengeId: 'password' });
-           notificarPuntos(data.puntos_estimados, 'Maestro de Contraseñas');
-        } catch (e) {
-           console.warn('No se pudieron registrar los puntos:', e.response?.data?.msg || e.message);
-        }
-        {
-        }
-      } finally {
-        setGameState('won');
-      }
+    // A diferencia de los otros desafios, este no tiene forma de perder: el
+    // boton esta deshabilitado hasta cumplir los cuatro requisitos. Por eso
+    // siempre se registra como aprobado.
+    if (score !== 4) return;
+
+    setGameState('won');
+
+    // El .catch(e=>e) anterior tragaba el error: el usuario veia "ganaste"
+    // aunque los puntos nunca se hubieran otorgado. Ahora se avisa.
+    const data = await registrarDesafio('password', true);
+    if (data?.puntos_estimados > 0) {
+      notificarPuntos(data.puntos_estimados, 'Maestro de Contraseñas');
     }
   };
 
