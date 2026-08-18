@@ -58,7 +58,16 @@ async function obtenerEvaluaciones(userId) {
                 MIN(q.score)::int                     AS peor_puntaje,
                 BOOL_OR(q.passed)                     AS aprobada,
                 MAX(q.passing_score)::int             AS puntaje_minimo,
-                MAX(q.created_at)                     AS ultimo_intento
+                MAX(q.created_at)                     AS ultimo_intento,
+
+                -- El ultimo intento, no solo el mejor. Sin esto, alguien que
+                -- aprobo una vez y despues fallo dos veces seguidas quedaba
+                -- fuera de las areas de oportunidad: el sistema le decia
+                -- "segui asi" justo cuando estaba desaprendiendo.
+                (ARRAY_AGG(q.score  ORDER BY q.created_at DESC, q.id DESC))[1]::int
+                                                      AS ultimo_puntaje,
+                (ARRAY_AGG(q.passed ORDER BY q.created_at DESC, q.id DESC))[1]
+                                                      AS ultimo_aprobado
            FROM quiz_attempts q
            LEFT JOIN challenges  ch ON q.quiz_type = 'challenge'  AND ch.id = q.quiz_ref
            LEFT JOIN simulations s  ON q.quiz_type = 'simulation' AND s.id::varchar = q.quiz_ref
@@ -75,23 +84,49 @@ async function obtenerEvaluaciones(userId) {
 /**
  * Criterio de aceptacion 1: evaluaciones con menor puntaje y reprobadas.
  *
- * Se evalua contra el MEJOR puntaje alcanzado, no contra el ultimo intento:
- * si alguien saco 45 y despues 90, ya domina el tema y no tiene sentido
- * seguir marcandolo como area de oportunidad.
+ * Una evaluacion es area de oportunidad en tres casos:
+ *
+ *   1. Nunca se aprobo.
+ *   2. Su mejor puntaje sigue por debajo del umbral.
+ *   3. El ULTIMO intento fallo o quedo bajo el umbral, aunque antes se haya
+ *      aprobado. Este caso faltaba y era el mas grave: alguien que aprobo con
+ *      100 y despues fallo dos veces seguidas no aparecia por ningun lado,
+ *      porque solo se miraba el maximo historico. El sistema le respondia
+ *      "ninguna evaluacion por debajo del 70%" justo cuando acababa de fallar.
+ *
+ * El mejor puntaje sigue contando para el caso 2: quien saco 45 y despues 90
+ * ya domina el tema y no tiene sentido seguir marcandoselo.
  */
 function filtrarAreasDeOportunidad(evaluaciones, regla) {
     return evaluaciones
-        .filter(e => {
-            const reprobada = !e.aprobada;
-            const bajoUmbral = e.mejor_puntaje < regla.score_threshold;
-            return (reprobada && regla.include_failed) || bajoUmbral;
+        .map(e => {
+            // Un intento suelto puede no traer los campos del ultimo intento
+            // (por ejemplo si la evaluacion viene de otra consulta): en ese
+            // caso se cae al mejor puntaje, que siempre esta.
+            const ultimoPuntaje = e.ultimo_puntaje != null ? e.ultimo_puntaje : e.mejor_puntaje;
+            const ultimoAprobado = e.ultimo_aprobado != null ? e.ultimo_aprobado : e.aprobada;
+
+            const nuncaAprobada = !e.aprobada;
+            const mejorBajoUmbral = e.mejor_puntaje < regla.score_threshold;
+            const retrocedio = e.aprobada && (!ultimoAprobado || ultimoPuntaje < regla.score_threshold);
+
+            const esArea = (nuncaAprobada && regla.include_failed) || mejorBajoUmbral || retrocedio;
+            if (!esArea) return null;
+
+            let motivo;
+            if (nuncaAprobada) {
+                motivo = `Todavía no aprobás esta evaluación (mejor intento: ${e.mejor_puntaje}%)`;
+            } else if (retrocedio) {
+                motivo = !ultimoAprobado
+                    ? `La aprobaste antes, pero tu último intento falló (${ultimoPuntaje}%)`
+                    : `Tu último intento bajó a ${ultimoPuntaje}%, por debajo del ${regla.score_threshold}% esperado`;
+            } else {
+                motivo = `Tu mejor puntaje fue ${e.mejor_puntaje}%, por debajo del ${regla.score_threshold}% esperado`;
+            }
+
+            return { ...e, ultimo_puntaje: ultimoPuntaje, retrocedio, motivo };
         })
-        .map(e => ({
-            ...e,
-            motivo: !e.aprobada
-                ? `Todavía no aprobás esta evaluación (mejor intento: ${e.mejor_puntaje}%)`
-                : `Tu mejor puntaje fue ${e.mejor_puntaje}%, por debajo del ${regla.score_threshold}% esperado`
-        }));
+        .filter(Boolean);
 }
 
 /**
@@ -159,8 +194,14 @@ async function obtenerEvolucion(userId, ventana = 5) {
     const promedio = (lista) =>
         lista.length === 0 ? null : Math.round(lista.reduce((a, x) => a + x.score, 0) / lista.length);
 
-    const recientes = serie.slice(-ventana);
-    const previos = serie.slice(0, -ventana);
+    // La ventana no puede llevarse mas de la mitad de la serie. Con el valor
+    // fijo de 5, un usuario con exactamente 5 intentos se quedaba sin nada en
+    // "previos" y la pantalla le decia "todavia no hay suficientes intentos
+    // para comparar" mostrandole cinco puntos en el grafico.
+    const ventanaEfectiva = Math.max(1, Math.min(ventana, Math.floor(serie.length / 2)));
+
+    const recientes = serie.slice(-ventanaEfectiva);
+    const previos = serie.slice(0, -ventanaEfectiva);
 
     const promRecientes = promedio(recientes);
     const promPrevios = promedio(previos);
@@ -185,7 +226,7 @@ async function obtenerEvolucion(userId, ventana = 5) {
         promedio_previo: promPrevios,
         diferencia,
         tendencia,
-        ventana
+        ventana: ventanaEfectiva
     };
 }
 
@@ -246,13 +287,20 @@ async function generarRecomendaciones(userId, areas, regla) {
         [cursos, userId]
     );
 
-    // Cada leccion se sugiere por el area de peor puntaje de su curso, para
-    // que el motivo que se muestra sea el mas relevante.
+    // Cada leccion se sugiere por el area mas floja de su curso, para que el
+    // motivo que se muestra sea el mas relevante.
+    //
+    // Se compara por el ULTIMO puntaje, no por el mejor: en un retroceso
+    // (aprobo con 100 y despues fallo) el mejor sigue siendo 100, y el motivo
+    // terminaba diciendo "sugerido porque tu puntaje fue 100%", que ademas de
+    // absurdo contradecia el area de oportunidad que estaba justo arriba.
+    const puntajeRelevante = (a) => (a.ultimo_puntaje != null ? a.ultimo_puntaje : a.mejor_puntaje);
+
     const peorAreaPorCurso = new Map();
     for (const a of areas) {
         if (!a.course_id) continue;
         const previa = peorAreaPorCurso.get(a.course_id);
-        if (!previa || a.mejor_puntaje < previa.mejor_puntaje) {
+        if (!previa || puntajeRelevante(a) < puntajeRelevante(previa)) {
             peorAreaPorCurso.set(a.course_id, a);
         }
     }
@@ -267,7 +315,9 @@ async function generarRecomendaciones(userId, areas, regla) {
             extracto: l.extracto,
             puntos: l.points_reward,
             motivo: area
-                ? `Sugerido porque tu puntaje en "${area.titulo}" fue ${area.mejor_puntaje}%`
+                ? (area.retrocedio
+                    ? `Sugerido porque tu último intento en "${area.titulo}" bajó a ${puntajeRelevante(area)}%`
+                    : `Sugerido porque tu puntaje en "${area.titulo}" fue ${puntajeRelevante(area)}%`)
                 : 'Leccion de refuerzo pendiente'
         };
     });

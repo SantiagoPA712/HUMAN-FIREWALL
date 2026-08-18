@@ -102,10 +102,25 @@ check('una evaluacion con 100% no aparece como area',
 check('el motivo explica por que aparece', /65%/.test(areas[0].motivo) && /70%/.test(areas[0].motivo),
   `("${areas[0].motivo}")`);
 
-// El mejor puntaje manda sobre el ultimo: quien saca 45 y despues 90 ya domina.
+// Quien saca 45 y despues 90 ya domina el tema: deja de ser area.
 const superado = reco.filtrarAreasDeOportunidad(
-  [{ quiz_ref:'x', aprobada:true, mejor_puntaje:90, titulo:'X' }], regla);
-check('se evalua contra el mejor puntaje, no contra el ultimo intento', superado.length === 0);
+  [{ quiz_ref:'x', aprobada:true, mejor_puntaje:90, ultimo_puntaje:90, ultimo_aprobado:true, titulo:'X' }], regla);
+check('mejorar hasta superar el umbral saca la evaluacion de las areas', superado.length === 0);
+
+// El caso que faltaba: aprobo con 100 y despues fallo. El maximo historico
+// decia "todo bien" mientras el usuario acababa de equivocarse.
+const retroceso = reco.filtrarAreasDeOportunidad(
+  [{ quiz_ref:'data', aprobada:true, mejor_puntaje:100, ultimo_puntaje:0, ultimo_aprobado:false, titulo:'Proteccion de Datos' }], regla);
+check('aprobar antes y fallar despues SI es area de oportunidad',
+  retroceso.length === 1, `(dio ${retroceso.length})`);
+check('el motivo dice que hubo un retroceso',
+  /aprobaste antes/i.test(retroceso[0]?.motivo || ''), `("${retroceso[0]?.motivo}")`);
+check('marca la bandera de retroceso para la interfaz', retroceso[0]?.retrocedio === true);
+
+// Bajar de nota sin llegar a reprobar tambien cuenta.
+const bajon = reco.filtrarAreasDeOportunidad(
+  [{ quiz_ref:'y', aprobada:true, mejor_puntaje:95, ultimo_puntaje:62, ultimo_aprobado:true, titulo:'Y' }], regla);
+check('bajar por debajo del umbral sin reprobar tambien es area', bajon.length === 1);
 
 // La comparacion es estricta (score < umbral), asi que con umbral 100 un
 // puntaje de 100 queda fuera. Para exigir la perfeccion hay que poner 101.
@@ -142,6 +157,17 @@ check('max_suggestions limita la lista', topeado.length === 1);
 const sinAreas = await reco.generarRecomendaciones(ana, [], regla);
 check('sin areas de oportunidad no hay nada que sugerir', sinAreas.length === 0);
 
+// En un retroceso el motivo debe citar el ultimo puntaje, no el mejor: decir
+// "sugerido porque tu puntaje fue 100%" contradice el area de oportunidad.
+const areaRetroceso = [{
+  quiz_ref:'data', course_id:11, titulo:'Proteccion de Datos', aprobada:true,
+  mejor_puntaje:100, ultimo_puntaje:0, retrocedio:true
+}];
+const recoRetroceso = await reco.generarRecomendaciones(ana, areaRetroceso, regla);
+check('el motivo de un retroceso cita el ultimo puntaje, no el mejor',
+  recoRetroceso.length > 0 && /bajó a 0%/.test(recoRetroceso[0].motivo) && !/100%/.test(recoRetroceso[0].motivo),
+  `("${recoRetroceso[0]?.motivo}")`);
+
 // ---------------------------------------------------------------------
 console.log('\n--- EVOLUCION CONTRA EL PROPIO HISTORIAL ---');
 
@@ -157,6 +183,29 @@ check('detecta que va mejorando', evo.tendencia === 'mejorando', `(dio ${evo.ten
 const evoBeto = await reco.obtenerEvolucion(beto);
 check('sin intentos no inventa una tendencia',
   evoBeto.tendencia === 'sin_datos' && evoBeto.promedio_general === null);
+
+// La ventana fija de 5 se comia la serie entera: con exactamente 5 intentos
+// no quedaba nada en "previos" y la pantalla decia "no hay suficientes
+// intentos para comparar" mostrando cinco puntos en el grafico.
+const evoPorDefecto = await reco.obtenerEvolucion(ana);
+check('con 4 intentos y ventana por defecto 5, igual compara',
+  evoPorDefecto.tendencia !== 'sin_datos',
+  `(tendencia ${evoPorDefecto.tendencia}, serie de ${evoPorDefecto.total_intentos})`);
+check('la ventana se recorta a la mitad de la serie',
+  evoPorDefecto.ventana === Math.floor(evoPorDefecto.total_intentos / 2),
+  `(ventana ${evoPorDefecto.ventana} sobre ${evoPorDefecto.total_intentos} intentos)`);
+
+// Con un solo intento si es honesto decir que no hay con que comparar.
+// Se usa un tercer usuario para no ensuciar a beto, que mas abajo sirve para
+// verificar el aislamiento entre usuarios.
+await pg.query(`INSERT INTO users (email,password,role) VALUES ('caro@hf.com','x','employee')`);
+const { rows:[c] } = await pg.query(`SELECT id FROM users WHERE email='caro@hf.com'`);
+await pg.query(
+  `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, score, passing_score, passed, attempt_no)
+   VALUES ($1,'social','challenge',100,60,true,1)`, [c.id]);
+const evoUno = await reco.obtenerEvolucion(c.id);
+check('con un solo intento sigue sin haber tendencia', evoUno.tendencia === 'sin_datos',
+  `(dio ${evoUno.tendencia})`);
 
 // ---------------------------------------------------------------------
 console.log('\n--- AISLAMIENTO ENTRE USUARIOS (criterio de aceptacion 3) ---');

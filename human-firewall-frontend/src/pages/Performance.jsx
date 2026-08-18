@@ -199,19 +199,25 @@ function Areas({ areas, umbral }) {
             ) : (
                 <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2">
                     {areas.map((a) => (
-                        <Card key={`${a.quiz_type}-${a.quiz_ref}`} className="border-l-4 border-l-yellow-500 p-5">
+                        <Card key={`${a.quiz_type}-${a.quiz_ref}`} className={`border-l-4 p-5 ${
+                            a.retrocedio ? 'border-l-orange-500' : 'border-l-yellow-500'
+                        }`}>
                             <div className="mb-2 flex items-start justify-between gap-3">
                                 <h3 className="font-bold">{a.titulo}</h3>
+                                {/* Se muestra el ULTIMO puntaje, no el mejor: es el que
+                                    refleja como esta el usuario hoy. */}
                                 <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-bold ${
-                                    a.aprobada ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                                    a.ultimo_puntaje >= umbral ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
                                 }`}>
-                                    {a.mejor_puntaje}%
+                                    {a.ultimo_puntaje}%
                                 </span>
                             </div>
                             {a.curso && <p className="mb-2 text-xs text-text-secondary">Curso: {a.curso}</p>}
                             <p className="text-sm text-text-secondary">{a.motivo}</p>
                             <p className="mt-2 text-xs text-text-secondary">
-                                {a.intentos} {a.intentos === 1 ? 'intento' : 'intentos'} · mínimo para aprobar: {a.puntaje_minimo}%
+                                {a.intentos} {a.intentos === 1 ? 'intento' : 'intentos'}
+                                {a.mejor_puntaje !== a.ultimo_puntaje && <> · tu mejor marca fue {a.mejor_puntaje}%</>}
+                                {' '}· mínimo para aprobar: {a.puntaje_minimo}%
                             </p>
                         </Card>
                     ))}
