@@ -65,6 +65,13 @@ export default function Performance() {
     );
 }
 
+/**
+ * Cuatro numeros de cabecera.
+ *
+ * "A reforzar" y "Sin intentar" se muestran juntos a proposito: uno dice
+ * donde flaqueaste y el otro que te falta empezar. Son las dos preguntas que
+ * responde esta pantalla.
+ */
 function Resumen({ resumen }) {
     const items = [
         { etiqueta: 'Evaluaciones hechas', valor: resumen.evaluaciones_realizadas, color: 'text-text-primary' },
@@ -183,6 +190,16 @@ function Evolucion({ evolucion }) {
     );
 }
 
+/**
+ * Areas de oportunidad: donde conviene enfocar el esfuerzo.
+ *
+ * El badge muestra el ULTIMO puntaje y no el mejor. Al reves se producia el
+ * caso absurdo de marcar algo como area de oportunidad y mostrarle al lado un
+ * 100%, que era la marca historica y no reflejaba el intento reciente.
+ *
+ * Un retroceso (aprobo antes, fallo ahora) se pinta en naranja para
+ * distinguirlo de algo que nunca se aprobo, en amarillo.
+ */
 function Areas({ areas, umbral }) {
     return (
         <>
@@ -227,6 +244,17 @@ function Areas({ areas, umbral }) {
     );
 }
 
+/**
+ * Lecciones de refuerzo sugeridas.
+ *
+ * Cada una lleva su motivo escrito ("Sugerido porque tu ultimo intento en X
+ * bajo a 0%"). Sin ese texto la lista pareceria contenido al azar, y el
+ * criterio de aceptacion 2 de la HU pide justamente que se entienda de donde
+ * sale la sugerencia.
+ *
+ * Si no hay nada que sugerir la seccion no se dibuja, en lugar de mostrar un
+ * titulo con un vacio debajo.
+ */
 function Recomendaciones({ lista }) {
     if (lista.length === 0) return null;
 
@@ -256,6 +284,13 @@ function Recomendaciones({ lista }) {
     );
 }
 
+/**
+ * Evaluaciones que el usuario todavia no intento ni una vez.
+ *
+ * Van como etiquetas sueltas y no como tarjetas: no son un problema a
+ * corregir, solo contenido disponible. Darles el mismo peso visual que a las
+ * areas de oportunidad diluiria el mensaje de la pantalla.
+ */
 function Pendientes({ lista }) {
     if (lista.length === 0) return null;
 
@@ -274,6 +309,13 @@ function Pendientes({ lista }) {
     );
 }
 
+/**
+ * Avance de lecciones por curso asignado.
+ *
+ * Es el contrapeso de las areas de oportunidad: estas miden como te fue en las
+ * evaluaciones, esto mide cuanto material recorriste. Un usuario puede tener
+ * buen puntaje y poco avance, o al reves, y las dos cosas importan.
+ */
 function Cursos({ cursos }) {
     if (cursos.length === 0) return null;
 
