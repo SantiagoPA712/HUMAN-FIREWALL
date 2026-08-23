@@ -3,7 +3,7 @@ import { ShieldCheck, Mail, Lock, UserPlus } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import axios from 'axios';
+import api from '../lib/api';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -24,7 +24,7 @@ export default function RegisterPage() {
     }
 
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/register', {
+      const res = await api.post('/api/auth/register', {
         email,
         password
       });

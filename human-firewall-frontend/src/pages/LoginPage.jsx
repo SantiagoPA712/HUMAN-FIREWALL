@@ -3,7 +3,7 @@ import { ShieldCheck, Mail, Lock } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import axios from 'axios';
+import api from '../lib/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,7 +17,7 @@ export default function LoginPage() {
     setError(null);
     try {
       // Intentar conectarse al server backend en el mismo equipo (Epic 1)
-      const res = await axios.post('http://localhost:3000/api/auth/login', {
+      const res = await api.post('/api/auth/login', {
         email,
         password
       });

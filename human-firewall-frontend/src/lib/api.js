@@ -3,11 +3,18 @@ import axios from 'axios';
 /**
  * Cliente HTTP unico de la aplicacion.
  *
- * Antes cada pagina escribia 'http://localhost:3000' a mano (estaba repetido
- * en 6 archivos), asi que la app no se podia desplegar en ningun otro lado.
- * Ahora la URL sale de VITE_API_URL, definida en .env.
+ * Antes cada pagina escribia 'http://localhost:3000' a mano, asi que la app no
+ * se podia desplegar en ningun otro lado.
+ *
+ * Ahora el valor por defecto es la cadena vacia, es decir MISMO ORIGEN: en el
+ * monolito el servidor que entrega esta interfaz es el mismo que responde la
+ * API, asi que no hace falta nombrarlo. La app funciona igual en localhost que
+ * en cualquier dominio, sin recompilar ni configurar nada.
+ *
+ * VITE_API_URL solo se define si alguna vez se quiere apuntar a un backend
+ * separado (por ejemplo para depurar contra otro entorno).
  */
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 export const api = axios.create({ baseURL: API_URL });
 
@@ -19,10 +26,16 @@ api.interceptors.request.use((config) => {
 });
 
 // Si el token venció, vuelve al login en lugar de dejar la pantalla rota.
+//
+// Los endpoints de /api/auth quedan excluidos: un 401 ahi significa
+// "credenciales incorrectas", no "sesion expirada". Sin esta excepcion, un
+// intento de login fallido recargaria la propia pagina de login y el usuario
+// nunca alcanzaria a leer el mensaje de error.
 api.interceptors.response.use(
     (res) => res,
     (error) => {
-        if (error.response?.status === 401) {
+        const esAutenticacion = error.config?.url?.includes('/api/auth/');
+        if (error.response?.status === 401 && !esAutenticacion) {
             localStorage.removeItem('token');
             if (!window.location.pathname.startsWith('/login')) {
                 window.location.href = '/login';

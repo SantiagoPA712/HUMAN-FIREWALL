@@ -3,16 +3,73 @@
 Plataforma de concientizacion en ciberseguridad: cursos, simulaciones interactivas y
 gamificacion (puntos, niveles, insignias y rankings).
 
-- **Backend:** Node.js + Express 5 + PostgreSQL (Supabase)
-- **Frontend:** React 19 + Vite + TailwindCSS 4
+**Arquitectura monolitica:** un solo proceso Node/Express sirve la interfaz y la
+API contra una sola base de datos.
+
+- **Backend:** Node.js + Express 5 + PostgreSQL
+- **Frontend:** React 19 + Vite + TailwindCSS 4, compilado y servido por el backend
+
+---
+
+## Arquitectura
+
+El sistema es un **monolito**: un unico proceso atiende todas las peticiones,
+sean de la interfaz o de la API, contra una sola base de datos.
+
+```
+                  Navegador
+                      |
+                      v
+    +--------------------------------------------+
+    |          Proceso Express  (:3000)           |
+    |                                             |
+    |  /api/*     -> routes -> controllers ->     |
+    |                services -> PostgreSQL       |
+    |                                             |
+    |  resto      -> build de React (estaticos)   |
+    +--------------------------------------------+
+                      |
+                      v
+                  PostgreSQL
+```
+
+Antes la interfaz y la API eran dos aplicaciones separadas, con su propio
+servidor y su propio despliegue cada una. Ahora `npm run build` compila React a
+`human-firewall-frontend/dist/` y Express entrega esos archivos desde el mismo
+proceso que responde la API.
+
+**Que se gana:**
+
+- Se despliega **un solo artefacto**, en vez de coordinar dos que tienen que
+  conocerse entre si.
+- La interfaz y la API comparten origen, asi que **no hace falta CORS** ni
+  configurar la URL del backend en el frontend.
+- Las llamadas entre capas son de funcion a funcion dentro del mismo proceso:
+  no hay latencia de red ni fallos parciales que compensar.
+- Una transaccion de base de datos cubre una operacion de negocio completa, sin
+  coordinacion distribuida.
+
+**Que se paga:**
+
+- Se escala replicando el proceso entero, aunque el cuello de botella sea un
+  solo modulo.
+- Todo se despliega junto: un cambio en una pantalla obliga a reiniciar tambien
+  la API.
+- El stack queda fijo para todo el sistema.
+
+Para el volumen de esta plataforma la balanza favorece claramente al monolito.
+
+> **Monolitico describe el DESPLIEGUE, no la organizacion interna.** La
+> separacion en capas se conserva intacta: `routes` -> `controllers` ->
+> `services` -> base de datos. Que todo viaje junto no autoriza a que un
+> controlador escriba SQL.
 
 ---
 
 ## Puesta en marcha
 
 Requisitos: **Node.js 18 o superior** y **Docker Desktop**. Nada mas: la base de
-datos la levanta el propio repositorio, no hace falta instalar PostgreSQL ni
-crear cuenta en ningun servicio.
+datos la levanta el propio repositorio.
 
 ### 1. Base de datos
 
@@ -30,50 +87,56 @@ asi que sobreviven a apagar la maquina. Para empezar de cero: `docker compose do
 > Postgres y falla con `password authentication failed for user "postgres"`.
 > Con el 5433 conviven los dos.
 
-### 2. Backend
+### 2. Instalacion
 
 ```bash
-cd human-firewall-backend
-npm install
-npm run setup      # crea el .env con un JWT_SECRET generado al azar
-npm run dev        # aplica las migraciones pendientes y arranca en :3000
+npm run setup
 ```
 
-No hay que rellenar nada a mano ni ejecutar SQL: `npm run setup` deja el `.env`
-listo apuntando al contenedor, y `npm run dev` aplica solo las migraciones que
-falten antes de levantar el servidor.
+Instala las dependencias de las dos carpetas y genera el `.env` del backend con
+un `JWT_SECRET` aleatorio. No hay que rellenar nada a mano.
 
-### 3. Frontend
-
-En otra terminal:
+### 3. Arrancar
 
 ```bash
-cd human-firewall-frontend
-npm install
-cp .env.example .env
-npm run dev        # http://localhost:5173
+npm run serve
 ```
+
+Compila la interfaz, aplica las migraciones pendientes y levanta el monolito en
+**http://localhost:3000**. Todo el sistema con un comando, en un solo puerto.
+
+### Modo desarrollo
+
+Para programar conviene conservar la recarga en caliente de Vite, que necesita
+su propio servidor. Son dos terminales:
+
+```bash
+npm run dev:api     # API en :3000
+npm run dev:web     # interfaz en :5173, con recarga en caliente
+```
+
+Se trabaja sobre **http://localhost:5173**. Vite reenvia `/api` al backend
+(`server.proxy` en `vite.config.js`), asi que el frontend escribe siempre rutas
+relativas y el codigo es identico en los dos modos.
 
 ### Despues de cada `git pull`
 
 ```bash
-cd human-firewall-backend && npm install && npm run dev
+npm run setup
+npm run serve
 ```
 
-Si la rama traia migraciones nuevas, `npm run dev` las detecta y las aplica
-antes de arrancar. No hay que acordarse de nada.
+Si la rama traia migraciones nuevas, se aplican solas antes de arrancar.
 
 ### Si preferis usar Supabase en vez del contenedor
 
-Reemplaza `DATABASE_URL` en tu `.env` por la cadena del panel
-(*Settings > Database > Connection string*, modo URI). El runner de migraciones
-funciona igual: si la base ya tenia las tablas creadas a mano, las detecta y no
-las vuelve a aplicar.
+Reemplaza `DATABASE_URL` en `human-firewall-backend/.env` por la cadena del
+panel (*Settings > Database > Connection string*, modo URI). El runner de
+migraciones funciona igual.
 
-### 3. Pruebas
+### Pruebas
 
 ```bash
-cd human-firewall-backend
 npm test
 ```
 
@@ -335,10 +398,13 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 
 ```
 .
+|-- package.json                Punto de entrada unico: setup, build, serve, test
+|-- docker-compose.yml          PostgreSQL de desarrollo
 |-- migrations/                 Migraciones SQL numeradas (leer su README)
 |-- schema.sql                  Esquema historico (NO editar, ver migrations/)
 |-- human-firewall-backend/
 |   `-- src/
+|       |-- app.js              Monta la API y sirve el build de la interfaz
 |       |-- config/             Conexion a BD, Passport, seeds
 |       |-- controllers/        Manejadores de ruta
 |       |-- middlewares/        Autenticacion, roles, rate limiting
@@ -346,7 +412,9 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 |       |-- services/           Logica de negocio
 |       `-- utils/              Hashing y tokens
 `-- human-firewall-frontend/
+    |-- dist/                   Build compilado; lo sirve el backend (no se versiona)
     `-- src/
+        |-- lib/api.js          Cliente HTTP unico, mismo origen
         |-- components/ui/      Componentes reutilizables
         `-- pages/              Vistas y simulaciones
 ```
@@ -362,7 +430,9 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | 1 | `simulation.submitDecision` permitia sumar puntos ilimitados reenviando la misma opcion | Cada opcion paga una sola vez por usuario, via `idempotency_key` |
 | 2 | `completeChallenge` no usaba transaccion y podia dejar al usuario sin sus puntos sin reintento posible | Reescrito sobre el ledger, con `ON CONFLICT DO NOTHING` y evento reintentable |
 | 8 | `middlewares/role.middleware.js` estaba vacio | Implementado con `selfOrRoles` y `requireRoles` |
-| 10 | `http://localhost:3000` escrito a mano en 6 archivos del frontend | Cliente unico en `src/lib/api.js` con `VITE_API_URL` |
+| 10 | `http://localhost:3000` escrito a mano en el frontend | Cliente unico en `src/lib/api.js`. Al pasar a monolito se migraron tambien las 4 paginas de autenticacion, que seguian usando `axios` crudo, y el cliente pasó a mismo origen |
+| - | La interfaz y la API eran dos despliegues separados que tenian que conocerse entre si | Monolito: Express sirve el build de React. Un artefacto, un puerto, sin CORS |
+| - | `axios`, `react-router-dom` y `lucide-react` estaban en `devDependencies` siendo dependencias de ejecucion | Movidas a `dependencies`: con `npm ci --omit=dev` el build fallaba |
 | 11 | No habia framework de pruebas | 33 pruebas contra PostgreSQL real (`npm test`) |
 | - | Los juegos usaban `.catch(e => e)` y mostraban "ganaste" aunque los puntos fallaran | Ahora se registra el error en consola y no se muestra un exito falso |
 | - | `mysql2` como dependencia en un proyecto 100% PostgreSQL | Eliminada |
