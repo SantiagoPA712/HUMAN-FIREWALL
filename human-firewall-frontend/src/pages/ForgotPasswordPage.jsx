@@ -3,7 +3,7 @@ import { ShieldCheck, Mail, ArrowLeft, Send } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import axios from 'axios';
+import api from '../lib/api';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
     setErrorMsg('');
     
     try {
-      await axios.post('http://localhost:3000/api/auth/forgot-password', { email });
+      await api.post('/api/auth/forgot-password', { email });
       setStatus('success');
     } catch (error) {
       setStatus('idle');

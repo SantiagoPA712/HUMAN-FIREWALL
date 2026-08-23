@@ -3,7 +3,7 @@ import { ShieldCheck, Lock, CheckCircle } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import axios from 'axios';
+import api from '../lib/api';
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
@@ -39,7 +39,7 @@ export default function ResetPasswordPage() {
     setStatus('loading');
     
     try {
-      await axios.post('http://localhost:3000/api/auth/reset-password', { 
+      await api.post('/api/auth/reset-password', { 
          token, 
          newPassword: password 
       });

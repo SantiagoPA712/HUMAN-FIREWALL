@@ -1,0 +1,19 @@
+{
+  "name": "human-firewall",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plataforma de concientizacion en ciberseguridad. Arquitectura monolitica: un solo proceso sirve la interfaz y la API.",
+  "scripts": {
+    "setup": "npm --prefix human-firewall-backend install && npm --prefix human-firewall-frontend install && npm --prefix human-firewall-backend run setup",
+    "build": "npm --prefix human-firewall-frontend run build",
+    "start": "npm --prefix human-firewall-backend run start",
+    "serve": "npm run build && npm run start",
+    "migrate": "npm --prefix human-firewall-backend run migrate",
+    "test": "npm --prefix human-firewall-backend test",
+    "dev:api": "npm --prefix human-firewall-backend run dev",
+    "dev:web": "npm --prefix human-firewall-frontend run dev"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
