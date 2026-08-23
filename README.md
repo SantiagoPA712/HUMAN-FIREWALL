@@ -66,6 +66,33 @@ Para el volumen de esta plataforma la balanza favorece claramente al monolito.
 
 ---
 
+## Si venias trabajando con la version anterior
+
+**El arranque cambio.** La interfaz y la API son ahora un solo proceso, asi que
+los comandos viejos ya no levantan el sistema completo.
+
+| Antes | Ahora |
+|-------|-------|
+| `cd human-firewall-backend && npm run dev` **y** `cd human-firewall-frontend && npm run dev` | `npm run serve` desde la raiz |
+| Dos puertos: `:3000` y `:5173` | Uno solo: **`:3000`** |
+| `VITE_API_URL` apuntando al backend | Vacio: interfaz y API comparten origen |
+
+Una sola vez, despues de traer estos cambios:
+
+```bash
+npm run setup
+npm run serve
+```
+
+`npm run setup` **no pisa** tu `.env` si ya existe, asi que no vas a perder tu
+configuracion de base de datos.
+
+Para programar con recarga en caliente siguen siendo dos terminales, pero con
+los scripts de la raiz: `npm run dev:api` y `npm run dev:web`. Se trabaja sobre
+`:5173` como antes.
+
+---
+
 ## Puesta en marcha
 
 Requisitos: **Node.js 18 o superior** y **Docker Desktop**. Nada mas: la base de
