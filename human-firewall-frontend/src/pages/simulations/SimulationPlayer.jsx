@@ -66,9 +66,13 @@ export default function SimulationPlayer() {
             setRespuesta(data);
             setElegidas((prev) => [...prev, opcion.id]);
 
-            // Los puntos de cada opcion se otorgan en el momento, no al final.
-            if (data.points_earned > 0) {
-                notificarPuntos(data.points_earned, simulacion.title);
+            // Los puntos ya no se otorgan dentro de esta llamada: el backend
+            // publica simulation.decision_made y responde. Lo que llega es el
+            // estimado, igual que en los minijuegos del portal. El saldo real
+            // se refresca al cerrar la simulacion, cuando el worker ya proceso
+            // la cola.
+            if (data.puntos_estimados > 0) {
+                notificarPuntos(data.puntos_estimados, simulacion.title);
             }
         } catch (e) {
             setError(e.response?.data?.msg || 'No se pudo registrar tu decisión');
@@ -242,9 +246,9 @@ export default function SimulationPlayer() {
                 <Card className={`mt-6 p-6 ${respuesta.is_correct ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-red-500'}`}>
                     <p className={`mb-2 font-bold ${respuesta.is_correct ? 'text-emerald-400' : 'text-red-400'}`}>
                         {respuesta.is_correct ? 'Decisión correcta' : 'Decisión incorrecta'}
-                        {respuesta.points_earned > 0 && (
+                        {respuesta.puntos_estimados > 0 && (
                             <span className="ml-2 text-sm font-normal text-brand-light">
-                                +{respuesta.points_earned} pts
+                                +{respuesta.puntos_estimados} pts
                             </span>
                         )}
                     </p>
