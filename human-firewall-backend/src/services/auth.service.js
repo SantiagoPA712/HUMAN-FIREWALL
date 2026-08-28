@@ -1,4 +1,6 @@
 const db = require('../config/db');
+const eventBus = require('./eventBus');
+const { EVENTOS } = require('../events/catalogo');
 const { comparePassword } = require('../utils/hash');
 const { generateToken } = require('../utils/token');
 
@@ -59,15 +61,42 @@ exports.register = async (email, password) => {
     // 2. Hash de contraseña
     const hashedPassword = await hashPassword(password);
 
-    // 3. Inserción bloqueada en Rol 'employee' (Usuario base que juega)
-    const { rows: newUser } = await db.query(
-        "INSERT INTO users (email, password, role) VALUES ($1, $2, 'employee') RETURNING id, role",
-        [email, hashedPassword]
-    );
+    // 3. Insercion bloqueada en Rol 'employee' (Usuario base que juega)
+    //
+    // El INSERT y el evento van en la MISMA transaccion. Si se publicara
+    // despues del commit y el proceso se cayera en el medio, quedaria un
+    // usuario creado que nunca genero su user.registered: sin correo de
+    // bienvenida y sin ninguna forma de detectarlo. Encolado dentro de la
+    // transaccion, el evento existe si y solo si el usuario existe.
+    const client = await db.connect();
 
-    // 4. Iniciar sesión automáticamente
-    return generateToken({
-        id: newUser[0].id,
-        role: newUser[0].role
-    });
+    try {
+        await client.query('BEGIN');
+
+        const { rows: newUser } = await client.query(
+            "INSERT INTO users (email, password, role) VALUES ($1, $2, 'employee') RETURNING id, role, email",
+            [email, hashedPassword]
+        );
+
+        await eventBus.publish(EVENTOS.USER_REGISTERED, {
+            userId: newUser[0].id,
+            email: newUser[0].email,
+            role: newUser[0].role,
+            provider: 'local'
+        }, client);
+
+        await client.query('COMMIT');
+
+        // 4. Iniciar sesion automaticamente
+        return generateToken({
+            id: newUser[0].id,
+            role: newUser[0].role
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+    }
 };

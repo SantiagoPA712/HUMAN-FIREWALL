@@ -12,6 +12,7 @@
 
 const db = require('../config/db');
 const eventBus = require('./eventBus');
+const { EVENTOS } = require('../events/catalogo');
 
 /**
  * Calculadores de condicion. Cada uno devuelve el progreso actual del usuario
@@ -150,7 +151,7 @@ async function otorgarRecompensa({ recompensa, userId, sourceType, sourceId, val
 
         // Evento para el frontend y para cualquier historia que quiera
         // reaccionar a un logro nuevo.
-        await eventBus.publish('reward_granted', {
+        await eventBus.publish(EVENTOS.REWARD_GRANTED, {
             userId,
             rewardId: recompensa.id,
             rewardName: recompensa.name,
@@ -269,17 +270,26 @@ async function obtenerRecompensasDeUsuario(userId) {
 
 /** Conecta el servicio al bus. Se llama una vez al arrancar el servidor. */
 function registrarHandlers() {
-    eventBus.subscribe('points_assigned', ({ userId, sourceType, sourceId }) =>
+    eventBus.subscribe(EVENTOS.POINTS_ASSIGNED, ({ userId, sourceType, sourceId }) =>
         evaluarRecompensas({ userId, sourceType: sourceType || 'points_assigned', sourceId })
     );
 
-    eventBus.subscribe('course.completed', ({ userId, courseId }) =>
+    eventBus.subscribe(EVENTOS.COURSE_COMPLETED, ({ userId, courseId }) =>
         evaluarRecompensas({ userId, sourceType: 'course', sourceId: courseId })
     );
 
-    eventBus.subscribe('quiz.approved', ({ userId, quizRef, passed }) => {
+    eventBus.subscribe(EVENTOS.QUIZ_APPROVED, ({ userId, quizRef, passed }) => {
         if (!passed) return Promise.resolve([]);
         return evaluarRecompensas({ userId, sourceType: 'quiz', sourceId: quizRef });
+    });
+
+    // Terminar una simulacion tambien puede desbloquear una recompensa
+    // ("completaste 5 simulaciones"). Antes no habia forma de saberlo: la
+    // unica senal era points_assigned, que llega por cada decision suelta y no
+    // distingue una simulacion cerrada de una a medias.
+    eventBus.subscribe(EVENTOS.SIMULATION_COMPLETED, ({ userId, simulationId, aprobada }) => {
+        if (!aprobada) return Promise.resolve([]);
+        return evaluarRecompensas({ userId, sourceType: 'simulation', sourceId: simulationId });
     });
 
     console.log('[rewards.service] handlers registrados');

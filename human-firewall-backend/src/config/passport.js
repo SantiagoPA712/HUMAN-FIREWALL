@@ -1,6 +1,8 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('./db');
+const eventBus = require('../services/eventBus');
+const { EVENTOS } = require('../events/catalogo');
 
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID || 'dummy_client_id',
@@ -17,12 +19,24 @@ passport.use(new GoogleStrategy({
           let user;
           
           if (rows.length === 0) {
-              // Crear usuario automáticamente (US3)
+              // Crear usuario automaticamente (US3)
+              //
+              // Entrar por Google y entrar por formulario son dos caminos
+              // distintos que producen el MISMO hecho. Publicando el mismo
+              // evento en ambos, el correo de bienvenida y todo lo que venga
+              // despues funcionan igual sin que nadie los duplique.
               const result = await db.query(
                   "INSERT INTO users (email, role, oauth_provider, oauth_id) VALUES ($1, $2, $3, $4) RETURNING *",
                   [email, 'employee', 'google', profile.id]
               );
               user = result.rows[0];
+
+              await eventBus.publish(EVENTOS.USER_REGISTERED, {
+                  userId: user.id,
+                  email: user.email,
+                  role: user.role,
+                  provider: 'google'
+              });
           } else {
               user = rows[0];
               // Actualizar provider si faltaba

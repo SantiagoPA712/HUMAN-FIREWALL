@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const pointsService = require('../services/points.service');
 const eventBus = require('../services/eventBus');
+const { EVENTOS } = require('../events/catalogo');
 const rewardsService = require('../services/rewards.service');
 const levelsService = require('../services/levels.service');
 const recommendationsService = require('../services/recommendations.service');
@@ -206,7 +207,7 @@ exports.completeChallenge = async (req, res) => {
         // Criterio de aceptacion 2 de la HU de puntos: no se asignan puntos si
         // el intento fue reprobado. El evento solo se emite al aprobar.
         if (aprobado && !yaGanado) {
-            await eventBus.publish('quiz.approved', {
+            await eventBus.publish(EVENTOS.QUIZ_APPROVED, {
                 userId,
                 quizRef: challengeId,
                 quizType: 'challenge',
@@ -350,6 +351,37 @@ exports.getUserPerformance = async (req, res) => {
 
         const resultado = await recommendationsService.obtenerResumenDesempeno(userId);
         res.status(200).json(resultado);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * GET /api/gamification/recommendations/:userId
+ *
+ * Misma informacion de refuerzo que /performance, pero leida de la
+ * proyeccion que mantienen los eventos (user_recommendations) en vez de
+ * recalcularla en el request.
+ *
+ * Los dos endpoints conviven a proposito:
+ *   /performance      -> calculo en vivo, siempre exacto, seis consultas.
+ *   /recommendations  -> lectura de la proyeccion, una consulta, puede estar
+ *                        unos segundos atras si el worker todavia no proceso
+ *                        el ultimo evento.
+ *
+ * Esa diferencia de segundos es justamente lo que se acepta al pasar a
+ * eventos: consistencia eventual a cambio de que la accion original responda
+ * sin esperar el calculo.
+ */
+exports.getUserRecommendations = async (req, res) => {
+    try {
+        const userId = Number.parseInt(req.params.userId, 10);
+
+        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
+        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+
+        const proyeccion = await recommendationsService.obtenerRecomendacionesPrecalculadas(userId);
+        res.status(200).json(proyeccion);
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }

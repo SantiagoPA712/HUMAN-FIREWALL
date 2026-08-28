@@ -1,5 +1,7 @@
 const db = require('../config/db');
 const pointsService = require('../services/points.service');
+const eventBus = require('../services/eventBus');
+const { EVENTOS } = require('../events/catalogo');
 
 /**
  * GET /api/simulations
@@ -125,13 +127,26 @@ exports.getSimulationDetails = async (req, res) => {
 };
 
 /**
- * POST /api/simulations/decision
+ * POST /api/simulations/submit-decision
  *
- * FALLO CORREGIDO: la version anterior hacia
+ * FALLO CORREGIDO EN SU MOMENTO: la version original hacia
  *     UPDATE users SET total_points = total_points + X
  * sin registrar el intento. Reenviando el mismo optionId N veces se podian
- * sumar puntos ilimitados. Ahora cada opcion otorga puntos una sola vez por
- * usuario, garantizado por la idempotency_key del historial.
+ * sumar puntos ilimitados. Cada opcion paga una sola vez por usuario,
+ * garantizado por la idempotency_key del historial.
+ *
+ * CAMBIO A EVENTOS: este endpoint ya no otorga los puntos. Publica
+ * simulation.decision_made y responde. Quien los otorga es points.service,
+ * suscrito a ese evento, fuera del ciclo request/response.
+ *
+ * Que se gana: el modulo de simulaciones deja de conocer al de puntos, y
+ * cualquier regla nueva sobre una decision se engancha al evento sin tocar
+ * este archivo.
+ *
+ * Que se paga: la respuesta ya no puede decir cuantos puntos se otorgaron,
+ * porque en ese instante todavia no se otorgaron. Devuelve
+ * puntos_estimados, igual que los minijuegos del portal, que ya funcionaban
+ * asi. La pantalla muestra el estimado y el saldo real se refresca despues.
  */
 exports.submitDecision = async (req, res) => {
     try {
@@ -147,28 +162,40 @@ exports.submitDecision = async (req, res) => {
         if (optRows.length === 0) return res.status(404).json({ msg: "Opción no encontrada" });
 
         const option = optRows[0];
-        let puntosOtorgados = 0;
 
-        if (option.points_awarded > 0) {
-            const movimiento = await pointsService.registrarMovimiento({
+        // De que simulacion es esta opcion. El payload del evento tiene que
+        // bastarse solo: un suscriptor no deberia volver a la base a
+        // reconstruir el contexto de algo que ya paso.
+        const { rows: ctxRows } = await db.query(
+            `SELECT s.simulation_id
+               FROM simulation_steps s
+              WHERE s.id = $1`,
+            [option.step_id]
+        );
+        const simulationId = ctxRows[0] ? ctxRows[0].simulation_id : null;
+
+        // Consulta al servicio de puntos, no comando: solo se le pregunta si
+        // esta opcion ya cobro, para poder decirselo al usuario en la misma
+        // respuesta. La escritura sigue viajando por el evento.
+        const yaContabilizada = option.points_awarded > 0
+            && await pointsService.yaOtorgado(`simulation:${userId}:${option.id}`);
+
+        if (option.points_awarded > 0 && !yaContabilizada) {
+            await eventBus.publish(EVENTOS.SIMULATION_DECISION_MADE, {
                 userId,
-                sourceType: 'simulation',
-                sourceId: option.id,
-                points: option.points_awarded,
-                ruleCode: 'simulation.step',
-                // Una opcion concreta paga una sola vez por usuario.
-                idempotencyKey: `simulation:${userId}:${option.id}`
+                optionId: option.id,
+                simulationId,
+                stepId: option.step_id,
+                isCorrect: option.is_correct,
+                points: option.points_awarded
             });
-
-            // null significa que ya habia cobrado esta opcion antes.
-            puntosOtorgados = movimiento ? movimiento.points : 0;
         }
 
         res.status(200).json({
             is_correct: option.is_correct,
             feedback: option.feedback_text,
-            points_earned: puntosOtorgados,
-            ya_contabilizada: option.points_awarded > 0 && puntosOtorgados === 0
+            puntos_estimados: yaContabilizada ? 0 : option.points_awarded,
+            ya_contabilizada: yaContabilizada
         });
 
     } catch (error) {
@@ -190,9 +217,12 @@ exports.submitDecision = async (req, res) => {
  * El puntaje se recalcula EN EL SERVIDOR a partir de las opciones elegidas.
  * Aceptarlo del cliente permitiria mandar {"score": 100} y aprobar sin jugar.
  *
- * No se emite quiz.approved a proposito: los puntos de una simulacion ya se
- * otorgaron opcion por opcion en submitDecision, y ese evento haria que el
- * servicio de puntos los otorgara de nuevo con la regla generica.
+ * Publica simulation.completed. Es un evento PROPIO y no quiz.approved a
+ * proposito: los puntos de una simulacion ya se otorgaron opcion por opcion
+ * en submitDecision, y quiz.approved haria que el servicio de puntos los
+ * otorgara de nuevo con la regla generica. Por eso points.service no se
+ * suscribe a simulation.completed; si lo hacen recompensas y recomendaciones,
+ * a las que si les interesa que la simulacion haya terminado.
  */
 exports.completeSimulation = async (req, res) => {
     try {
@@ -265,6 +295,20 @@ exports.completeSimulation = async (req, res) => {
             [userId, String(simulationId), simulacion.course_id || null,
              Math.max(0, Math.min(100, score)), puntajeMinimo, aprobada]
         );
+
+        // El evento va DESPUES de que el intento quedo escrito: un suscriptor
+        // que consulte quiz_attempts tiene que encontrar la fila que este
+        // evento anuncia.
+        await eventBus.publish(EVENTOS.SIMULATION_COMPLETED, {
+            userId,
+            simulationId,
+            courseId: simulacion.course_id || null,
+            score,
+            aprobada,
+            aciertos,
+            pasos,
+            attemptNo: attemptRows[0].attempt_no
+        });
 
         res.status(200).json({
             simulation_id: simulationId,
