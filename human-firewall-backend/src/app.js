@@ -33,6 +33,7 @@ app.use('/api/sso', require('./routes/sso.routes'));
 app.use('/api/courses', require('./routes/course.routes'));
 app.use('/api/simulations', require('./routes/simulation.routes'));
 app.use('/api/gamification', require('./routes/gamification.routes'));
+app.use('/api/notifications', require('./routes/notification.routes'));
 
 // 404 de la API en JSON.
 //
