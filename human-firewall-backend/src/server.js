@@ -10,16 +10,19 @@ if (!process.env.JWT_SECRET) {
 
 const app = require('./app');
 
-// --- Gamificacion: cola de eventos asincrona ---
-const eventBus = require('./services/eventBus');
-const pointsService = require('./services/points.service');
-const rewardsService = require('./services/rewards.service');
-const levelsService = require('./services/levels.service');
+// --- Arquitectura basada en eventos ---
+//
+// Los modulos no se llaman entre si: publican hechos en el bus y quien tenga
+// algo que hacer con ellos reacciona. Esta linea es la unica que los conecta,
+// y el detalle de quien escucha que vive en events/suscriptores.js.
+//
+// Si esta llamada no corriera, la aplicacion arrancaria igual y responderia
+// todos los endpoints: simplemente nadie asignaria puntos, ni subiria niveles,
+// ni mandaria avisos. Ese es el precio del desacoplamiento y por eso el
+// arranque loguea cuantos handlers quedaron registrados.
+const { conectarTodo } = require('./events/suscriptores');
 
-pointsService.registrarHandlers();
-rewardsService.registrarHandlers();
-levelsService.registrarHandlers();
-eventBus.iniciarWorker();
+conectarTodo();
 
 const PORT = process.env.PORT || 3000;
 
