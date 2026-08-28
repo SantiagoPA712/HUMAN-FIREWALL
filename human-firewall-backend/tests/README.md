@@ -16,6 +16,7 @@ npm test
 | `recompensas.test.mjs`    | Migracion de `badges` sin perder datos, otorgamiento automatico por condicion, repetibles vs no repetibles, y que el snapshot sobreviva a editar o borrar el catalogo |
 | `simulaciones.test.mjs`   | Listado filtrado por curso asignado, calculo del puntaje sobre la mejor opcion de cada paso, que el score no se acepte del cliente, y que una simulacion terminada alimente el resumen de desempeno |
 | `recomendaciones.test.mjs` | Umbral configurable en ambas direcciones, area de oportunidad medida por el mejor puntaje, sugerencias acotadas al curso de la evaluacion floja, tendencia contra el propio historial, aislamiento total entre usuarios y que el modulo no escriba en el historial |
+| `eventos.test.mjs`        | La arquitectura de eventos en si: que el catalogo coincida con el cableado real, que las acciones respondan SIN haber ejecutado sus consecuencias, que las consecuencias ocurran al drenar la cola, y que reprocesar un evento no duplique puntos ni avisos |
 | `niveles.test.mjs`        | Umbrales y bordes exactos del catalogo, porcentaje medido dentro del nivel, subida automatica con registro de los niveles intermedios, inmutabilidad del historial y que el nivel siga siendo derivado si cambian los umbrales |
 
 Las pruebas de gamificacion inyectan un adaptador de PGlite en lugar del pool
