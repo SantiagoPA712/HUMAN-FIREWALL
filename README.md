@@ -3,8 +3,9 @@
 Plataforma de concientizacion en ciberseguridad: cursos, simulaciones interactivas y
 gamificacion (puntos, niveles, insignias y rankings).
 
-**Arquitectura monolitica:** un solo proceso Node/Express sirve la interfaz y la
-API contra una sola base de datos.
+**Arquitectura monolitica + basada en eventos:** un solo proceso Node/Express
+sirve la interfaz y la API contra una sola base de datos, y por dentro los
+modulos se comunican publicando eventos en vez de llamarse entre si.
 
 - **Backend:** Node.js + Express 5 + PostgreSQL
 - **Frontend:** React 19 + Vite + TailwindCSS 4, compilado y servido por el backend
@@ -63,6 +64,228 @@ Para el volumen de esta plataforma la balanza favorece claramente al monolito.
 > separacion en capas se conserva intacta: `routes` -> `controllers` ->
 > `services` -> base de datos. Que todo viaje junto no autoriza a que un
 > controlador escriba SQL.
+
+Como se comunican esos modulos entre si es una decision aparte, y esta en la
+seccion siguiente: **no se llaman, publican eventos**.
+
+---
+
+## Arquitectura basada en eventos
+
+**No reemplaza al monolito: responde otra pregunta.** "Monolitico" describe
+COMO SE DESPLIEGA el sistema (un proceso, un artefacto, un puerto).
+"Basada en eventos" describe COMO SE COMUNICAN LOS MODULOS por dentro. Human
+Firewall es las dos cosas a la vez: un *event-driven monolith*. Se sigue
+levantando con `npm run serve` en `:3000` y sigue habiendo una sola base de
+datos; lo que cambio es que los modulos ya no se llaman entre si.
+
+### El cambio, en concreto
+
+Antes, cerrar un paso de una simulacion era una cadena de llamadas dentro del
+mismo request:
+
+```
+POST /api/simulations/submit-decision
+    controller -> pointsService.registrarMovimiento()   (espera)
+               -> respuesta al navegador
+```
+
+Ahora el controlador publica el hecho y responde. Lo demas pasa despues:
+
+```
+POST /api/simulations/submit-decision
+    controller -> eventBus.publish('simulation.decision_made')
+               -> respuesta al navegador      <-- el request termina aca
+
+    ... el worker, por fuera del request ...
+
+    simulation.decision_made -> points.service    -> points_ledger
+                             -> points_assigned   -> levels.service   -> nivel
+                                                  -> rewards.service  -> recompensa
+                                                  -> reward_granted   -> notifications
+```
+
+`simulation.controller.js` ya no sabe que existen los puntos, ni los niveles,
+ni las recompensas, ni los correos. Publica lo que paso y se va.
+
+### Diagrama
+
+```
+   PUBLICADORES                 BUS                     SUSCRIPTORES
+  (que hizo el usuario)   (event_outbox + worker)   (que hay que hacer con eso)
+
+  auth.service ---------+                        +---> points.service
+  passport.js ----------+                        |     (asigna puntos)
+  course.controller ----+                        |
+  gamification.ctrl ----+--> [ publish() ] --+   +---> rewards.service
+  simulation.ctrl ------+          |         |   |     (otorga logros)
+                                   v         |   |
+                          +-----------------+|   +---> levels.service
+                          |  event_outbox   ||   |     (recalcula nivel)
+                          |  status=pending |v   |
+                          +-----------------+    +---> recommendations.service
+                                   |             |     (proyecta refuerzos)
+                                   v             |
+                          +-----------------+    +---> notifications.service
+                          | worker cada 5 s |----+     (bandeja + correo)
+                          | + setImmediate  |
+                          +-----------------+
+```
+
+Un publicador **no conoce a ningun suscriptor**. Lo unico que comparten es el
+nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
+`src/events/catalogo.js`.
+
+### Catalogo de eventos
+
+| Evento | Lo publica | Reaccionan | Payload |
+|--------|-----------|------------|---------|
+| `user.registered` | `auth.service`, `passport.js` | notifications | `{ userId, email, role, provider }` |
+| `lesson.completed` | `course.controller` | points | `{ userId, contentId }` |
+| `course.completed` | `course.controller` | points, rewards | `{ userId, courseId }` |
+| `quiz.approved` | `gamification.controller` | points, rewards, recommendations | `{ userId, quizRef, quizType, score, passed, basePoints? }` |
+| `simulation.decision_made` | `simulation.controller` | points | `{ userId, optionId, simulationId, stepId, isCorrect, points }` |
+| `simulation.completed` | `simulation.controller` | rewards, recommendations | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptNo }` |
+| `points_assigned` | `points.service` | rewards, levels | `{ userId, sourceType, sourceId, points, ledgerId }` |
+| `level_up` | `levels.service` | notifications | `{ userId, nivel, nombre, nivelesAlcanzados, puntos }` |
+| `reward_granted` | `rewards.service` | notifications | `{ userId, rewardId, rewardName, userRewardId }` |
+
+Los nombres mezclan dos estilos (`lesson.completed` con punto, `points_assigned`
+con guion bajo). Es herencia de la HU de gamificacion y **no se unifico a
+proposito**: esos nombres estan escritos en las filas de `event_outbox` que ya
+existen en la base. Renombrarlos dejaria huerfano cualquier evento pendiente o
+fallido. Un nombre de evento es contrato publico: se agrega, no se renombra.
+
+`points.service` **no** escucha `simulation.completed`. Los puntos de una
+simulacion ya se pagaron decision por decision; sumarlos otra vez al cerrarla
+seria pagar dos veces el mismo trabajo.
+
+### Por que outbox y no un EventEmitter
+
+El bus no es el `EventEmitter` de Node. `publish()` **inserta una fila en la
+tabla `event_outbox`** y retorna; un worker la procesa despues.
+
+| | EventEmitter en memoria | Outbox en tabla |
+|---|---|---|
+| Si el proceso se cae a mitad | el evento se pierde, sin rastro | sigue en `pending`, se retoma al arrancar |
+| Si un handler falla | la excepcion se pierde o tumba el proceso | queda `last_error` y se reintenta con backoff |
+| Atomicidad con la accion | ninguna: el evento puede existir sin que la accion se haya confirmado | se encola en la MISMA transaccion (`publish(nombre, payload, client)`) |
+| Ver que paso | nada que consultar | `SELECT * FROM event_outbox` |
+
+Ese tercer punto es el que mas se nota. En `auth.service.register` el INSERT del
+usuario y el `user.registered` van en la misma transaccion: el evento existe si
+y solo si el usuario existe. Publicando despues del commit, una caida en el
+medio dejaria un usuario sin correo de bienvenida y sin ninguna forma de
+detectarlo.
+
+Reintentos: hasta 5 intentos con backoff exponencial (2s, 4s, 8s, 16s). Agotados
+los cinco, el evento queda en `failed` y se puede ver desde el endpoint de
+diagnostico.
+
+### Idempotencia: la regla no negociable
+
+**El worker reintenta.** Por lo tanto, un handler que no sea idempotente no es
+un bug latente: es un bug garantizado. Cada suscriptor tiene su propia defensa:
+
+| Suscriptor | Como evita duplicar |
+|-----------|---------------------|
+| `points.service` | `points_ledger.idempotency_key` UNIQUE (`simulation:<user>:<option>`) |
+| `rewards.service` | `dedupeKey` en `user_rewards` |
+| `levels.service` | `ON CONFLICT (user_id, level)` en `user_level_history` |
+| `notifications.service` | `notifications.dedupe_key` UNIQUE (`level:<user>:<nivel>`) |
+| `recommendations.service` | UPSERT: recalcular de nuevo da el mismo resultado |
+
+La clave identifica el **hecho**, no el intento. Por eso el aviso de nivel usa
+`level:<user>:<nivel>` y no el id del evento: subir al nivel 2 es un solo hecho,
+lo publiquen las veces que lo publiquen.
+
+`tests/eventos.test.mjs` reprocesa a proposito los mismos eventos y verifica que
+no se dupliquen ni los puntos, ni los avisos.
+
+### Como agregar un suscriptor
+
+Sin tocar a quien publica:
+
+```js
+// src/services/mi.service.js
+const eventBus = require('./eventBus');
+const { EVENTOS } = require('../events/catalogo');
+
+async function reaccionar({ userId, courseId }) {
+    // ...
+}
+
+function registrarHandlers() {
+    eventBus.subscribe(EVENTOS.COURSE_COMPLETED, reaccionar);
+}
+
+module.exports = { reaccionar, registrarHandlers };
+```
+
+Y agregarlo a la lista de `src/events/suscriptores.js`. Nada mas.
+
+Si el evento es nuevo, primero va al catalogo (`src/events/catalogo.js`), junto
+con su payload y sus suscriptores esperados. Publicar o suscribir un nombre que
+no este en el catalogo funciona igual, pero imprime un warning en el arranque:
+asi un typo se nota ahi y no tres pantallas mas adelante.
+
+Tres reglas al escribir un handler:
+
+1. **Idempotente.** Ver la tabla de arriba.
+2. **No asumas orden.** Los handlers de un mismo evento corren todos, en ningun
+   orden garantizado. Si tu handler necesita que otro haya corrido antes, en
+   realidad son un solo paso y deben vivir juntos.
+3. **Lanza la excepcion si fallaste de verdad.** El worker reintenta. Tragarse
+   el error deja el evento en `done` y el trabajo sin hacer. La excepcion es un
+   fallo externo que no se va a arreglar reintentando (por ejemplo el envio de
+   correo): eso se registra y se sigue.
+
+### Que se gana
+
+- **Agregar comportamiento sin tocar codigo existente.** `notifications.service`
+  se agrego entero despues, y no hubo que modificar una linea de `auth.service`,
+  `levels.service` ni `rewards.service`.
+- **La accion responde sin esperar sus consecuencias.** Registrarse devuelve el
+  token de inmediato aunque el correo tarde; el navegador no espera al SMTP.
+- **Nada se pierde.** Base caida un instante o proceso reiniciado: el evento
+  sigue en la cola.
+- **Un mismo hecho, un solo camino.** Registrarse por formulario y por Google
+  son dos entradas distintas que publican `user.registered`; el correo de
+  bienvenida se escribio una sola vez.
+
+### Que se paga
+
+- **Consistencia eventual.** Tras responder una decision, los puntos todavia no
+  estan en el ledger. Por eso el endpoint devuelve `puntos_estimados` y no
+  `points_earned`: en ese instante no hay nada otorgado que informar.
+- **El error aparece lejos del origen.** Si no llegan los puntos, la causa esta
+  en la cola, no en el endpoint que el usuario toco. Para eso existe
+  `GET /api/notifications/eventos/estado`.
+- **Todo handler tiene que ser idempotente.** Es trabajo extra en cada
+  suscriptor nuevo, y no es opcional.
+- **Se puede olvidar el cableado.** Si `conectarTodo()` no corriera, la
+  aplicacion arrancaria y responderia todo igual; simplemente nadie asignaria
+  puntos. Por eso el arranque loguea cuantos handlers quedaron registrados y la
+  prueba de eventos compara ese cableado contra el catalogo.
+
+### Diagnostico
+
+```
+GET /api/notifications/eventos/estado     (solo admin)
+```
+
+```json
+{
+  "por_estado": { "pending": 0, "processing": 0, "done": 142, "failed": 1 },
+  "suscriptores": { "lesson.completed": 1, "points_assigned": 2, "...": 1 },
+  "ultimos_fallidos": [
+    { "id": 87, "event_name": "level_up", "attempts": 5, "last_error": "..." }
+  ]
+}
+```
+
+En una arquitectura de eventos esto no es un lujo: es la unica ventana a lo que
+paso entre "el usuario hizo algo" y "no vi el resultado".
 
 ---
 
@@ -234,16 +457,34 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/gamification/level/:userId`              | Propio usuario, admin o rh    |
 | GET    | `/api/gamification/levels`                     | Autenticado                   |
 | GET    | `/api/gamification/performance/:userId`        | Propio usuario, admin o rh    |
+| GET    | `/api/gamification/recommendations/:userId`    | Propio usuario, admin o rh    |
+| GET    | `/api/notifications`                           | Autenticado (solo lo propio)  |
+| PATCH  | `/api/notifications/:id/leida`                 | Autenticado (solo lo propio)  |
+| GET    | `/api/notifications/eventos/estado`            | Solo admin                    |
 | GET    | `/api/simulations`                             | Autenticado (filtrado por rol) |
 | POST   | `/api/simulations/:id/complete`                | Autenticado                   |
 
 `GET /points/:userId` acepta `?page=1&limit=20` y devuelve el total acumulado
 junto al detalle paginado del historial.
 
+`/performance/:userId` y `/recommendations/:userId` devuelven la misma
+informacion de refuerzo por dos caminos distintos, y conviene saber cual usar:
+
+| | `/performance` | `/recommendations` |
+|---|---|---|
+| Como se arma | se calcula en el request (seis consultas) | se lee de `user_recommendations` (una consulta) |
+| Cuando se calcula | cuando alguien mira | cuando ocurre `quiz.approved` o `simulation.completed` |
+| Exactitud | siempre al dia | puede estar unos segundos atras |
+| Para que | la pantalla "Mi desempeno" completa | el bloque de refuerzos del dashboard |
+
+`/api/notifications` NO recibe `:userId`: el id sale del token. Una notificacion
+es del dueno y de nadie mas, ni siquiera de un admin, asi que no hay ningun
+parametro que manipular.
+
 ### Como se asignan los puntos
 
-1. Una accion del usuario (completar leccion, superar desafio) inserta un
-   evento en `event_outbox` y responde de inmediato.
+1. Una accion del usuario (completar leccion, superar desafio, decidir en una
+   simulacion) inserta un evento en `event_outbox` y responde de inmediato.
 2. Un worker toma el evento y ejecuta la regla correspondiente de
    `points_rules`.
 3. La regla inserta un movimiento en `points_ledger`, que es inmutable.
@@ -367,14 +608,20 @@ recalcular el nivel o evaluar recompensas, **no hay que modificar
 
 ```js
 const eventBus = require('./eventBus');
+const { EVENTOS } = require('../events/catalogo');
 
-eventBus.subscribe('points_assigned', async ({ userId, points, sourceType }) => {
+eventBus.subscribe(EVENTOS.POINTS_ASSIGNED, async ({ userId, points, sourceType }) => {
     // recalcular nivel, evaluar recompensas, etc.
 });
 ```
 
-Registrar el handler en `server.js`, junto a `pointsService.registrarHandlers()`.
-Si el handler lanza una excepcion, el evento se reintenta solo con backoff.
+El nombre del evento se toma de `src/events/catalogo.js`, nunca se escribe a
+mano. El servicio se agrega a la lista de `src/events/suscriptores.js`, que es
+el unico lugar que decide quien participa del bus.
+
+Si el handler lanza una excepcion, el evento se reintenta solo con backoff, asi
+que **el handler tiene que ser idempotente**. Ver "Arquitectura basada en
+eventos" mas arriba para el detalle completo.
 
 ### 3. Control de acceso por rol
 
@@ -408,6 +655,8 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `levels_config`  | Escalera de niveles: limite inferior de puntos de cada tramo      |
 | `user_level_history` | Historial inmutable de niveles alcanzados, con snapshot       |
 | `recommendation_rules` | Umbral y limites del motor de recomendaciones               |
+| `notifications`  | Bandeja de avisos, con `dedupe_key` UNIQUE contra reintentos      |
+| `user_recommendations` | Proyeccion de refuerzos que mantienen los eventos. Descartable: se reconstruye sola |
 
 `quiz_attempts.course_id` guarda a que curso pertenecia la evaluacion en el
 momento del intento. `simulations` y `challenges` tambien tienen `course_id`
@@ -432,11 +681,17 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 |-- human-firewall-backend/
 |   `-- src/
 |       |-- app.js              Monta la API y sirve el build de la interfaz
+|       |-- server.js           Arranque: conecta el bus y escucha el puerto
 |       |-- config/             Conexion a BD, Passport, seeds
 |       |-- controllers/        Manejadores de ruta
+|       |-- events/
+|       |   |-- catalogo.js     Nombres y payloads de todos los eventos
+|       |   `-- suscriptores.js Que servicios se conectan al bus
 |       |-- middlewares/        Autenticacion, roles, rate limiting
 |       |-- routes/             Definicion de endpoints
-|       |-- services/           Logica de negocio
+|       |-- services/
+|       |   |-- eventBus.js     Publicacion, cola outbox, worker y reintentos
+|       |   `-- ...             Resto de la logica de negocio
 |       `-- utils/              Hashing y tokens
 `-- human-firewall-frontend/
     |-- dist/                   Build compilado; lo sirve el backend (no se versiona)
@@ -460,7 +715,9 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | 10 | `http://localhost:3000` escrito a mano en el frontend | Cliente unico en `src/lib/api.js`. Al pasar a monolito se migraron tambien las 4 paginas de autenticacion, que seguian usando `axios` crudo, y el cliente pasó a mismo origen |
 | - | La interfaz y la API eran dos despliegues separados que tenian que conocerse entre si | Monolito: Express sirve el build de React. Un artefacto, un puerto, sin CORS |
 | - | `axios`, `react-router-dom` y `lucide-react` estaban en `devDependencies` siendo dependencias de ejecucion | Movidas a `dependencies`: con `npm ci --omit=dev` el build fallaba |
-| 11 | No habia framework de pruebas | 33 pruebas contra PostgreSQL real (`npm test`) |
+| 11 | No habia framework de pruebas | 224 pruebas contra PostgreSQL real (`npm test`), en 7 suites |
+| - | Los modulos se llamaban entre si dentro del request: `simulation.controller` conocia a `points.service`, y agregar cualquier reaccion nueva obligaba a editar el controlador que provoco el hecho | Arquitectura basada en eventos: publican hechos, reaccionan los suscriptores. Ver la seccion correspondiente |
+| - | La guarda "esta evaluacion ya cobro" de `asignarPuntosPorQuiz` usaba `rowCount`, que PGlite no expone: funcionaba en produccion pero **ninguna prueba la ejercitaba** (era `undefined > 0`) | Cambiada a `rows.length`, equivalente en node-postgres y verificable en las pruebas |
 | - | Los juegos usaban `.catch(e => e)` y mostraban "ganaste" aunque los puntos fallaran | Ahora se registra el error en consola y no se muestra un exito falso |
 | - | `mysql2` como dependencia en un proyecto 100% PostgreSQL | Eliminada |
 | 5 | `user_badges.badge_id` con `ON DELETE CASCADE`: borrar una insignia borraba el historial de todos los usuarios | Se elimino la clave foranea y se guarda un snapshot; el historial ya no depende del catalogo |
