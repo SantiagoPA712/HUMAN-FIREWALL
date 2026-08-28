@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const eventBus = require('../services/eventBus');
+const { EVENTOS } = require('../events/catalogo');
 
 exports.createCourse = async (req, res) => {
     try {
@@ -141,7 +142,7 @@ exports.completeLesson = async (req, res) => {
             });
         }
 
-        await eventBus.publish('lesson.completed', { userId, contentId });
+        await eventBus.publish(EVENTOS.LESSON_COMPLETED, { userId, contentId });
 
         // Si con esta leccion el usuario termino el curso, se marca la
         // asignacion y se emite course.completed. Sin esto, la condicion
@@ -173,7 +174,7 @@ exports.completeLesson = async (req, res) => {
             // para no disparar el evento cada vez que se reabre el curso.
             if (cerradas.length > 0) {
                 cursoCompletado = true;
-                await eventBus.publish('course.completed', { userId, courseId });
+                await eventBus.publish(EVENTOS.COURSE_COMPLETED, { userId, courseId });
             }
         }
 

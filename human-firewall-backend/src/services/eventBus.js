@@ -17,6 +17,7 @@
  */
 
 const db = require('../config/db');
+const { NOMBRES_VALIDOS } = require('../events/catalogo');
 
 const MAX_INTENTOS = 5;
 const INTERVALO_WORKER_MS = 5000;
@@ -27,11 +28,30 @@ let workerTimer = null;
 let procesando = false;
 
 /**
+ * Aviso temprano de nombres fuera del catalogo.
+ *
+ * Es un warning y no un error a proposito. Un publish con nombre invalido
+ * podria rechazarse, pero un subscribe no: las pruebas registran handlers de
+ * eventos ficticios para ejercitar el backoff, y tumbar eso obligaria a
+ * inventarles una puerta trasera. El warning cumple el objetivo real, que es
+ * que un typo se note en el arranque y no tres pantallas mas adelante.
+ */
+function avisarSiNoEstaEnElCatalogo(eventName, operacion) {
+    if (!NOMBRES_VALIDOS.has(eventName)) {
+        console.warn(
+            `[eventBus] ${operacion}("${eventName}"): ese evento no esta en events/catalogo.js. ` +
+            `Si es nuevo, agregalo alli; si no, revisa el nombre.`
+        );
+    }
+}
+
+/**
  * Registra un handler para un evento.
  * @param {string} eventName  ej. 'lesson.completed'
  * @param {(payload: object) => Promise<void>} handler
  */
 function subscribe(eventName, handler) {
+    avisarSiNoEstaEnElCatalogo(eventName, 'subscribe');
     if (!handlers.has(eventName)) handlers.set(eventName, []);
     handlers.get(eventName).push(handler);
 }
@@ -48,6 +68,8 @@ function subscribe(eventName, handler) {
  * @returns {Promise<number>} id del evento encolado
  */
 async function publish(eventName, payload, client = db) {
+    avisarSiNoEstaEnElCatalogo(eventName, 'publish');
+
     const { rows } = await client.query(
         `INSERT INTO event_outbox (event_name, payload) VALUES ($1, $2) RETURNING id`,
         [eventName, JSON.stringify(payload)]
@@ -186,6 +208,43 @@ function detenerWorker() {
     if (workerTimer) { clearInterval(workerTimer); workerTimer = null; }
 }
 
+/**
+ * Que eventos tienen handler y cuantos. Lo usa la prueba de eventos para
+ * verificar que el cableado del bus coincide con el catalogo, y el endpoint
+ * de diagnostico para responder "esta escuchando alguien esto?".
+ *
+ * @returns {Record<string, number>} nombre del evento -> cantidad de handlers
+ */
+function eventosSuscritos() {
+    const resultado = {};
+    for (const [nombre, lista] of handlers) resultado[nombre] = lista.length;
+    return resultado;
+}
+
+/**
+ * Estado de la cola. Alimenta GET /api/events/estado.
+ */
+async function estadoDeLaCola() {
+    const { rows } = await db.query(
+        `SELECT status, COUNT(*)::int AS total
+           FROM event_outbox
+          GROUP BY status`
+    );
+
+    const porEstado = { pending: 0, processing: 0, done: 0, failed: 0 };
+    for (const r of rows) porEstado[r.status] = r.total;
+
+    const { rows: fallidos } = await db.query(
+        `SELECT id, event_name, attempts, last_error, created_at
+           FROM event_outbox
+          WHERE status = 'failed'
+          ORDER BY id DESC
+          LIMIT 10`
+    );
+
+    return { por_estado: porEstado, suscriptores: eventosSuscritos(), ultimos_fallidos: fallidos };
+}
+
 module.exports = {
     subscribe,
     publish,
@@ -193,5 +252,7 @@ module.exports = {
     procesarUno,
     iniciarWorker,
     detenerWorker,
+    eventosSuscritos,
+    estadoDeLaCola,
     MAX_INTENTOS
 };

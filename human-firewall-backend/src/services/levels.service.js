@@ -14,6 +14,7 @@
 
 const db = require('../config/db');
 const eventBus = require('./eventBus');
+const { EVENTOS } = require('../events/catalogo');
 
 /**
  * Escalera de niveles activos, de menor a mayor umbral.
@@ -187,7 +188,7 @@ async function sincronizarNivel({ userId }) {
         const subidasReales = nuevos.filter(n => n > (escalera[0]?.level ?? 1));
 
         if (subidasReales.length > 0) {
-            await eventBus.publish('level_up', {
+            await eventBus.publish(EVENTOS.LEVEL_UP, {
                 userId,
                 nivel: progreso.nivel_actual,
                 nombre: progreso.nombre,
@@ -215,7 +216,7 @@ async function sincronizarNivel({ userId }) {
  * es el contrato que documenta el README.
  */
 function registrarHandlers() {
-    eventBus.subscribe('points_assigned', ({ userId }) => sincronizarNivel({ userId }));
+    eventBus.subscribe(EVENTOS.POINTS_ASSIGNED, ({ userId }) => sincronizarNivel({ userId }));
     console.log('[levels.service] handlers registrados');
 }
 
