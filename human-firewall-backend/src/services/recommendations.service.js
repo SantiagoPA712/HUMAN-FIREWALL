@@ -18,6 +18,8 @@
  */
 
 const db = require('../config/db');
+const eventBus = require('./eventBus');
+const { EVENTOS } = require('../events/catalogo');
 
 const REGLA_POR_DEFECTO = {
     code: 'refuerzo_por_puntaje_bajo',
@@ -363,6 +365,89 @@ async function obtenerResumenDesempeno(userId) {
     };
 }
 
+/**
+ * PROYECCION dirigida por eventos.
+ *
+ * obtenerResumenDesempeno arma la pantalla completa con seis consultas
+ * pesadas en cada request. Eso esta bien para una vista que se abre a
+ * proposito, pero es caro para el bloque de "que reforzar" que el dashboard
+ * quiere mostrar siempre.
+ *
+ * Esta funcion invierte el momento del calculo: en vez de calcular cuando
+ * alguien mira, calcula cuando pasa algo que puede cambiar el resultado
+ * (quiz.approved, simulation.completed) y deja la respuesta escrita en
+ * user_recommendations. La lectura queda en un SELECT por clave primaria.
+ *
+ * La tabla es descartable: si se borra entera, cada usuario la reconstruye
+ * con su siguiente evaluacion. La fuente de verdad sigue siendo
+ * quiz_attempts.
+ */
+async function precalcularRecomendaciones(userId, triggerEvent = null) {
+    if (!userId) return null;
+
+    const regla = await obtenerRegla();
+    const evaluaciones = await obtenerEvaluaciones(userId);
+    const areas = filtrarAreasDeOportunidad(evaluaciones, regla);
+    const recomendaciones = await generarRecomendaciones(userId, areas, regla);
+
+    // Una sola fila vigente por usuario: el UPSERT la reemplaza. No se
+    // acumula historial porque la version anterior no le sirve a nadie, y
+    // dejarla crecer convertiria una cache en una tabla de auditoria que
+    // nadie pidio.
+    const { rows } = await db.query(
+        `INSERT INTO user_recommendations (user_id, trigger_event, areas, recomendaciones, generated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (user_id) DO UPDATE
+            SET trigger_event   = EXCLUDED.trigger_event,
+                areas           = EXCLUDED.areas,
+                recomendaciones = EXCLUDED.recomendaciones,
+                generated_at    = now()
+         RETURNING user_id, trigger_event, areas, recomendaciones, generated_at`,
+        [userId, triggerEvent, JSON.stringify(areas), JSON.stringify(recomendaciones)]
+    );
+
+    return rows[0];
+}
+
+/**
+ * Lee la proyeccion. Si el usuario todavia no genero ninguna (nunca hizo una
+ * evaluacion, o la tabla se limpio), la calcula en el momento y la guarda,
+ * para que la primera visita no devuelva una pantalla vacia.
+ */
+async function obtenerRecomendacionesPrecalculadas(userId) {
+    const { rows } = await db.query(
+        `SELECT user_id, trigger_event, areas, recomendaciones, generated_at
+           FROM user_recommendations WHERE user_id = $1`,
+        [userId]
+    );
+
+    if (rows.length > 0) return { ...rows[0], recien_calculada: false };
+
+    const generada = await precalcularRecomendaciones(userId, 'lectura_sin_proyeccion');
+    return { ...generada, recien_calculada: true };
+}
+
+/**
+ * Conecta el servicio al bus.
+ *
+ * Solo se recalcula ante hechos que pueden mover las areas de oportunidad:
+ * una evaluacion nueva o una simulacion cerrada. NO se escucha
+ * points_assigned, que llega por cada decision suelta dentro de una
+ * simulacion y dispararia el recalculo completo cinco veces seguidas para
+ * terminar en el mismo resultado.
+ */
+function registrarHandlers() {
+    eventBus.subscribe(EVENTOS.QUIZ_APPROVED, ({ userId }) =>
+        precalcularRecomendaciones(userId, EVENTOS.QUIZ_APPROVED)
+    );
+
+    eventBus.subscribe(EVENTOS.SIMULATION_COMPLETED, ({ userId }) =>
+        precalcularRecomendaciones(userId, EVENTOS.SIMULATION_COMPLETED)
+    );
+
+    console.log('[recommendations.service] handlers registrados');
+}
+
 module.exports = {
     REGLA_POR_DEFECTO,
     obtenerRegla,
@@ -372,5 +457,8 @@ module.exports = {
     obtenerEvolucion,
     obtenerAvanceCursos,
     generarRecomendaciones,
-    obtenerResumenDesempeno
+    obtenerResumenDesempeno,
+    precalcularRecomendaciones,
+    obtenerRecomendacionesPrecalculadas,
+    registrarHandlers
 };

@@ -42,6 +42,13 @@ router.get('/performance/:userId',
     gamificationController.getUserPerformance
 );
 
+// Recomendaciones precalculadas por eventos (proyeccion de user_recommendations)
+router.get('/recommendations/:userId',
+    verifyToken(),
+    selfOrRoles(['admin', 'rh'], 'userId'),
+    gamificationController.getUserRecommendations
+);
+
 // Administración de insignias y recompensas
 router.post('/badges', verifyToken(['admin']), gamificationController.createBadge);
 router.post('/badges/assign', verifyToken(['admin', 'instructor']), gamificationController.assignBadge);
