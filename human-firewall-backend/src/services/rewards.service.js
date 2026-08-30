@@ -214,6 +214,46 @@ async function evaluarRecompensas({ userId, sourceType = 'system', sourceId = nu
 }
 
 /**
+ * Insignias de varios usuarios de una sola consulta.
+ *
+ * Existe por los reportes de RH: ese modulo necesita las insignias de una
+ * pagina entera de usuarios, y obtenerRecompensasDeUsuario() hace ademas todo
+ * el trabajo de calcular las BLOQUEADAS con su progreso, que en un reporte no
+ * se muestra. Llamarla 50 veces seria pedir cincuenta veces un calculo que se
+ * descarta.
+ *
+ * Lee de user_rewards y no del catalogo, por la misma razon que el resto del
+ * modulo: el snapshot es lo que el usuario gano, aunque la recompensa se haya
+ * editado o eliminado despues.
+ *
+ * @param {number[]} userIds
+ * @param {object}   [rango]  mismas fechas que el reporte; acota por earned_at
+ * @returns {Promise<Map<number, {total: number, nombres: string[], ultima: Date|null}>>}
+ */
+async function obtenerResumenPorUsuarios(userIds, { from = null, to = null } = {}) {
+    const resultado = new Map();
+    if (!Array.isArray(userIds) || userIds.length === 0) return resultado;
+
+    const { rows } = await db.query(
+        `SELECT user_id,
+                COUNT(*)::int                    AS total,
+                ARRAY_AGG(reward_name ORDER BY earned_at DESC) AS nombres,
+                MAX(earned_at)                   AS ultima
+           FROM user_rewards
+          WHERE user_id = ANY($1::int[])
+            AND ($2::timestamptz IS NULL OR earned_at >= $2::timestamptz)
+            AND ($3::timestamptz IS NULL OR earned_at < ($3::timestamptz + interval '1 day'))
+          GROUP BY user_id`,
+        [userIds, from, to]
+    );
+
+    for (const r of rows) {
+        resultado.set(r.user_id, { total: r.total, nombres: r.nombres || [], ultima: r.ultima });
+    }
+    return resultado;
+}
+
+/**
  * Recompensas de un usuario: las obtenidas y las que aun no.
  * Las bloqueadas incluyen la condicion y el progreso actual, para poder
  * mostrarlas en gris con el texto de que falta para desbloquearlas.
@@ -301,5 +341,6 @@ module.exports = {
     otorgarRecompensa,
     evaluarRecompensas,
     obtenerRecompensasDeUsuario,
+    obtenerResumenPorUsuarios,
     registrarHandlers
 };

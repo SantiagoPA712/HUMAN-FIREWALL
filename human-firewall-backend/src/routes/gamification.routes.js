@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const gamificationController = require('../controllers/gamification.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
-const { selfOrRoles } = require('../middlewares/role.middleware');
+const { selfOrRoles, requireRoles } = require('../middlewares/role.middleware');
+const reportController = require('../controllers/report.controller');
 
 // Rutas de Gamificación y Desempeño
 router.get('/leaderboard', verifyToken(), gamificationController.getLeaderboard);
@@ -48,6 +49,33 @@ router.get('/recommendations/:userId',
     selfOrRoles(['admin', 'rh'], 'userId'),
     gamificationController.getUserRecommendations
 );
+
+// ---------------------------------------------------------------------
+// Reportes de desempeño (HU: reportes para RH)
+// ---------------------------------------------------------------------
+//
+// Criterio técnico 1: el rol se verifica en el MIDDLEWARE, antes de llegar al
+// controlador y sin ejecutar ninguna consulta al reporte.
+//
+//   verifyToken()  -> valida la firma del JWT y llena req.user
+//   requireRoles() -> corta con 403 si el claim role no es rh ni admin
+//
+// requireRoles y no selfOrRoles: un reporte de toda la organización no tiene
+// "dueño", así que la excepción del propio usuario no aplica. Un empleado no
+// puede ver el desempeño del resto ni pasando su propio id.
+//
+// No hay riesgo de colisión con las rutas /:userId de más arriba: todas
+// cuelgan de un prefijo distinto (/points, /rewards, /level, /performance),
+// y ninguna captura /reports/*.
+const soloRH = [verifyToken(), requireRoles(['rh', 'admin'])];
+
+router.get('/reports/filters', ...soloRH, reportController.getReportFilters);
+router.get('/reports/performance', ...soloRH, reportController.getPerformanceReport);
+router.post('/reports/performance/export', ...soloRH, reportController.exportPerformanceReport);
+
+// El :exportId es el uid aleatorio, no el id secuencial de la tabla.
+router.get('/reports/exports/:exportId', ...soloRH, reportController.getExportStatus);
+router.get('/reports/exports/:exportId/download', ...soloRH, reportController.downloadExport);
 
 // Administración de insignias y recompensas
 router.post('/badges', verifyToken(['admin']), gamificationController.createBadge);

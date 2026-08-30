@@ -391,9 +391,9 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 189 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 268 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
-recomendaciones y simulaciones. Ver `tests/README.md`.
+recomendaciones, simulaciones y reportes. Ver `tests/README.md`.
 
 ---
 
@@ -463,6 +463,10 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/notifications/eventos/estado`            | Solo admin                    |
 | GET    | `/api/simulations`                             | Autenticado (filtrado por rol) |
 | POST   | `/api/simulations/:id/complete`                | Autenticado                   |
+| GET    | `/api/gamification/reports/performance`        | Solo rh o admin               |
+| GET    | `/api/gamification/reports/filters`            | Solo rh o admin               |
+| POST   | `/api/gamification/reports/performance/export` | Solo rh o admin               |
+| GET    | `/api/gamification/reports/exports/:id`        | Solo rh o admin               |
 
 `GET /points/:userId` acepta `?page=1&limit=20` y devuelve el total acumulado
 junto al detalle paginado del historial.
@@ -590,6 +594,31 @@ tres se pueden desarrollar en paralelo despues.
 Todo el modulo se apoya en las mismas piezas. Respetar estos puntos evita
 conflictos de merge y datos inconsistentes.
 
+### 0. Reportes: se leen los servicios, no las tablas
+
+El modulo de reportes (`reports.service.js`) no sabe cuantos puntos vale una
+leccion, ni en que puntaje empieza el nivel 3, ni que desbloquea una insignia.
+Pide todo eso a quien ya lo sabe:
+
+| Dato | A quien se le pide |
+|------|--------------------|
+| Puntos | `points.service.obtenerTotalesPorUsuarios()` |
+| Nivel | `levels.service.calcularProgreso()` |
+| Insignias | `rewards.service.obtenerResumenPorUsuarios()` |
+
+El detalle que hace que esto no sea lento: `calcularProgreso` es una funcion
+**pura**. Se pide la escalera una sola vez y se aplica en memoria a los 50
+usuarios de la pagina, en lugar de llamar a `obtenerNivelDeUsuario()` cincuenta
+veces. Se reutiliza la regla sin pagar N+1 consultas.
+
+Si manana cambian los umbrales de nivel o las reglas de puntuacion, el modulo
+de reportes no se toca. Hay una prueba que lo verifica: mueve un umbral de
+`levels_config` y comprueba que el nivel del reporte cambia solo.
+
+Las exportaciones se auditan en `report_exports` (quien, que filtros, cuando) y
+**esos campos nunca salen por la API**: el endpoint de estado devuelve solo id,
+formato, estado y cantidad de filas.
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
@@ -655,6 +684,8 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `levels_config`  | Escalera de niveles: limite inferior de puntos de cada tramo      |
 | `user_level_history` | Historial inmutable de niveles alcanzados, con snapshot       |
 | `recommendation_rules` | Umbral y limites del motor de recomendaciones               |
+| `teams`          | Equipos/areas de la organizacion; `users.team_id` apunta aca      |
+| `report_exports` | Auditoria de exportaciones y estado de los jobs asincronos        |
 | `notifications`  | Bandeja de avisos, con `dedupe_key` UNIQUE contra reintentos      |
 | `user_recommendations` | Proyeccion de refuerzos que mantienen los eventos. Descartable: se reconstruye sola |
 

@@ -237,6 +237,54 @@ async function yaOtorgado(idempotencyKey) {
     return rows.length > 0;
 }
 
+/**
+ * Totales de puntos de varios usuarios de una sola consulta, opcionalmente
+ * acotados a un rango de fechas.
+ *
+ * Existe por los reportes de RH. Ese modulo necesita los puntos de una pagina
+ * entera de usuarios; llamando a obtenerHistorial() por cada uno serian N+1
+ * consultas para una tabla de 50 filas.
+ *
+ * La alternativa era que el modulo de reportes leyera points_ledger por su
+ * cuenta, y eso es justo lo que prohibe su criterio tecnico 3: los puntos se
+ * piden a este servicio, que es el dueno del historial.
+ *
+ * Con rango de fechas NO se puede usar v_user_points: esa vista suma el
+ * historial completo. Se agrega sobre points_ledger, que es la misma fuente
+ * de verdad que alimenta a la vista.
+ *
+ * @param {number[]} userIds
+ * @param {object}   [rango]
+ * @param {string}   [rango.from]  ISO 8601, inclusive
+ * @param {string}   [rango.to]    ISO 8601, inclusive
+ * @returns {Promise<Map<number, {total: number, movimientos: number, ultimo: Date|null}>>}
+ */
+async function obtenerTotalesPorUsuarios(userIds, { from = null, to = null } = {}) {
+    const resultado = new Map();
+    if (!Array.isArray(userIds) || userIds.length === 0) return resultado;
+
+    const { rows } = await db.query(
+        `SELECT user_id,
+                COALESCE(SUM(points), 0)::int AS total,
+                COUNT(*)::int                 AS movimientos,
+                MAX(created_at)               AS ultimo
+           FROM points_ledger
+          WHERE user_id = ANY($1::int[])
+            AND ($2::timestamptz IS NULL OR created_at >= $2::timestamptz)
+            -- El "to" se recibe como fecha (2026-03-01) y se interpreta como
+            -- el dia completo: sin el +1 dia, un movimiento de las 14:00 de
+            -- ese mismo dia quedaria fuera del rango.
+            AND ($3::timestamptz IS NULL OR created_at < ($3::timestamptz + interval '1 day'))
+          GROUP BY user_id`,
+        [userIds, from, to]
+    );
+
+    for (const r of rows) {
+        resultado.set(r.user_id, { total: r.total, movimientos: r.movimientos, ultimo: r.ultimo });
+    }
+    return resultado;
+}
+
 /** Total y detalle paginado del historial de un usuario. */
 async function obtenerHistorial(userId, { page = 1, limit = 20 } = {}) {
     const offset = (page - 1) * limit;
@@ -297,6 +345,7 @@ module.exports = {
     asignarPuntosPorCurso,
     asignarPuntosPorDecisionSimulacion,
     yaOtorgado,
+    obtenerTotalesPorUsuarios,
     obtenerHistorial,
     registrarHandlers
 };
