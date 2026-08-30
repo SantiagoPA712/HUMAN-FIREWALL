@@ -375,6 +375,31 @@ check('el evento de exportacion esta en el catalogo',
 check('y declara su suscriptor',
   SUSCRIPTORES_ESPERADOS[EVENTOS.REPORT_EXPORT_REQUESTED]?.includes('reportExports'));
 
+console.log('\n--- DESCARGA DE UNA EXPORTACION ASINCRONA ---');
+
+// El archivo encolado se genero recien arriba; aca se verifica que se pueda
+// recuperar por su identificador.
+//
+// El fallo que motivo estas pruebas estaba en el frontend: la descarga era un
+// <a href="/api/..."> comun, y una navegacion del navegador no envia la
+// cabecera Authorization, asi que el endpoint respondia
+// {"msg":"Acceso denegado: Token no proporcionado"}. Del lado del servidor no
+// habia nada roto, y por eso lo que se fija aca es el contrato que el cliente
+// tiene que respetar: la ruta EXIGE el token y entrega el archivo cuando esta.
+const rutaArchivo = await exportsBajoUmbral.obtenerRutaDeArchivo(async_.exportUid);
+check('la exportacion asincrona deja un archivo recuperable por su uid', rutaArchivo !== null);
+check('el archivo se llama con el uid y no con datos de la organizacion',
+  rutaArchivo && rutaArchivo.file_name === `reporte-desempeno-${async_.exportUid}.csv`,
+  `(${rutaArchivo?.file_name})`);
+
+const inexistente2 = await exportsBajoUmbral.obtenerRutaDeArchivo('0'.repeat(32));
+check('un uid que no existe no devuelve ninguna ruta', inexistente2 === null);
+
+// El controlador de descarga esta detras del mismo middleware que el resto:
+// sin rol suficiente no llega a ejecutarse.
+check('la descarga exige rol rh o admin, igual que el reporte',
+  correrMiddleware('employee').estado === 403 && correrMiddleware('rh').siguio === true);
+
 check('todas las conexiones se devolvieron al pool', conexionesAbiertas === 0, `(quedaron ${conexionesAbiertas})`);
 
 console.log(`\nRESULTADO: ${ok} OK, ${fallos} fallos`);

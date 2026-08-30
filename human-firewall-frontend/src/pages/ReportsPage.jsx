@@ -98,6 +98,49 @@ export default function ReportsPage() {
     useEffect(() => { consultar(1); }, [autorizado]);
 
     /**
+     * Entrega al navegador un archivo que ya llego en memoria.
+     *
+     * El nombre lo decide el servidor y viaja en Content-Disposition; aca solo
+     * se lee. Ver reportExports.service: se genera con un uid aleatorio,
+     * justamente para que no lleve datos de la organizacion.
+     */
+    const guardarArchivo = (respuesta, nombrePorDefecto) => {
+        const cabecera = respuesta.headers['content-disposition'] || '';
+        const nombre = /filename="?([^"]+)"?/.exec(cabecera)?.[1] || nombrePorDefecto;
+
+        const url = URL.createObjectURL(respuesta.data);
+        const enlace = document.createElement('a');
+        enlace.href = url;
+        enlace.download = nombre;
+        document.body.appendChild(enlace);
+        enlace.click();
+        enlace.remove();
+        URL.revokeObjectURL(url);
+
+        return nombre;
+    };
+
+    /**
+     * Lee el mensaje de error de una respuesta que vino como blob.
+     *
+     * Cuando se pide `responseType: 'blob'`, axios envuelve TAMBIEN los errores
+     * en un Blob, asi que `e.response.data.msg` queda undefined y el usuario
+     * veia siempre el texto generico. Hay que leer el blob para recuperar el
+     * mensaje real del backend.
+     */
+    const mensajeDeError = async (e, porDefecto) => {
+        const datos = e.response?.data;
+        if (datos instanceof Blob) {
+            try {
+                return JSON.parse(await datos.text()).msg || porDefecto;
+            } catch {
+                return porDefecto;
+            }
+        }
+        return datos?.msg || porDefecto;
+    };
+
+    /**
      * Descarga el reporte.
      *
      * Se pide con responseType blob porque la respuesta puede ser un CSV o un
@@ -129,22 +172,52 @@ export default function ReportsPage() {
                 return;
             }
 
-            // El nombre lo decide el servidor; el navegador solo lo usa.
-            const cabecera = respuesta.headers['content-disposition'] || '';
-            const nombre = /filename="?([^"]+)"?/.exec(cabecera)?.[1] || `reporte.${formato}`;
-
-            const url = URL.createObjectURL(respuesta.data);
-            const enlace = document.createElement('a');
-            enlace.href = url;
-            enlace.download = nombre;
-            document.body.appendChild(enlace);
-            enlace.click();
-            enlace.remove();
-            URL.revokeObjectURL(url);
-
+            const nombre = guardarArchivo(respuesta, `reporte.${formato}`);
             setAvisoExport({ tipo: 'listo', mensaje: `Descargado ${nombre}` });
+
         } catch (e) {
-            setAvisoExport({ tipo: 'error', mensaje: e.response?.data?.msg || 'No se pudo exportar' });
+            setAvisoExport({ tipo: 'error', mensaje: await mensajeDeError(e, 'No se pudo exportar') });
+        } finally {
+            setExportando(null);
+        }
+    };
+
+    /**
+     * Descarga una exportacion que se genero en segundo plano.
+     *
+     * FALLO CORREGIDO: esto era un <a href="/api/..."> comun. Una navegacion
+     * del navegador NO envia la cabecera Authorization: el token vive en
+     * localStorage y lo agrega el interceptor de axios, que solo actua sobre
+     * las llamadas hechas con el cliente `api`. El resultado era que el enlace
+     * abandonaba la aplicacion y mostraba una pestaña con el JSON crudo
+     * {"msg":"Acceso denegado: Token no proporcionado"}, aparentando una sesion
+     * caducada cuando en realidad seguia activa.
+     *
+     * Ahora la descarga pasa por el mismo camino que la sincrona, asi que
+     * lleva el token y el usuario no sale de la pantalla.
+     *
+     * Consecuencia asumida: la URL de descarga deja de poder pegarse en un
+     * correo o abrirse en otra pestaña. Nunca funciono asi de todos modos
+     * (respondia 401), y hacerla compartible exigiria un token efimero en la
+     * query string, que quedaria registrado en historiales y logs de proxys.
+     * Esa es una decision de seguridad aparte, no parte de esta correccion.
+     */
+    const descargarExportacion = async (exportId) => {
+        setExportando('archivo');
+        try {
+            const respuesta = await api.get(
+                `/api/gamification/reports/exports/${exportId}/download`,
+                { responseType: 'blob' }
+            );
+            const nombre = guardarArchivo(respuesta, 'reporte-desempeno');
+            setAvisoExport({ tipo: 'listo', mensaje: `Descargado ${nombre}` });
+
+        } catch (e) {
+            setAvisoExport({
+                tipo: 'error',
+                mensaje: await mensajeDeError(e, 'No se pudo descargar el archivo'),
+                exportId
+            });
         } finally {
             setExportando(null);
         }
@@ -268,11 +341,24 @@ export default function ReportsPage() {
                                     Revisar estado
                                 </button>
                             )}
+                            {/* Boton y no <a href>: la descarga tiene que pasar por
+                                el cliente HTTP para que lleve el token. Un enlace
+                                comun navega sin la cabecera Authorization. */}
                             {avisoExport.exportId && avisoExport.tipo === 'descargable' && (
-                                <a className="ml-auto underline"
-                                   href={`/api/gamification/reports/exports/${avisoExport.exportId}/download`}>
-                                    Descargar
-                                </a>
+                                <button onClick={() => descargarExportacion(avisoExport.exportId)}
+                                        disabled={!!exportando}
+                                        className="ml-auto underline disabled:opacity-50">
+                                    {exportando === 'archivo' ? 'Descargando…' : 'Descargar'}
+                                </button>
+                            )}
+                            {/* Un fallo de descarga deja el boton para reintentar,
+                                en vez de dejar al usuario sin salida. */}
+                            {avisoExport.exportId && avisoExport.tipo === 'error' && (
+                                <button onClick={() => descargarExportacion(avisoExport.exportId)}
+                                        disabled={!!exportando}
+                                        className="ml-auto underline disabled:opacity-50">
+                                    Reintentar
+                                </button>
                             )}
                         </div>
                     </div>
