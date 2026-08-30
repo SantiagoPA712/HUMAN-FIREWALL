@@ -205,7 +205,14 @@ console.log('\n--- FILTROS ---');
 
 const porEquipo = await reports.obtenerReporteDesempeno(
   { from: null, to: null, teamId: 1, courseId: null }, { page: 1, pageSize: 50 });
-check('filtra por equipo', porEquipo.paginacion.total === 2, `(dio ${porEquipo.paginacion.total})`);
+// El equipo 1 lo integran ana y beto, mas el admin que asigna la migracion
+// 027. Se cuenta contra la base en vez de fijar el numero: si manana cambia
+// la semilla, la prueba sigue midiendo lo que dice medir.
+const { rows: [enEquipo1] } = await pg.query(
+  `SELECT COUNT(*)::int AS n FROM users WHERE team_id = 1 AND is_active = true`
+);
+check('filtra por equipo', porEquipo.paginacion.total === enEquipo1.n,
+  `(dio ${porEquipo.paginacion.total}, el equipo tiene ${enEquipo1.n})`);
 check('solo trae gente de ese equipo',
   porEquipo.resultados.every(r => r.equipo === 'Tecnologia'));
 
@@ -228,10 +235,13 @@ console.log('\n--- AGREGADOS ---');
 
 const equipos = todo.agregados.por_equipo;
 const tecnologia = equipos.find(e => e.equipo === 'Tecnologia');
-check('agrega por equipo', tecnologia.usuarios === 2 && tecnologia.puntos === 650,
+// Los 650 puntos son los de ana (600) y beto (50); el admin del equipo no
+// tiene ninguno, pero si cuenta como integrante.
+check('agrega por equipo', tecnologia.usuarios === enEquipo1.n && tecnologia.puntos === 650,
   `(${tecnologia.usuarios} usuarios, ${tecnologia.puntos} pts)`);
-check('calcula el promedio del equipo', tecnologia.promedio_puntos === 325,
-  `(dio ${tecnologia.promedio_puntos})`);
+check('el promedio divide por TODOS los integrantes, tengan puntos o no',
+  tecnologia.promedio_puntos === Math.round(650 / enEquipo1.n * 10) / 10,
+  `(dio ${tecnologia.promedio_puntos}, esperaba ${Math.round(650 / enEquipo1.n * 10) / 10})`);
 check('los que no tienen equipo se agrupan aparte',
   equipos.some(e => e.equipo === 'Sin equipo'));
 
