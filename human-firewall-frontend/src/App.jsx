@@ -18,6 +18,7 @@ import PointsHistory from './pages/PointsHistory';
 import RewardsGallery from './pages/RewardsGallery';
 import MyLevel from './pages/MyLevel';
 import Performance from './pages/Performance';
+import ReportsPage from './pages/ReportsPage';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -36,6 +37,9 @@ function App() {
         <Route path="/rewards" element={<RewardsGallery />} />
         <Route path="/level" element={<MyLevel />} />
         <Route path="/performance" element={<Performance />} />
+
+        {/* Reportes de RH: el backend rechaza con 403 a quien no sea rh o admin */}
+        <Route path="/reports" element={<ReportsPage />} />
         
         {/* Rutas Simulaciones */}
         <Route path="/simulation/phishing" element={<PhishingGame />} />

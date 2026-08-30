@@ -59,7 +59,13 @@ const EVENTOS = {
 
     /** Se otorgo una recompensa.
      *  { userId, rewardId, rewardName, userRewardId } */
-    REWARD_GRANTED: 'reward_granted'
+    REWARD_GRANTED: 'reward_granted',
+
+    /** Exportacion de reporte encolada por superar el umbral de filas.
+     *  Solo se publica en el camino asincrono: por debajo del umbral el
+     *  archivo se genera dentro del mismo request y no hay nada que encolar.
+     *  { exportUid, userId, formato, filtros } */
+    REPORT_EXPORT_REQUESTED: 'report.export_requested'
 };
 
 /**
@@ -76,7 +82,8 @@ const SUSCRIPTORES_ESPERADOS = {
     [EVENTOS.SIMULATION_COMPLETED]:      ['rewards', 'recommendations'],
     [EVENTOS.POINTS_ASSIGNED]:           ['rewards', 'levels'],
     [EVENTOS.LEVEL_UP]:                  ['notifications'],
-    [EVENTOS.REWARD_GRANTED]:            ['notifications']
+    [EVENTOS.REWARD_GRANTED]:            ['notifications'],
+    [EVENTOS.REPORT_EXPORT_REQUESTED]:   ['reportExports']
 };
 
 /** Todos los nombres validos, para validar en publish(). */

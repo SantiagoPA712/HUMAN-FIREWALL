@@ -24,13 +24,15 @@ const rewardsService = require('../services/rewards.service');
 const levelsService = require('../services/levels.service');
 const notificationsService = require('../services/notifications.service');
 const recommendationsService = require('../services/recommendations.service');
+const reportExportsService = require('../services/reportExports.service');
 
 const SERVICIOS = [
     pointsService,          // lesson/quiz/course/simulation.decision -> puntos
     rewardsService,         // puntos/curso/quiz/simulacion           -> recompensas
     levelsService,          // puntos                                 -> nivel
     recommendationsService, // quiz/simulacion                        -> refuerzos
-    notificationsService    // registro/nivel/recompensa              -> avisos
+    notificationsService,   // registro/nivel/recompensa              -> avisos
+    reportExportsService    // exportacion encolada                   -> archivo en disco
 ];
 
 /**

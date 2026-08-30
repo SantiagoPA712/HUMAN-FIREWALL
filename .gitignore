@@ -23,3 +23,7 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Archivos generados por las exportaciones de reportes.
+# Se regeneran solos y pueden contener datos de la organizacion.
+human-firewall-backend/storage/

@@ -8,14 +8,15 @@
     "migrate": "node src/config/migrate.js",
     "dev": "npm run migrate && nodemon src/server.js",
     "start": "npm run migrate && node src/server.js",
-    "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs && node tests/recompensas.test.mjs && node tests/niveles.test.mjs && node tests/recomendaciones.test.mjs && node tests/simulaciones.test.mjs && node tests/eventos.test.mjs",
+    "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs && node tests/recompensas.test.mjs && node tests/niveles.test.mjs && node tests/recomendaciones.test.mjs && node tests/simulaciones.test.mjs && node tests/eventos.test.mjs && node tests/reportes.test.mjs",
     "test:migraciones": "node tests/migraciones.test.mjs",
     "test:gamificacion": "node tests/gamificacion.test.mjs",
     "test:recompensas": "node tests/recompensas.test.mjs",
     "test:niveles": "node tests/niveles.test.mjs",
     "test:recomendaciones": "node tests/recomendaciones.test.mjs",
     "test:simulaciones": "node tests/simulaciones.test.mjs",
-    "test:eventos": "node tests/eventos.test.mjs"
+    "test:eventos": "node tests/eventos.test.mjs",
+    "test:reportes": "node tests/reportes.test.mjs"
   },
   "keywords": [],
   "author": "",
@@ -33,10 +34,11 @@
     "nodemailer": "^8.0.5",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
+    "pdfkit": "^0.20.2",
     "pg": "^8.20.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14",
-    "@electric-sql/pglite": "^0.2.0"
+    "@electric-sql/pglite": "^0.2.0",
+    "nodemon": "^3.1.14"
   }
 }
