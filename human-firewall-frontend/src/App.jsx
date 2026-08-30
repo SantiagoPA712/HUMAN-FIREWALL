@@ -19,6 +19,7 @@ import RewardsGallery from './pages/RewardsGallery';
 import MyLevel from './pages/MyLevel';
 import Performance from './pages/Performance';
 import ReportsPage from './pages/ReportsPage';
+import SecurityPanel from './pages/SecurityPanel';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -40,6 +41,9 @@ function App() {
 
         {/* Reportes de RH: el backend rechaza con 403 a quien no sea rh o admin */}
         <Route path="/reports" element={<ReportsPage />} />
+
+        {/* Panel de seguridad: el backend rechaza con 403 a quien no sea security o admin */}
+        <Route path="/security" element={<SecurityPanel />} />
         
         {/* Rutas Simulaciones */}
         <Route path="/simulation/phishing" element={<PhishingGame />} />

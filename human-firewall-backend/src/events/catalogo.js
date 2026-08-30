@@ -80,7 +80,10 @@ const SUSCRIPTORES_ESPERADOS = {
     [EVENTOS.QUIZ_APPROVED]:             ['points', 'rewards', 'recommendations'],
     [EVENTOS.SIMULATION_DECISION_MADE]:  ['points'],
     [EVENTOS.SIMULATION_COMPLETED]:      ['rewards', 'recommendations'],
-    [EVENTOS.POINTS_ASSIGNED]:           ['rewards', 'levels'],
+    // anomalies se sumo con la HU de seguridad: evalua cada asignacion contra
+    // los umbrales de anomaly_rules. No hubo que tocar points.service, que es
+    // quien publica: alcanzo con suscribirse.
+    [EVENTOS.POINTS_ASSIGNED]:           ['rewards', 'levels', 'anomalies'],
     [EVENTOS.LEVEL_UP]:                  ['notifications'],
     [EVENTOS.REWARD_GRANTED]:            ['notifications'],
     [EVENTOS.REPORT_EXPORT_REQUESTED]:   ['reportExports']

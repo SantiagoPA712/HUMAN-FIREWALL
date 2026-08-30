@@ -5,6 +5,7 @@ const { EVENTOS } = require('../events/catalogo');
 const rewardsService = require('../services/rewards.service');
 const levelsService = require('../services/levels.service');
 const recommendationsService = require('../services/recommendations.service');
+const auditService = require('../services/audit.service');
 
 exports.getLeaderboard = async (req, res) => {
     try {
@@ -82,14 +83,36 @@ exports.createBadge = async (req, res) => {
     }
 };
 
+/**
+ * Asignacion manual de una insignia.
+ *
+ * Criterio tecnico 4 de la HU de seguridad: "debo auditar todo ajuste manual
+ * sobre puntos, niveles o insignias, SIN EXCEPCION". Este endpoint es
+ * exactamente eso, asi que tambien exige `reason` y escribe en audit_log.
+ *
+ * Sin esto quedaba una puerta lateral: el panel de seguridad no podria
+ * responder quien otorgo una insignia a mano ni con que justificacion, que es
+ * justo lo que la historia viene a cerrar. Un registro de auditoria con un
+ * camino que lo evita no es un registro de auditoria.
+ */
 exports.assignBadge = async (req, res) => {
     try {
         // badge_id se mantiene como alias por compatibilidad.
-        const { user_id, reward_id, badge_id } = req.body;
+        const { user_id, reward_id, badge_id, reason } = req.body;
         const recompensaId = reward_id || badge_id;
 
         if (!user_id || !recompensaId) {
             return res.status(400).json({ msg: "user_id y reward_id son obligatorios" });
+        }
+
+        if (!reason || String(reason).trim() === '') {
+            return res.status(400).json({
+                msg: 'Parametros invalidos',
+                errores: [{
+                    campo: 'reason',
+                    detalle: 'El motivo es obligatorio: toda asignacion manual queda auditada.'
+                }]
+            });
         }
 
         const { rows: catalogo } = await db.query(
@@ -113,6 +136,15 @@ exports.assignBadge = async (req, res) => {
         if (!otorgada) {
             return res.status(200).json({ msg: "El usuario ya tiene esta insignia" });
         }
+
+        await auditService.registrar({
+            actorId: req.user.id,
+            targetUserId: user_id,
+            changeType: 'badge',
+            previousValue: null,
+            newValue: { reward_id: catalogo[0].id, reward_name: catalogo[0].name },
+            reason: String(reason).trim()
+        });
 
         res.status(201).json({ msg: "Insignia asignada exitosamente", data: otorgada });
     } catch (error) {

@@ -146,7 +146,7 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 | `quiz.approved` | `gamification.controller` | points, rewards, recommendations | `{ userId, quizRef, quizType, score, passed, basePoints? }` |
 | `simulation.decision_made` | `simulation.controller` | points | `{ userId, optionId, simulationId, stepId, isCorrect, points }` |
 | `simulation.completed` | `simulation.controller` | rewards, recommendations | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptNo }` |
-| `points_assigned` | `points.service` | rewards, levels | `{ userId, sourceType, sourceId, points, ledgerId }` |
+| `points_assigned` | `points.service` | rewards, levels, anomalies | `{ userId, sourceType, sourceId, points, ledgerId }` |
 | `level_up` | `levels.service` | notifications | `{ userId, nivel, nombre, nivelesAlcanzados, puntos }` |
 | `reward_granted` | `rewards.service` | notifications | `{ userId, rewardId, rewardName, userRewardId }` |
 
@@ -363,6 +363,7 @@ Las migraciones dejan dos cuentas listas:
 |--------|-----------|-----|----------------|
 | `admin@humanfirewall.com` | `Admin123` | admin | Todo: usuarios, cursos, simulaciones, reportes |
 | `rh@humanfirewall.com` | `Rh123456` | rh | Reportes de desempeno (`/reports`) |
+| `seguridad@humanfirewall.com` | `Seguridad123` | security | Panel de anomalias y auditoria (`/security`) |
 
 Cualquier otra persona se registra sola en `/register` y entra como `employee`.
 
@@ -411,9 +412,9 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 272 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 341 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
-recomendaciones, simulaciones y reportes. Ver `tests/README.md`.
+recomendaciones, simulaciones, reportes y seguridad. Ver `tests/README.md`.
 
 ---
 
@@ -487,6 +488,12 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/gamification/reports/filters`            | Solo rh o admin               |
 | POST   | `/api/gamification/reports/performance/export` | Solo rh o admin               |
 | GET    | `/api/gamification/reports/exports/:id`        | Solo rh o admin               |
+| GET    | `/api/gamification/security/anomalies`         | Solo security o admin         |
+| GET    | `/api/gamification/security/anomalies/:id`     | Solo security o admin         |
+| PATCH  | `/api/gamification/security/anomalies/:id/status` | Solo security o admin      |
+| GET    | `/api/gamification/security/audit`             | Solo security o admin         |
+| GET    | `/api/gamification/security/rules`             | Solo security o admin         |
+| PATCH  | `/api/gamification/users/:id/adjust`           | Solo admin                    |
 
 `GET /points/:userId` acepta `?page=1&limit=20` y devuelve el total acumulado
 junto al detalle paginado del historial.
@@ -639,6 +646,44 @@ Las exportaciones se auditan en `report_exports` (quien, que filtros, cuando) y
 **esos campos nunca salen por la API**: el endpoint de estado devuelve solo id,
 formato, estado y cantidad de filas.
 
+### 0.5 Seguridad: deteccion de abuso y auditoria
+
+**Deteccion por dos caminos, a proposito.** En tiempo real, `anomalies.service`
+escucha `points_assigned` y evalua cada asignacion contra los umbrales de
+`anomaly_rules`. Ademas, un job cada 15 minutos (`ANOMALY_JOB_INTERVAL_MINUTES`)
+reevalua la ventana reciente. El segundo camino existe porque una deteccion de
+abuso que depende de que ningun mensaje de la cola se pierda no es una
+deteccion de abuso.
+
+Los dos escriben por la misma funcion y comparten la clave de deduplicacion
+(`rule_triggered` + el `points_ledger.id` que disparo), asi que ejecutar ambos
+sobre el mismo movimiento produce **una sola alerta**.
+
+Sobre "la ventana no procesada": no hay marca de agua del ultimo movimiento
+revisado. Se reevalua la ventana reciente y se confia en la deduplicacion. Una
+marca de agua se rompe de dos formas conocidas: si el job muere a mitad de
+camino queda adelantada sobre trabajo que no se hizo, y si un movimiento entra
+con fecha anterior a la marca (un reintento demorado) no se revisa nunca.
+
+**Inmutabilidad parcial.** `anomaly_events` no admite DELETE ni UPDATE de
+ninguna columna **salvo `status`**: un trigger compara fila contra fila. La
+evidencia de una alerta no se reescribe; para cerrarla se cambia el estado, y
+cada cambio deja una fila en `anomaly_status_history` con quien y cuando.
+
+**Todo ajuste manual se audita, sin excepcion.** `PATCH /users/:id/adjust`
+exige `reason` y escribe en `audit_log` (INSERT-only). El endpoint viejo
+`POST /badges/assign` tambien lo exige ahora: era la puerta lateral por la que
+se podia otorgar una insignia a mano sin dejar rastro.
+
+**Separacion de funciones.** El rol `security` lee el panel pero NO puede
+ejecutar ajustes (eso es solo de `admin`). Darle a quien investiga la capacidad
+de modificar lo investigado anula el control.
+
+**El nivel se ajusta otorgando puntos, no escribiendo `users.level`.** El nivel
+es derivado; escribir la columna a mano dura hasta la siguiente asignacion de
+puntos, que la recalcula y la pisa. Un ajuste que se deshace solo no es un
+ajuste.
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
@@ -706,6 +751,10 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `recommendation_rules` | Umbral y limites del motor de recomendaciones               |
 | `teams`          | Equipos/areas de la organizacion; `users.team_id` apunta aca      |
 | `report_exports` | Auditoria de exportaciones y estado de los jobs asincronos        |
+| `anomaly_rules`  | Umbrales de deteccion: puntos por ventana de tiempo               |
+| `anomaly_events` | Alertas detectadas. Solo `status` es modificable                  |
+| `anomaly_status_history` | Quien cambio el estado de una alerta y cuando             |
+| `audit_log`      | Ajustes manuales de puntos/nivel/insignias. Solo INSERT           |
 | `notifications`  | Bandeja de avisos, con `dedupe_key` UNIQUE contra reintentos      |
 | `user_recommendations` | Proyeccion de refuerzos que mantienen los eventos. Descartable: se reconstruye sola |
 

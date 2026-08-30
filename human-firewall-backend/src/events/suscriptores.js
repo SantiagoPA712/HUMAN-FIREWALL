@@ -25,6 +25,7 @@ const levelsService = require('../services/levels.service');
 const notificationsService = require('../services/notifications.service');
 const recommendationsService = require('../services/recommendations.service');
 const reportExportsService = require('../services/reportExports.service');
+const anomaliesService = require('../services/anomalies.service');
 
 const SERVICIOS = [
     pointsService,          // lesson/quiz/course/simulation.decision -> puntos
@@ -32,7 +33,8 @@ const SERVICIOS = [
     levelsService,          // puntos                                 -> nivel
     recommendationsService, // quiz/simulacion                        -> refuerzos
     notificationsService,   // registro/nivel/recompensa              -> avisos
-    reportExportsService    // exportacion encolada                   -> archivo en disco
+    reportExportsService,   // exportacion encolada                   -> archivo en disco
+    anomaliesService        // puntos asignados                       -> alertas de abuso
 ];
 
 /**
@@ -45,7 +47,15 @@ const SERVICIOS = [
 function conectarTodo({ iniciarWorker = true } = {}) {
     for (const servicio of SERVICIOS) servicio.registrarHandlers();
 
-    if (iniciarWorker) eventBus.iniciarWorker();
+    if (iniciarWorker) {
+        eventBus.iniciarWorker();
+
+        // Job de respaldo de la deteccion de anomalias (criterio tecnico 6 de
+        // esa HU). Va aca y no dentro de registrarHandlers porque no es una
+        // suscripcion: es un temporizador, y las pruebas registran handlers
+        // sin querer que arranque nada de fondo.
+        anomaliesService.iniciarJob();
+    }
 
     const suscritos = eventBus.eventosSuscritos();
     const total = Object.values(suscritos).reduce((a, b) => a + b, 0);
