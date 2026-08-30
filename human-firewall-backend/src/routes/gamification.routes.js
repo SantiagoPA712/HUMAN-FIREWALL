@@ -4,6 +4,7 @@ const gamificationController = require('../controllers/gamification.controller')
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { selfOrRoles, requireRoles } = require('../middlewares/role.middleware');
 const reportController = require('../controllers/report.controller');
+const securityController = require('../controllers/security.controller');
 
 // Rutas de Gamificación y Desempeño
 router.get('/leaderboard', verifyToken(), gamificationController.getLeaderboard);
@@ -76,6 +77,30 @@ router.post('/reports/performance/export', ...soloRH, reportController.exportPer
 // El :exportId es el uid aleatorio, no el id secuencial de la tabla.
 router.get('/reports/exports/:exportId', ...soloRH, reportController.getExportStatus);
 router.get('/reports/exports/:exportId/download', ...soloRH, reportController.downloadExport);
+
+// ---------------------------------------------------------------------
+// Seguridad: anomalías y auditoría (HU: detección de abuso de puntos)
+// ---------------------------------------------------------------------
+//
+// Criterio técnico 3: el rol se verifica en el MIDDLEWARE, antes del
+// controlador y sin ejecutar ninguna consulta. Mismo patrón que reportes.
+const soloSeguridad = [verifyToken(), requireRoles(['security', 'admin'])];
+
+router.get('/security/rules', ...soloSeguridad, securityController.getAnomalyRules);
+router.get('/security/audit', ...soloSeguridad, securityController.listAuditLog);
+router.get('/security/anomalies', ...soloSeguridad, securityController.listAnomalies);
+router.get('/security/anomalies/:id', ...soloSeguridad, securityController.getAnomaly);
+router.patch('/security/anomalies/:id/status', ...soloSeguridad, securityController.updateAnomalyStatus);
+
+// Ajuste manual de puntos, nivel o insignias.
+//
+// Solo admin: seguridad AUDITA los ajustes, no los ejecuta. Darle a quien
+// investiga la capacidad de modificar lo investigado anula el control.
+router.patch('/users/:id/adjust',
+    verifyToken(),
+    requireRoles(['admin']),
+    securityController.adjustUser
+);
 
 // Administración de insignias y recompensas
 router.post('/badges', verifyToken(['admin']), gamificationController.createBadge);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3 } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
@@ -16,6 +16,7 @@ export default function DashboardPage() {
   // no tener el menu.
   const usuario = getUsuarioActual();
   const puedeVerReportes = usuario?.role === 'rh' || usuario?.role === 'admin';
+  const puedeVerSeguridad = usuario?.role === 'security' || usuario?.role === 'admin';
   
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -63,6 +64,12 @@ export default function DashboardPage() {
             <BookOpen className="w-5 h-5" />
             Cursos
           </a>
+          {puedeVerSeguridad && (
+            <a href="/security" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+              <ShieldAlert className="w-5 h-5" />
+              Seguridad
+            </a>
+          )}
           {puedeVerReportes && (
             <a href="/reports" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
               <BarChart3 className="w-5 h-5" />
