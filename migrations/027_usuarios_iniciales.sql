@@ -49,7 +49,17 @@ VALUES ('admin@humanfirewall.com',
 ON CONFLICT (email) DO UPDATE
    SET password  = EXCLUDED.password,
        role      = 'admin',
-       is_active = true;
+       is_active = true,
+       -- COALESCE y no EXCLUDED a secas: si alguien ya movio al admin de
+       -- equipo, esta migracion no tiene por que devolverlo al 1. Solo lo
+       -- asigna cuando todavia no tiene ninguno.
+       --
+       -- Sin esta linea el team_id del INSERT de arriba era letra muerta en
+       -- toda base donde schema.sql ya hubiera creado la fila del admin (o
+       -- sea, en todas): el camino que se ejecutaba era el DO UPDATE, que no
+       -- lo tocaba, y el admin quedaba sin equipo aunque la migracion dijera
+       -- lo contrario.
+       team_id   = COALESCE(users.team_id, EXCLUDED.team_id);
 
 -- Recursos Humanos: el rol que abre /reports.
 INSERT INTO users (email, password, role, is_active, team_id)
@@ -59,4 +69,5 @@ VALUES ('rh@humanfirewall.com',
 ON CONFLICT (email) DO UPDATE
    SET password  = EXCLUDED.password,
        role      = 'rh',
-       is_active = true;
+       is_active = true,
+       team_id   = COALESCE(users.team_id, EXCLUDED.team_id);
