@@ -355,6 +355,26 @@ npm run serve
 Compila la interfaz, aplica las migraciones pendientes y levanta el monolito en
 **http://localhost:3000**. Todo el sistema con un comando, en un solo puerto.
 
+### 4. Entrar
+
+Las migraciones dejan dos cuentas listas:
+
+| Correo | Contrasena | Rol | Para que sirve |
+|--------|-----------|-----|----------------|
+| `admin@humanfirewall.com` | `Admin123` | admin | Todo: usuarios, cursos, simulaciones, reportes |
+| `rh@humanfirewall.com` | `Rh123456` | rh | Reportes de desempeno (`/reports`) |
+
+Cualquier otra persona se registra sola en `/register` y entra como `employee`.
+
+> **Estas credenciales son de desarrollo.** Estan escritas en
+> `migrations/027_usuarios_iniciales.sql`, que esta publicado en GitHub:
+> cualquiera que lea el repositorio las conoce. Antes de exponer el sistema en
+> internet hay que cambiarlas o borrar esas dos cuentas.
+>
+> Antes de esta migracion `schema.sql` insertaba un admin cuyo hash no
+> correspondia a ninguna contrasena conocida: la cuenta existia y nadie podia
+> entrar. De ahi venia el "bypass de emergencia" que tenia `auth.controller`.
+
 ### Modo desarrollo
 
 Para programar conviene conservar la recarga en caliente de Vite, que necesita

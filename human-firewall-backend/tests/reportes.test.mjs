@@ -34,7 +34,7 @@ for (const f of ['001_points_ledger', '002_points_rules', '003_lesson_quiz_track
                  '008_desafios_faltantes', '009_notificaciones', '010_recomendaciones_precalculadas',
                  '020_levels_config', '021_user_level_history', '022_recommendation_rules',
                  '023_cursos_de_refuerzo', '024_simulacion_de_ejemplo',
-                 '025_equipos', '026_exportaciones_de_reportes']) {
+                 '025_equipos', '026_exportaciones_de_reportes', '027_usuarios_iniciales']) {
   try { await pg.exec(readFileSync(`${DIR}migrations/${f}.sql`, 'utf8')); }
   catch (e) { console.log(`ERROR en ${f}: ${msg(e)}`); fallos++; }
 }
