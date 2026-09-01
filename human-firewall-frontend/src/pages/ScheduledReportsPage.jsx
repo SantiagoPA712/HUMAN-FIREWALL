@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    CalendarClock, ArrowLeft, Plus, Play, Pause, Download, AlertTriangle,
+    CalendarClock, ArrowLeft, Plus, X, Play, Pause, Download, AlertTriangle,
     CheckCircle2, XCircle, Users, RefreshCw
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
@@ -191,8 +191,11 @@ export default function ScheduledReportsPage() {
                             <CalendarClock className="h-5 w-5 text-brand-blue" />
                             Programación de reportes
                         </h2>
+                        {/* El icono acompana a la accion: con el formulario
+                            abierto el boton cierra, y un "+" ahi invita a lo
+                            contrario de lo que hace. */}
                         <Button onClick={() => setMostrarFormulario(v => !v)} className="px-4 py-2 text-sm">
-                            <Plus className="h-4 w-4" />
+                            {mostrarFormulario ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                             {mostrarFormulario ? 'Cancelar' : 'Nueva programación'}
                         </Button>
                     </div>

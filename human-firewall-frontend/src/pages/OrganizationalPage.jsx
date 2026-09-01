@@ -253,17 +253,27 @@ function GraficoTendencia({ serie = [] }) {
 
     const maximo = Math.max(...serie.map(p => p.valor), 1);
 
+    // Alto util del area de barras, en pixeles.
+    //
+    // En pixeles y no en porcentaje: una altura porcentual se calcula contra la
+    // altura del contenedor, y la de un item flex en columna no esta definida
+    // hasta que el navegador termina de repartir el espacio. El resultado era
+    // que las barras se dibujaban con altura 0 y el grafico salia vacio, con
+    // los numeros y los meses pero sin nada en el medio. Con pixeles no hay
+    // contra que resolver: la altura es la que se pide.
+    const ALTO_MAXIMO = 170;
+
     return (
-        <div className="flex h-56 items-end gap-3">
+        <div className="flex items-end gap-3">
             {serie.map(punto => {
-                // Minimo 2% de alto: una barra de valor 0 tiene que verse como
-                // una barra al ras y no desaparecer del grafico.
-                const alto = Math.max(2, (punto.valor / maximo) * 100);
+                // Minimo 4px: una barra de valor 0 tiene que verse al ras y no
+                // desaparecer del grafico.
+                const alto = Math.max(4, Math.round((punto.valor / maximo) * ALTO_MAXIMO));
                 return (
-                    <div key={punto.period} className="flex flex-1 flex-col items-center justify-end gap-2">
+                    <div key={punto.period} className="flex flex-1 flex-col items-center gap-2">
                         <span className="text-xs font-semibold text-brand-light">{punto.valor}</span>
                         <div className="w-full rounded-t bg-brand-blue/70 transition-all"
-                             style={{ height: `${alto}%` }}
+                             style={{ height: `${alto}px` }}
                              title={`${punto.period}: ${punto.valor}`} />
                         <span className="text-[11px] text-text-secondary">{punto.period}</span>
                     </div>
