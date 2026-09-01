@@ -65,7 +65,20 @@ const EVENTOS = {
      *  Solo se publica en el camino asincrono: por debajo del umbral el
      *  archivo se genera dentro del mismo request y no hay nada que encolar.
      *  { exportUid, userId, formato, filtros } */
-    REPORT_EXPORT_REQUESTED: 'report.export_requested'
+    REPORT_EXPORT_REQUESTED: 'report.export_requested',
+
+    /** El scheduler detecto que vencio el next_run_at de una programacion y
+     *  encolo su generacion. Los parametros viajan congelados: si alguien
+     *  edita la programacion mientras el job espera en la cola, el reporte
+     *  sale con los filtros que estaban vigentes al dispararse.
+     *  { scheduleId, tipo, formato, periodo, params } */
+    REPORT_SCHEDULED_RUN: 'report.scheduled_run',
+
+    /** Un reporte automatico quedo generado con exito. Separa la generacion
+     *  del aviso: un servidor de correo caido no puede impedir que el reporte
+     *  se genere, y por eso el envio se encola aparte.
+     *  { historyId, scheduleId, periodo } */
+    REPORT_AUTO_GENERATED: 'report.auto_generated'
 };
 
 /**
@@ -86,7 +99,13 @@ const SUSCRIPTORES_ESPERADOS = {
     [EVENTOS.POINTS_ASSIGNED]:           ['rewards', 'levels', 'anomalies'],
     [EVENTOS.LEVEL_UP]:                  ['notifications'],
     [EVENTOS.REWARD_GRANTED]:            ['notifications'],
-    [EVENTOS.REPORT_EXPORT_REQUESTED]:   ['reportExports']
+    [EVENTOS.REPORT_EXPORT_REQUESTED]:   ['reportExports'],
+    // Los dos eventos de la HU de reportes automaticos los escucha el mismo
+    // servicio, pero en dos handlers distintos: uno genera y el otro avisa.
+    // Estan separados a proposito, para que un fallo al notificar no vuelva a
+    // disparar la generacion cuando el bus reintente.
+    [EVENTOS.REPORT_SCHEDULED_RUN]:      ['scheduledReports'],
+    [EVENTOS.REPORT_AUTO_GENERATED]:     ['scheduledReports']
 };
 
 /** Todos los nombres validos, para validar en publish(). */

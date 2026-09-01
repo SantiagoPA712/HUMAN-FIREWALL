@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
@@ -17,6 +17,14 @@ export default function DashboardPage() {
   const usuario = getUsuarioActual();
   const puedeVerReportes = usuario?.role === 'rh' || usuario?.role === 'admin';
   const puedeVerSeguridad = usuario?.role === 'security' || usuario?.role === 'admin';
+
+  // Reportes automaticos: los ve todo destinatario posible (la configuracion,
+  // dentro de la pantalla, sigue siendo solo de admin).
+  const puedeVerProgramados = ['rh', 'security', 'manager', 'admin'].includes(usuario?.role);
+
+  // Resultados organizacionales: gerencia y administracion, igual que el
+  // endpoint.
+  const puedeVerOrganizacional = usuario?.role === 'manager' || usuario?.role === 'admin';
   
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -74,6 +82,18 @@ export default function DashboardPage() {
             <a href="/reports" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
               <BarChart3 className="w-5 h-5" />
               Reportes
+            </a>
+          )}
+          {puedeVerProgramados && (
+            <a href="/reports/programados" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+              <CalendarClock className="w-5 h-5" />
+              Reportes automáticos
+            </a>
+          )}
+          {puedeVerOrganizacional && (
+            <a href="/reports/organizacional" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+              <Building2 className="w-5 h-5" />
+              Resultados organizacionales
             </a>
           )}
         </nav>

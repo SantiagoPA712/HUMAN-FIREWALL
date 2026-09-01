@@ -26,6 +26,8 @@ const notificationsService = require('../services/notifications.service');
 const recommendationsService = require('../services/recommendations.service');
 const reportExportsService = require('../services/reportExports.service');
 const anomaliesService = require('../services/anomalies.service');
+const scheduledReportsService = require('../services/scheduledReports.service');
+const orgReportsService = require('../services/orgReports.service');
 
 const SERVICIOS = [
     pointsService,          // lesson/quiz/course/simulation.decision -> puntos
@@ -34,7 +36,9 @@ const SERVICIOS = [
     recommendationsService, // quiz/simulacion                        -> refuerzos
     notificationsService,   // registro/nivel/recompensa              -> avisos
     reportExportsService,   // exportacion encolada                   -> archivo en disco
-    anomaliesService        // puntos asignados                       -> alertas de abuso
+    anomaliesService,       // puntos asignados                       -> alertas de abuso
+    scheduledReportsService,// corrida programada                     -> reporte + aviso
+    orgReportsService       // (sin suscripciones: trabaja por job periodico)
 ];
 
 /**
@@ -55,6 +59,19 @@ function conectarTodo({ iniciarWorker = true } = {}) {
         // suscripcion: es un temporizador, y las pruebas registran handlers
         // sin querer que arranque nada de fondo.
         anomaliesService.iniciarJob();
+
+        // Mismo caso, para las dos historias de reportes:
+        //
+        //   scheduler   -> mira que programacion vencio y encola su generacion
+        //                  (criterio tecnico 1 de reportes automaticos)
+        //   job de KPIs -> recalcula los snapshots organizacionales
+        //                  (criterio tecnico 3 de resultados organizacionales)
+        //
+        // Ninguno de los dos hace el trabajo: el scheduler encola y el bus
+        // ejecuta. Por eso pueden convivir con varias instancias del servidor
+        // sin generar el mismo reporte dos veces.
+        scheduledReportsService.iniciarScheduler();
+        orgReportsService.iniciarJob();
     }
 
     const suscritos = eventBus.eventosSuscritos();
