@@ -8,7 +8,7 @@
     "migrate": "node src/config/migrate.js",
     "dev": "npm run migrate && nodemon src/server.js",
     "start": "npm run migrate && node src/server.js",
-    "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs && node tests/recompensas.test.mjs && node tests/niveles.test.mjs && node tests/recomendaciones.test.mjs && node tests/simulaciones.test.mjs && node tests/eventos.test.mjs && node tests/reportes.test.mjs && node tests/seguridad.test.mjs",
+    "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs && node tests/recompensas.test.mjs && node tests/niveles.test.mjs && node tests/recomendaciones.test.mjs && node tests/simulaciones.test.mjs && node tests/eventos.test.mjs && node tests/reportes.test.mjs && node tests/seguridad.test.mjs && node tests/permisos.test.mjs && node tests/dashboard.test.mjs",
     "test:migraciones": "node tests/migraciones.test.mjs",
     "test:gamificacion": "node tests/gamificacion.test.mjs",
     "test:recompensas": "node tests/recompensas.test.mjs",
@@ -17,7 +17,9 @@
     "test:simulaciones": "node tests/simulaciones.test.mjs",
     "test:eventos": "node tests/eventos.test.mjs",
     "test:reportes": "node tests/reportes.test.mjs",
-    "test:seguridad": "node tests/seguridad.test.mjs"
+    "test:seguridad": "node tests/seguridad.test.mjs",
+    "test:permisos": "node tests/permisos.test.mjs",
+    "test:dashboard": "node tests/dashboard.test.mjs"
   },
   "keywords": [],
   "author": "",

@@ -97,4 +97,22 @@ export function getUsuarioActual() {
     }
 }
 
+/**
+ * Funciones de Dashboard Centralizado (US33-US37)
+ */
+export async function getDashboard() {
+    const { data } = await api.get('/api/gamification/dashboard');
+    return data;
+}
+
+export async function getDashboardWidget(widgetId) {
+    const { data } = await api.get(`/api/gamification/dashboard/widgets/${widgetId}`);
+    return data;
+}
+
+export async function saveDashboardConfig(widgets) {
+    const { data } = await api.put('/api/gamification/dashboard/config', { widgets });
+    return data;
+}
+
 export default api;

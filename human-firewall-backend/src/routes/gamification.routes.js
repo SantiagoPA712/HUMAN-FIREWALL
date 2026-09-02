@@ -5,10 +5,18 @@ const { verifyToken } = require('../middlewares/auth.middleware');
 const { selfOrRoles, requireRoles } = require('../middlewares/role.middleware');
 const reportController = require('../controllers/report.controller');
 const securityController = require('../controllers/security.controller');
+const permissionController = require('../controllers/permission.controller');
+const dashboardController = require('../controllers/dashboard.controller');
+const { requireReportPermission } = require('../middlewares/reportPermission.middleware');
+const { dashboardLimiter } = require('../middlewares/rateLimit.middleware');
 
-// Rutas de Gamificación y Desempeño
-router.get('/leaderboard', verifyToken(), gamificationController.getLeaderboard);
-router.get('/me', verifyToken(), gamificationController.getMyStatus);
+// Rutas de Gamificación, Desempeño y Dashboard Centralizado
+router.get('/dashboard', verifyToken(), dashboardLimiter, requireReportPermission('dashboard', 'view'), dashboardController.getDashboard);
+router.get('/dashboard/widgets/:widgetId', verifyToken(), dashboardLimiter, dashboardController.getWidget);
+router.put('/dashboard/config', verifyToken(), dashboardController.saveConfig);
+
+router.get('/leaderboard', verifyToken(), requireReportPermission('dashboard', 'view'), gamificationController.getLeaderboard);
+router.get('/me', verifyToken(), requireReportPermission('dashboard', 'view'), gamificationController.getMyStatus);
 
 // Historial de puntos (HU: asignación automática de puntos)
 // selfOrRoles corre después de verifyToken: el propio usuario, admin o rh.
@@ -70,13 +78,13 @@ router.get('/recommendations/:userId',
 // y ninguna captura /reports/*.
 const soloRH = [verifyToken(), requireRoles(['rh', 'admin'])];
 
-router.get('/reports/filters', ...soloRH, reportController.getReportFilters);
-router.get('/reports/performance', ...soloRH, reportController.getPerformanceReport);
-router.post('/reports/performance/export', ...soloRH, reportController.exportPerformanceReport);
+router.get('/reports/filters', ...soloRH, requireReportPermission('organizational', 'view'), reportController.getReportFilters);
+router.get('/reports/performance', ...soloRH, requireReportPermission('performance', 'view'), reportController.getPerformanceReport);
+router.post('/reports/performance/export', ...soloRH, requireReportPermission('performance', 'export'), reportController.exportPerformanceReport);
 
 // El :exportId es el uid aleatorio, no el id secuencial de la tabla.
-router.get('/reports/exports/:exportId', ...soloRH, reportController.getExportStatus);
-router.get('/reports/exports/:exportId/download', ...soloRH, reportController.downloadExport);
+router.get('/reports/exports/:exportId', ...soloRH, requireReportPermission('performance', 'view'), reportController.getExportStatus);
+router.get('/reports/exports/:exportId/download', ...soloRH, requireReportPermission('performance', 'export'), reportController.downloadExport);
 
 // ---------------------------------------------------------------------
 // Seguridad: anomalías y auditoría (HU: detección de abuso de puntos)
@@ -86,11 +94,11 @@ router.get('/reports/exports/:exportId/download', ...soloRH, reportController.do
 // controlador y sin ejecutar ninguna consulta. Mismo patrón que reportes.
 const soloSeguridad = [verifyToken(), requireRoles(['security', 'admin'])];
 
-router.get('/security/rules', ...soloSeguridad, securityController.getAnomalyRules);
-router.get('/security/audit', ...soloSeguridad, securityController.listAuditLog);
-router.get('/security/anomalies', ...soloSeguridad, securityController.listAnomalies);
-router.get('/security/anomalies/:id', ...soloSeguridad, securityController.getAnomaly);
-router.patch('/security/anomalies/:id/status', ...soloSeguridad, securityController.updateAnomalyStatus);
+router.get('/security/rules', ...soloSeguridad, requireReportPermission('anomalies', 'view'), securityController.getAnomalyRules);
+router.get('/security/audit', ...soloSeguridad, requireReportPermission('anomalies', 'view'), securityController.listAuditLog);
+router.get('/security/anomalies', ...soloSeguridad, requireReportPermission('anomalies', 'view'), securityController.listAnomalies);
+router.get('/security/anomalies/:id', ...soloSeguridad, requireReportPermission('anomalies', 'view'), securityController.getAnomaly);
+router.patch('/security/anomalies/:id/status', ...soloSeguridad, requireReportPermission('anomalies', 'modify'), securityController.updateAnomalyStatus);
 
 // Ajuste manual de puntos, nivel o insignias.
 //
@@ -108,5 +116,17 @@ router.post('/badges/assign', verifyToken(['admin', 'instructor']), gamification
 
 // Endpoint Seguro para retribuir desafíos y minijuegos del Portal
 router.post('/challenge', verifyToken(), gamificationController.completeChallenge);
+
+// ---------------------------------------------------------------------
+// Permisos por rol para reportes (Solo Admin)
+// ---------------------------------------------------------------------
+const soloAdmin = [verifyToken(), requireRoles(['admin'])];
+
+// El historial va antes de posibles rutas con comodines
+router.get('/permissions/history', ...soloAdmin, permissionController.getPermissionHistory);
+router.get('/permissions', ...soloAdmin, permissionController.listPermissions);
+router.post('/permissions', ...soloAdmin, permissionController.createPermission);
+router.patch('/permissions', ...soloAdmin, permissionController.updatePermission);
+router.delete('/permissions', ...soloAdmin, permissionController.deletePermission);
 
 module.exports = router;
