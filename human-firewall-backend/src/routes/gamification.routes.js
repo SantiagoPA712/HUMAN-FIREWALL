@@ -5,6 +5,8 @@ const { verifyToken } = require('../middlewares/auth.middleware');
 const { selfOrRoles, requireRoles } = require('../middlewares/role.middleware');
 const reportController = require('../controllers/report.controller');
 const securityController = require('../controllers/security.controller');
+const scheduledReportsController = require('../controllers/scheduledReports.controller');
+const orgReportsController = require('../controllers/orgReports.controller');
 
 // Rutas de Gamificación y Desempeño
 router.get('/leaderboard', verifyToken(), gamificationController.getLeaderboard);
@@ -77,6 +79,54 @@ router.post('/reports/performance/export', ...soloRH, reportController.exportPer
 // El :exportId es el uid aleatorio, no el id secuencial de la tabla.
 router.get('/reports/exports/:exportId', ...soloRH, reportController.getExportStatus);
 router.get('/reports/exports/:exportId/download', ...soloRH, reportController.downloadExport);
+
+// ---------------------------------------------------------------------
+// Reportes automaticos periodicos (HU: generacion programada)
+// ---------------------------------------------------------------------
+//
+// Criterio tecnico 6: "si llega una solicitud a POST/PATCH
+// /api/gamification/reports/schedules, debo verificar que el claim role del
+// JWT sea admin, y si el rol no corresponde retornar 403 sin persistir ningun
+// cambio". Por eso el chequeo vive en el middleware: cuando responde 403, el
+// controlador nunca llego a ejecutarse y no hay nada escrito.
+//
+// La lectura del panel tambien queda en admin: configurar y ver la
+// configuracion son la misma pantalla, y a quien le llega cada reporte es
+// informacion de administracion.
+const soloAdmin = [verifyToken(), requireRoles(['admin'])];
+
+router.get('/reports/schedules', ...soloAdmin, scheduledReportsController.listSchedules);
+router.post('/reports/schedules', ...soloAdmin, scheduledReportsController.createSchedule);
+router.patch('/reports/schedules/:id', ...soloAdmin, scheduledReportsController.updateSchedule);
+
+// El historico, en cambio, lo consultan los destinatarios: es la vista del
+// mockup 2 (reportes generados, con estado y enlace de descarga). Se abre a
+// los roles que pueden estar suscritos a un reporte.
+//
+// Cuelga de /reports/history, que no colisiona con /reports/exports/:exportId
+// ni con /reports/schedules: son prefijos distintos.
+const destinatarios = [verifyToken(), requireRoles(['rh', 'security', 'manager', 'admin'])];
+
+router.get('/reports/history', ...destinatarios, scheduledReportsController.listHistory);
+router.get('/reports/history/:id/download', ...destinatarios, scheduledReportsController.downloadHistoryFile);
+
+// ---------------------------------------------------------------------
+// Resultados organizacionales (HU: consolidado para gerencia)
+// ---------------------------------------------------------------------
+//
+// Criterio tecnico 1: "debo verificar que el claim role del JWT sea manager o
+// admin, y si el rol no corresponde retornar 403 sin ejecutar ninguna consulta
+// de agregacion". Mismo patron: el rechazo ocurre en el middleware, antes de
+// que el controlador -- y con el, cualquier lectura de snapshots -- se
+// ejecute.
+//
+// RH no entra: su reporte es el de desempeno por persona, que ya tiene. Este
+// consolida a toda la organizacion y la HU lo acota a gerencia.
+router.get('/reports/organizational',
+    verifyToken(),
+    requireRoles(['manager', 'admin']),
+    orgReportsController.getOrganizationalReport
+);
 
 // ---------------------------------------------------------------------
 // Seguridad: anomalías y auditoría (HU: detección de abuso de puntos)

@@ -149,6 +149,9 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 | `points_assigned` | `points.service` | rewards, levels, anomalies | `{ userId, sourceType, sourceId, points, ledgerId }` |
 | `level_up` | `levels.service` | notifications | `{ userId, nivel, nombre, nivelesAlcanzados, puntos }` |
 | `reward_granted` | `rewards.service` | notifications | `{ userId, rewardId, rewardName, userRewardId }` |
+| `report.export_requested` | `reportExports.service` | reportExports | `{ exportUid, userId, formato, filtros }` |
+| `report.scheduled_run` | `scheduledReports.service` (scheduler) | scheduledReports | `{ scheduleId, tipo, formato, periodo, params }` |
+| `report.auto_generated` | `scheduledReports.service` (job) | scheduledReports | `{ historyId, scheduleId, periodo }` |
 
 Los nombres mezclan dos estilos (`lesson.completed` con punto, `points_assigned`
 con guion bajo). Es herencia de la HU de gamificacion y **no se unifico a
@@ -357,20 +360,22 @@ Compila la interfaz, aplica las migraciones pendientes y levanta el monolito en
 
 ### 4. Entrar
 
-Las migraciones dejan dos cuentas listas:
+Las migraciones dejan cuatro cuentas listas:
 
 | Correo | Contrasena | Rol | Para que sirve |
 |--------|-----------|-----|----------------|
-| `admin@humanfirewall.com` | `Admin123` | admin | Todo: usuarios, cursos, simulaciones, reportes |
-| `rh@humanfirewall.com` | `Rh123456` | rh | Reportes de desempeno (`/reports`) |
+| `admin@humanfirewall.com` | `Admin123` | admin | Todo: usuarios, cursos, simulaciones, reportes, programacion de reportes automaticos |
+| `rh@humanfirewall.com` | `Rh123456` | rh | Reportes de desempeno (`/reports`) y el historico de reportes automaticos (`/reports/programados`) |
 | `seguridad@humanfirewall.com` | `Seguridad123` | security | Panel de anomalias y auditoria (`/security`) |
+| `gerencia@humanfirewall.com` | `Gerente123` | manager | Resultados organizacionales (`/reports/organizacional`) |
 
 Cualquier otra persona se registra sola en `/register` y entra como `employee`.
 
 > **Estas credenciales son de desarrollo.** Estan escritas en
-> `migrations/027_usuarios_iniciales.sql`, que esta publicado en GitHub:
-> cualquiera que lea el repositorio las conoce. Antes de exponer el sistema en
-> internet hay que cambiarlas o borrar esas dos cuentas.
+> `migrations/027_usuarios_iniciales.sql`, `028_rol_seguridad.sql` y
+> `032_kpis_organizacionales.sql`, publicados en GitHub: cualquiera que lea el
+> repositorio las conoce. Antes de exponer el sistema en internet hay que
+> cambiarlas o borrar esas cuentas.
 >
 > Antes de esta migracion `schema.sql` insertaba un admin cuyo hash no
 > correspondia a ninguna contrasena conocida: la cuenta existia y nadie podia
@@ -412,9 +417,10 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 341 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 482 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
-recomendaciones, simulaciones, reportes y seguridad. Ver `tests/README.md`.
+recomendaciones, simulaciones, reportes, seguridad, reportes automaticos y
+resultados organizacionales. Ver `tests/README.md`.
 
 ---
 
@@ -488,6 +494,12 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/gamification/reports/filters`            | Solo rh o admin               |
 | POST   | `/api/gamification/reports/performance/export` | Solo rh o admin               |
 | GET    | `/api/gamification/reports/exports/:id`        | Solo rh o admin               |
+| GET    | `/api/gamification/reports/schedules`          | Solo admin                    |
+| POST   | `/api/gamification/reports/schedules`          | Solo admin                    |
+| PATCH  | `/api/gamification/reports/schedules/:id`      | Solo admin                    |
+| GET    | `/api/gamification/reports/history`            | rh, security, manager o admin |
+| GET    | `/api/gamification/reports/history/:id/download` | rh, security, manager o admin |
+| GET    | `/api/gamification/reports/organizational`     | Solo manager o admin          |
 | GET    | `/api/gamification/security/anomalies`         | Solo security o admin         |
 | GET    | `/api/gamification/security/anomalies/:id`     | Solo security o admin         |
 | PATCH  | `/api/gamification/security/anomalies/:id/status` | Solo security o admin      |
@@ -684,6 +696,82 @@ es derivado; escribir la columna a mano dura hasta la siguiente asignacion de
 puntos, que la recalcula y la pisa. Un ajuste que se deshace solo no es un
 ajuste.
 
+### 0.6 Reportes automaticos: el scheduler encola, el bus ejecuta
+
+**Nadie genera un reporte dentro del ciclo de request.** `scheduledReports.service`
+tiene un temporizador (`REPORT_SCHEDULER_INTERVAL_SECONDS`, 60 s por defecto)
+que solo hace dos cosas: mira que programacion vencio y encola su generacion en
+el bus.
+
+El disparo va dentro de una transaccion: se toma la programacion con
+`FOR UPDATE SKIP LOCKED`, se adelanta `next_run_at` y se publica el evento **con
+el mismo cliente**. O quedan las dos cosas o ninguna, asi que dos instancias del
+servidor no pueden encolar la misma corrida.
+
+**El periodo es la clave de idempotencia.** Cada corrida cubre el periodo ya
+cerrado (ayer / la semana pasada / el mes pasado) y esa clave se guarda en
+`report_history.period`. Antes de generar, el job pregunta si ya existe un
+reporte `success` para ese `schedule_id` + `period`; si existe, no genera ni
+reenvia el aviso. Ademas hay un indice UNICO **parcial**
+(`WHERE status = 'success'`): dos exitos del mismo periodo son imposibles a
+nivel de base, pero un intento fallido no bloquea el reintento.
+
+**El aviso se encola aparte.** Un SMTP caido no puede impedir que el reporte se
+genere, asi que la generacion publica `report.auto_generated` y otro handler
+encola una fila por destinatario en `report_notifications`. Los reintentos (3,
+con backoff `base * 2^intento`) viven en esa tabla y no en el `event_outbox`,
+que reintenta 5 veces: cambiarle el numero al bus le cambiaria la politica a
+puntos, niveles y recompensas.
+
+**El error se reparte en cuatro lugares distintos, a proposito:**
+
+| Donde | Que lleva |
+|-------|-----------|
+| Log del servidor | Stack trace completo, `schedule_id` y timestamp |
+| `report_history` | Resumen tecnico corto y la referencia del log (`rep-xxxx`) |
+| Aviso al equipo tecnico | El resumen y la referencia. **Nunca el stack** |
+| Pantalla de RH/gerencia | "El reporte no pudo generarse. El equipo tecnico ya fue notificado." |
+
+`report_history` no admite UPDATE, y el DELETE solo pasa si la transaccion
+declara `SET LOCAL app.retencion_reportes = 'on'`. Es una linea que nadie
+escribe por accidente: un script de limpieza generico falla, la politica de
+retencion explicita pasa.
+
+### 0.7 Resultados organizacionales: se leen snapshots, no `points_ledger`
+
+`GET /reports/organizational` **no** consulta la tabla transaccional. Lee
+`org_kpi_snapshots`, que llena un job periodico (`ORG_KPI_JOB_INTERVAL_HOURS`,
+24 h por defecto). Hay una prueba que lo verifica interceptando todas las
+consultas de la lectura y comprobando que ninguna menciona `points_ledger`.
+
+Los cuatro KPIs: `participacion`, `progreso_promedio`, `cursos_completados` y
+`engagement`, calculados por organizacion y por area en la misma consulta
+(`GROUPING SETS`), para que el total y la suma de las partes no puedan
+contradecirse.
+
+El job **siempre inserta**. La lectura toma el snapshot mas reciente de cada
+combinacion (`DISTINCT ON`), y los anteriores quedan como historia de como se
+movio el numero.
+
+Tres respuestas que no son un numero, y que son parte del contrato:
+
+- Sin snapshot del periodo -> `estado: "pendiente_de_calculo"` con **200**, no un
+  error y tampoco una lista de ceros que se lea como "la organizacion no hizo
+  nada".
+- Periodo base en 0 o faltante -> `variacion: null` y
+  `tendencia: "sin_datos_comparables"`. La formula es la del criterio,
+  `(period_b - period_a) / period_a`, y con `a = 0` no existe.
+- `area_id` inexistente o desactivada -> **404** con el `area_id` recibido,
+  antes de leer un solo snapshot.
+
+Cada consulta queda en `org_report_access_log` (solicitante, parametros,
+timestamp del servidor). Esa tabla **no la lee ningun endpoint**, y esa ausencia
+es intencional: se consulta con acceso directo a la base.
+
+El "area" es `teams`, la misma tabla que ya filtra el reporte de RH. Una tabla
+`areas` paralela partiria la organizacion en dos jerarquias que habria que
+mantener sincronizadas a mano.
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
@@ -751,6 +839,11 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `recommendation_rules` | Umbral y limites del motor de recomendaciones               |
 | `teams`          | Equipos/areas de la organizacion; `users.team_id` apunta aca      |
 | `report_exports` | Auditoria de exportaciones y estado de los jobs asincronos        |
+| `report_schedules` | Que reporte se genera solo, cada cuanto y para que roles         |
+| `report_history` | Una corrida por fila (exito o error). No se borra sin politica de retencion |
+| `report_notifications` | Cola de avisos por destinatario: 3 intentos con backoff     |
+| `org_kpi_snapshots` | KPIs organizacionales precalculados por periodo y area. Solo INSERT |
+| `org_report_access_log` | Quien consulto el consolidado. Solo INSERT, y no sale por ninguna API |
 | `anomaly_rules`  | Umbrales de deteccion: puntos por ventana de tiempo               |
 | `anomaly_events` | Alertas detectadas. Solo `status` es modificable                  |
 | `anomaly_status_history` | Quien cambio el estado de una alerta y cuando             |

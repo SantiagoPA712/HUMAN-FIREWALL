@@ -160,6 +160,71 @@ async function notificar(eventName, aviso, userId) {
     return notificacion;
 }
 
+/**
+ * Reintenta el envio por correo de un aviso YA creado.
+ *
+ * Existe por el criterio tecnico 4 de la HU de reportes automaticos, que exige
+ * reintentar el envio hasta tres veces con backoff. notificar() no sirve para
+ * eso: en el segundo intento el ON CONFLICT sobre dedupe_key no inserta nada y
+ * devuelve null, asi que el correo nunca se volveria a mandar.
+ *
+ * No cambia el comportamiento de nadie mas: es una funcion nueva, y quien no
+ * la llama sigue viendo el mismo servicio de antes.
+ *
+ * @param {object} ref
+ * @param {number} [ref.id]         id de la notificacion
+ * @param {string} [ref.dedupeKey]  o su clave de deduplicacion
+ * @returns {Promise<'sent'|'failed'|'skipped'|'not_found'>} estado del correo
+ */
+async function reenviarCorreo({ id = null, dedupeKey = null } = {}) {
+    const { rows } = await db.query(
+        `SELECT id, user_id, title, body, email_status
+           FROM notifications
+          WHERE ($1::bigint IS NOT NULL AND id = $1::bigint)
+             OR ($2::text   IS NOT NULL AND dedupe_key = $2::text)
+          LIMIT 1`,
+        [id, dedupeKey]
+    );
+
+    const notificacion = rows[0];
+    if (!notificacion) return 'not_found';
+
+    // Ya salio: reintentarlo mandaria el mismo correo dos veces.
+    if (notificacion.email_status === 'sent') return 'sent';
+
+    // Sin SMTP no hay nada que reintentar, y tampoco nada que reportar como
+    // fallo: el aviso ya esta en la bandeja de la aplicacion, que es el modo
+    // por defecto del proyecto.
+    const emisor = obtenerTransporte();
+    if (!emisor) return 'skipped';
+
+    try {
+        const destinatario = await obtenerCorreo(notificacion.user_id);
+        if (!destinatario) throw new Error(`el usuario ${notificacion.user_id} no tiene correo`);
+
+        await emisor.sendMail({
+            from: process.env.MAIL_FROM || 'Human Firewall <no-reply@humanfirewall.local>',
+            to: destinatario,
+            subject: notificacion.title,
+            text: notificacion.body
+        });
+
+        await db.query(
+            `UPDATE notifications SET email_status = 'sent', email_error = NULL WHERE id = $1`,
+            [notificacion.id]
+        );
+        return 'sent';
+
+    } catch (err) {
+        await db.query(
+            `UPDATE notifications SET email_status = 'failed', email_error = $1 WHERE id = $2`,
+            [String(err.message).slice(0, 500), notificacion.id]
+        );
+        console.warn(`[notifications] reintento fallido del correo ${notificacion.id}: ${err.message}`);
+        return 'failed';
+    }
+}
+
 /** Handler generico: arma el aviso con la plantilla del evento y lo manda. */
 async function manejar(eventName, payload) {
     const plantilla = PLANTILLAS[eventName];
@@ -220,6 +285,7 @@ function registrarHandlers() {
 module.exports = {
     PLANTILLAS,
     notificar,
+    reenviarCorreo,
     manejar,
     obtenerBandeja,
     marcarLeida,

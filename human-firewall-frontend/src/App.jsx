@@ -20,6 +20,8 @@ import MyLevel from './pages/MyLevel';
 import Performance from './pages/Performance';
 import ReportsPage from './pages/ReportsPage';
 import SecurityPanel from './pages/SecurityPanel';
+import ScheduledReportsPage from './pages/ScheduledReportsPage';
+import OrganizationalPage from './pages/OrganizationalPage';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -44,7 +46,19 @@ function App() {
 
         {/* Panel de seguridad: el backend rechaza con 403 a quien no sea security o admin */}
         <Route path="/security" element={<SecurityPanel />} />
-        
+
+        {/* Reportes automaticos. La configuracion es solo de admin y el
+            historico lo ven los roles suscritos: lo decide el backend, la
+            pantalla solo evita mostrar lo que no va a poder cargar.
+
+            Va con prefijo /reports/ y no en una ruta suelta para que las tres
+            pantallas de reportes se lean como lo que son: la misma familia. */}
+        <Route path="/reports/programados" element={<ScheduledReportsPage />} />
+
+        {/* Resultados organizacionales: el backend rechaza con 403 a quien no
+            sea manager o admin */}
+        <Route path="/reports/organizacional" element={<OrganizationalPage />} />
+
         {/* Rutas Simulaciones */}
         <Route path="/simulation/phishing" element={<PhishingGame />} />
         <Route path="/simulation/ransomware" element={<RansomwareGame />} />
