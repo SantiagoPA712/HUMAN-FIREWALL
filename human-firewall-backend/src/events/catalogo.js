@@ -39,6 +39,19 @@ const EVENTOS = {
      *  { userId, quizRef, quizType, score, passed, attemptNo?, basePoints? } */
     QUIZ_APPROVED: 'quiz.approved',
 
+    /** Evaluacion o desafio reprobado.
+     *  { userId, quizRef, quizType, score, passed: false, attemptNo, courseId }
+     *
+     *  Se agrego con la HU de notificacion de resultados. Hasta entonces un
+     *  intento reprobado quedaba en quiz_attempts y no publicaba nada: el
+     *  modulo de puntos no lo necesitaba, porque reprobar no otorga puntos.
+     *  Avisarle al usuario que reprobo si lo necesita, y un hecho que no se
+     *  publica no se puede escuchar.
+     *
+     *  Nadie mas que las notificaciones lo consume: no otorga puntos, no
+     *  mueve niveles y no dispara recompensas. */
+    QUIZ_FAILED: 'quiz.failed',
+
     /** Decision tomada dentro de una simulacion.
      *  { userId, optionId, simulationId, stepId, isCorrect, points } */
     SIMULATION_DECISION_MADE: 'simulation.decision_made',
@@ -89,10 +102,15 @@ const EVENTOS = {
 const SUSCRIPTORES_ESPERADOS = {
     [EVENTOS.USER_REGISTERED]:           ['notifications'],
     [EVENTOS.LESSON_COMPLETED]:          ['points'],
-    [EVENTOS.COURSE_COMPLETED]:          ['points', 'rewards'],
-    [EVENTOS.QUIZ_APPROVED]:             ['points', 'rewards', 'recommendations'],
+    // resultNotifications se sumo con la HU de notificacion de resultados:
+    // escucha los mismos hechos que ya se publicaban y arma el aviso con los
+    // datos que trae el evento. No hubo que tocar a quien los publica, salvo
+    // para crear quiz.failed, que no existia.
+    [EVENTOS.COURSE_COMPLETED]:          ['points', 'rewards', 'resultNotifications'],
+    [EVENTOS.QUIZ_APPROVED]:             ['points', 'rewards', 'recommendations', 'resultNotifications'],
+    [EVENTOS.QUIZ_FAILED]:               ['resultNotifications'],
     [EVENTOS.SIMULATION_DECISION_MADE]:  ['points'],
-    [EVENTOS.SIMULATION_COMPLETED]:      ['rewards', 'recommendations'],
+    [EVENTOS.SIMULATION_COMPLETED]:      ['rewards', 'recommendations', 'resultNotifications'],
     // anomalies se sumo con la HU de seguridad: evalua cada asignacion contra
     // los umbrales de anomaly_rules. No hubo que tocar points.service, que es
     // quien publica: alcanzo con suscribirse.

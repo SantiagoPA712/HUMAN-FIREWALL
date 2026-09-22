@@ -228,11 +228,15 @@ exports.completeChallenge = async (req, res) => {
         // Los tipos van explicitos: $1 y $2 se usan en el VALUES y en la
         // subconsulta, y sin cast Postgres deduce tipos distintos en cada
         // contexto y rechaza la consulta.
-        await client.query(
+        // El RETURNING se agrego con la HU de notificacion de resultados: el
+        // numero de intento es lo que distingue un fallo de otro del mismo
+        // desafio, y sin el los dos avisos se deduplicarian en uno solo.
+        const { rows: intentoRows } = await client.query(
             `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
              VALUES ($1::int, $2::varchar, 'challenge', $3::int, $4::int, 60, $5::boolean,
                      (SELECT COUNT(*) + 1 FROM quiz_attempts
-                       WHERE user_id = $1::int AND quiz_ref = $2::varchar))`,
+                       WHERE user_id = $1::int AND quiz_ref = $2::varchar))
+             RETURNING attempt_no`,
             [userId, challengeId, challenge.course_id || null, puntaje, aprobado]
         );
 
@@ -246,6 +250,28 @@ exports.completeChallenge = async (req, res) => {
                 score: puntaje,
                 passed: true,
                 basePoints: challenge.points_reward
+            }, client);
+
+        } else if (!aprobado) {
+            // Criterio tecnico 1 de la HU de notificacion de resultados: quien
+            // notifica consume eventos de dominio, no vuelve a evaluar nada.
+            // Para eso el hecho tiene que publicarse, y un intento reprobado no
+            // publicaba ninguno.
+            //
+            // Va dentro de la misma transaccion que el intento, igual que el
+            // evento de aprobacion: el aviso existe si y solo si el intento
+            // quedo registrado.
+            //
+            // No otorga puntos ni cambia nada de lo que ya funcionaba: el
+            // unico suscriptor es el servicio de notificaciones de resultado.
+            await eventBus.publish(EVENTOS.QUIZ_FAILED, {
+                userId,
+                quizRef: challengeId,
+                quizType: 'challenge',
+                score: puntaje,
+                passed: false,
+                attemptNo: intentoRows[0].attempt_no,
+                courseId: challenge.course_id || null
             }, client);
         }
 

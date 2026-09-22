@@ -28,6 +28,7 @@ const reportExportsService = require('../services/reportExports.service');
 const anomaliesService = require('../services/anomalies.service');
 const scheduledReportsService = require('../services/scheduledReports.service');
 const orgReportsService = require('../services/orgReports.service');
+const resultNotificationsService = require('../services/resultNotifications.service');
 
 const SERVICIOS = [
     pointsService,          // lesson/quiz/course/simulation.decision -> puntos
@@ -38,7 +39,8 @@ const SERVICIOS = [
     reportExportsService,   // exportacion encolada                   -> archivo en disco
     anomaliesService,       // puntos asignados                       -> alertas de abuso
     scheduledReportsService,// corrida programada                     -> reporte + aviso
-    orgReportsService       // (sin suscripciones: trabaja por job periodico)
+    orgReportsService,      // (sin suscripciones: trabaja por job periodico)
+    resultNotificationsService // quiz/curso/simulacion terminados    -> aviso al usuario y a RH
 ];
 
 /**
