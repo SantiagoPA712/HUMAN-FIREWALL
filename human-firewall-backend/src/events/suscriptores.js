@@ -28,6 +28,7 @@ const reportExportsService = require('../services/reportExports.service');
 const anomaliesService = require('../services/anomalies.service');
 const scheduledReportsService = require('../services/scheduledReports.service');
 const orgReportsService = require('../services/orgReports.service');
+const dataLogsService = require('../services/dataLogs.service');
 const resultNotificationsService = require('../services/resultNotifications.service');
 
 const SERVICIOS = [
@@ -40,7 +41,8 @@ const SERVICIOS = [
     anomaliesService,       // puntos asignados                       -> alertas de abuso
     scheduledReportsService,// corrida programada                     -> reporte + aviso
     orgReportsService,      // (sin suscripciones: trabaja por job periodico)
-    resultNotificationsService // quiz/curso/simulacion terminados    -> aviso al usuario y a RH
+    resultNotificationsService,// quiz/curso/simulacion terminados    -> aviso al usuario y a RH
+    dataLogsService         // accion critica en cualquier modulo    -> fila en data.logs
 ];
 
 /**
@@ -74,6 +76,11 @@ function conectarTodo({ iniciarWorker = true } = {}) {
         // sin generar el mismo reporte dos veces.
         scheduledReportsService.iniciarScheduler();
         orgReportsService.iniciarJob();
+
+        // Politica de retencion de data.logs (criterio tecnico 6 de la HU de
+        // logs de auditoria): purga lo que supera LOGS_RETENTION_MONTHS y deja
+        // la evidencia en data.logs_purges. Es un reloj, no una suscripcion.
+        dataLogsService.iniciarJobRetencion();
     }
 
     const suscritos = eventBus.eventosSuscritos();
