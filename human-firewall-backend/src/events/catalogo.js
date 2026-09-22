@@ -110,7 +110,17 @@ const EVENTOS = {
      *  del aviso: un servidor de correo caido no puede impedir que el reporte
      *  se genere, y por eso el envio se encola aparte.
      *  { historyId, scheduleId, periodo } */
-    REPORT_AUTO_GENERATED: 'report.auto_generated'
+    REPORT_AUTO_GENERATED: 'report.auto_generated',
+
+    /** Se ejecuto una accion critica que debe quedar en data.logs (HU de
+     *  logs de auditoria). Lo publica dataLogs.registrar() desde cualquier
+     *  modulo; el worker lo persiste fuera del request, asi que la accion
+     *  original no espera al log ni falla si el log falla.
+     *  Los valores ya viajan enmascarados: la cola tampoco guarda secretos.
+     *  { logUid, userId, actorType, actorEmail, actionType, module,
+     *    resourceType, resourceId, oldValue, newValue, ipAddress, traceId,
+     *    occurredAt } */
+    AUDIT_LOG_RECORDED: 'audit.log_recorded'
 };
 
 /**
@@ -142,7 +152,10 @@ const SUSCRIPTORES_ESPERADOS = {
     // Estan separados a proposito, para que un fallo al notificar no vuelva a
     // disparar la generacion cuando el bus reintente.
     [EVENTOS.REPORT_SCHEDULED_RUN]:      ['scheduledReports'],
-    [EVENTOS.REPORT_AUTO_GENERATED]:     ['scheduledReports']
+    [EVENTOS.REPORT_AUTO_GENERATED]:     ['scheduledReports'],
+    // Un solo suscriptor: el que escribe la fila. Cualquier modulo publica,
+    // ninguno necesita saber que existe data.logs.
+    [EVENTOS.AUDIT_LOG_RECORDED]:        ['dataLogs']
 };
 
 /** Todos los nombres validos, para validar en publish(). */

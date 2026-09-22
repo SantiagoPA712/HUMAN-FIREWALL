@@ -13,6 +13,7 @@
 
 const anomaliesService = require('../services/anomalies.service');
 const auditService = require('../services/audit.service');
+const dataLogs = require('../services/dataLogs.service');
 
 /** Convierte a entero positivo, o null. */
 const entero = (v) => {
@@ -102,6 +103,16 @@ exports.updateAnomalyStatus = async (req, res) => {
 
         if (!resultado) return res.status(404).json({ msg: 'Anomalia no encontrada' });
 
+        dataLogs.registrar({
+            req,
+            accion: dataLogs.ACCIONES.STATUS_CHANGE,
+            modulo: dataLogs.MODULOS.SECURITY,
+            recurso: 'anomaly',
+            recursoId: id,
+            antes: { status: resultado.previous_status },
+            despues: { status, nota: note || null }
+        });
+
         res.status(200).json({
             msg: 'Estado actualizado',
             anomalia: resultado
@@ -186,6 +197,21 @@ exports.adjustUser = async (req, res) => {
             changeType: change_type,
             valor: value,
             reason: String(reason).trim()
+        });
+
+        dataLogs.registrar({
+            req,
+            accion: dataLogs.ACCIONES.MANUAL_ADJUSTMENT,
+            modulo: dataLogs.MODULOS.GAMIFICATION,
+            recurso: 'user',
+            recursoId: targetUserId,
+            antes: resultado.estado_previo,
+            despues: {
+                ...resultado.estado_nuevo,
+                tipo: change_type,
+                valor: value,
+                motivo: String(reason).trim()
+            }
         });
 
         res.status(200).json({

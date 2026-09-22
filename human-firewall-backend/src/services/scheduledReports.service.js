@@ -759,6 +759,21 @@ async function listarProgramaciones() {
     return rows;
 }
 
+/**
+ * Una programacion por id, tal como esta guardada. La usa el log de
+ * auditoria para dejar el valor anterior de una edicion.
+ */
+async function obtenerProgramacion(id) {
+    const { rows } = await db.query(
+        `SELECT id, name, report_type, frequency, format, params,
+                subscriber_roles, is_active, next_run_at
+           FROM report_schedules
+          WHERE id = $1`,
+        [id]
+    );
+    return rows[0] || null;
+}
+
 async function crearProgramacion(valores, userId) {
     const { rows } = await db.query(
         `INSERT INTO report_schedules
@@ -962,6 +977,7 @@ module.exports = {
     avisarReporteListo,
     validarProgramacion,
     listarProgramaciones,
+    obtenerProgramacion,
     crearProgramacion,
     actualizarProgramacion,
     listarHistorico,

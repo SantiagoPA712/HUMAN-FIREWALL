@@ -6,6 +6,7 @@ const rewardsService = require('../services/rewards.service');
 const levelsService = require('../services/levels.service');
 const recommendationsService = require('../services/recommendations.service');
 const auditService = require('../services/audit.service');
+const dataLogs = require('../services/dataLogs.service');
 
 exports.getLeaderboard = async (req, res) => {
     try {
@@ -73,6 +74,17 @@ exports.createBadge = async (req, res) => {
             [name, description, icon_url, condition_type,
              JSON.stringify({ threshold: umbral }), is_repeatable, umbral]
         );
+
+        // Alta en el catalogo de recompensas: creacion de un recurso que
+        // decide quien gana que (HU de logs, criterio tecnico 1).
+        dataLogs.registrar({
+            req,
+            accion: dataLogs.ACCIONES.CREATE,
+            modulo: dataLogs.MODULOS.GAMIFICATION,
+            recurso: 'reward',
+            recursoId: rows[0].id,
+            despues: rows[0]
+        });
 
         res.status(201).json(rows[0]);
     } catch (error) {
@@ -144,6 +156,22 @@ exports.assignBadge = async (req, res) => {
             previousValue: null,
             newValue: { reward_id: catalogo[0].id, reward_name: catalogo[0].name },
             reason: String(reason).trim()
+        });
+
+        // audit_log es el registro del panel de seguridad; data.logs es el
+        // registro central. El ajuste manual va a los dos.
+        dataLogs.registrar({
+            req,
+            accion: dataLogs.ACCIONES.MANUAL_ADJUSTMENT,
+            modulo: dataLogs.MODULOS.GAMIFICATION,
+            recurso: 'user',
+            recursoId: user_id,
+            despues: {
+                tipo: 'badge',
+                reward_id: catalogo[0].id,
+                reward_name: catalogo[0].name,
+                motivo: String(reason).trim()
+            }
         });
 
         res.status(201).json({ msg: "Insignia asignada exitosamente", data: otorgada });

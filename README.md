@@ -153,6 +153,7 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 | `report.export_requested` | `reportExports.service` | reportExports | `{ exportUid, userId, formato, filtros }` |
 | `report.scheduled_run` | `scheduledReports.service` (scheduler) | scheduledReports | `{ scheduleId, tipo, formato, periodo, params }` |
 | `report.auto_generated` | `scheduledReports.service` (job) | scheduledReports | `{ historyId, scheduleId, periodo }` |
+| `audit.log_recorded` | `dataLogs.registrar()`, desde cualquier modulo | dataLogs | `{ logUid, userId, actorType, actorEmail, actionType, module, resourceType, resourceId, oldValue, newValue, ipAddress, traceId, occurredAt }` |
 
 Los nombres mezclan dos estilos (`lesson.completed` con punto, `points_assigned`
 con guion bajo). Es herencia de la HU de gamificacion y **no se unifico a
@@ -381,6 +382,8 @@ Cualquier otra persona se registra sola en `/register` y entra como `employee`.
 > Antes de esta migracion `schema.sql` insertaba un admin cuyo hash no
 > correspondia a ninguna contrasena conocida: la cuenta existia y nadie podia
 > entrar. De ahi venia el "bypass de emergencia" que tenia `auth.controller`.
+> **El bypass se elimino con la HU de logs de auditoria**: `AdminPassword123!`
+> ya no entrega un token. El admin entra con `Admin123` como cualquier cuenta.
 
 ### Modo desarrollo
 
@@ -822,6 +825,72 @@ el aviso a RH. Es deliberado: la alternativa seria congelar la configuracion
 dentro del evento y que un cambio de RH no aplicara hasta el siguiente
 resultado.
 
+### 0.9 Logs de auditoria: `data.logs`
+
+Tabla central (esquema `data`) donde queda **toda accion critica** de
+cualquier modulo: logins fallidos, altas/cambios/bajas de usuarios, cambios de
+rol, cambios de clave, ajustes manuales, cambios de estado de anomalias,
+exportaciones y cambios de configuracion de reportes. `audit_log` (migracion
+030) sigue existiendo como registro especifico del panel de seguridad; los
+ajustes manuales llegan a los dos.
+
+**Para registrar una accion nueva, una sola llamada, sin `await`:**
+
+```js
+const dataLogs = require('../services/dataLogs.service');
+
+dataLogs.registrar({
+    req,                                        // de aca salen usuario, IP y trace_id
+    accion: dataLogs.ACCIONES.CONFIG_CHANGE,
+    modulo: dataLogs.MODULOS.REPORTS,
+    recurso: 'report_schedule',
+    recursoId: id,
+    antes: filaAnterior,                        // se enmascara solo
+    despues: filaNueva
+});
+```
+
+**Asincrono y a prueba de fallos.** `registrar()` solo encola el evento
+`audit.log_recorded` en el outbox y **nunca lanza**; el worker escribe la
+fila. Se encola con el pool y no con el cliente de la transaccion del
+negocio: un INSERT fallido dentro de esa transaccion la abortaria entera, y el
+criterio pide justo lo contrario (si el log falla, la operacion no se revierte).
+El precio es una ventana de milisegundos entre el COMMIT y el encolado en la
+que una caida del proceso perderia ese log.
+
+**Hora del servidor, no del worker.** `occurred_at` se fija al llamar a
+`registrar()`. `recorded_at` es cuando el worker inserto la fila.
+
+**Sin secretos.** Todo `antes`/`despues` pasa por `enmascarar()`: cualquier
+campo cuyo nombre parezca password, token, secret, api key, cookie o hash
+queda como `"[REDACTED]"`, y lo mismo un valor con forma de JWT o de hash
+bcrypt aunque venga en un campo inocente. Se enmascara antes de encolar, asi
+que tampoco la cola guarda el secreto.
+
+**Inmutable.** Trigger que rechaza UPDATE siempre, DELETE salvo con
+`SET LOCAL app.retencion_logs = 'on'` (solo lo hace la purga) y TRUNCATE.
+El `REVOKE` a `PUBLIC` no alcanza al superusuario `postgres`; el trigger si.
+La API responde 405 a PUT/PATCH/DELETE/POST.
+
+**Retencion.** Job diario que borra lo que supera `LOGS_RETENTION_MONTHS`
+(12 por defecto) y deja cantidad y rango de fechas en `data.logs_purges`, una
+tabla aparte que tampoco se puede editar ni borrar.
+
+**Endpoints** (todos solo `admin`, verificado en el middleware sin consultar la base):
+
+| Metodo | Ruta | Que hace |
+|--------|------|----------|
+| GET | `/api/logs` | Listado paginado (50 por defecto). Filtros: `from`, `to`, `user_id` (o `system`), `module`, `action_type`, `resource_type`, `order` (`desc`/`asc`), `page`, `page_size` |
+| GET | `/api/logs/filtros` | Opciones de los desplegables |
+| GET | `/api/logs/:id` | Detalle con `old_value`, `new_value`, `ip_address`, `trace_id` |
+| GET | `/api/logs/export` | CSV con los mismos filtros y el mismo orden (todas las hojas) |
+
+La pantalla esta en `/admin/logs` ("Registro de acciones" en el menu del admin).
+
+**trace_id.** El middleware `traceId` le asigna un id a cada request (o
+respeta el `X-Trace-Id` que venga de otro modulo) y lo devuelve en la
+respuesta. Todas las filas que produjo un mismo request comparten ese id.
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
@@ -972,6 +1041,8 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | - | El juego de ingenieria social otorgaba los puntos completos tambien al caer en la estafa | El endpoint ya no da el resultado por aprobado: lo recibe del cliente |
 | 9 | `users.level` nunca se calculaba y el dashboard mostraba "Nivel 1 / Cinturon Blanco" fijo para todos | Nivel derivado de `points_ledger` + `levels_config`, con la cache sincronizada en cada `points_assigned` |
 | 3 | `config/db.js` desactivaba la verificacion TLS de todo el proceso Node | Ya estaba corregido en `9f48d97`: el SSL se decide por URL y queda acotado al pool |
+| - | `auth.controller` tenia un bypass que entregaba un token de admin con `AdminPassword123!` sin consultar la base | Eliminado con la HU de logs de auditoria; el login fallido ahora queda en `data.logs` |
+| - | `PUT /api/users/:id` con un rol inexistente devolvia 500 con el error crudo de Postgres, y un id inexistente respondia "Usuario actualizado" | Valida rol e `is_active` (400) y responde 404 si el usuario no existe |
 
 ### Pendiente
 

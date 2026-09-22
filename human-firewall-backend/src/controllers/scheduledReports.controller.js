@@ -17,6 +17,7 @@
  */
 
 const scheduledReports = require('../services/scheduledReports.service');
+const dataLogs = require('../services/dataLogs.service');
 
 /**
  * GET /api/gamification/reports/schedules
@@ -54,6 +55,18 @@ exports.createSchedule = async (req, res) => {
         }
 
         const creada = await scheduledReports.crearProgramacion(valores, req.user.id);
+
+        // Cambio de configuracion (HU de logs, criterio tecnico 1): una
+        // programacion decide que datos salen, cada cuanto y hacia quien.
+        dataLogs.registrar({
+            req,
+            accion: dataLogs.ACCIONES.CONFIG_CHANGE,
+            modulo: dataLogs.MODULOS.REPORTS,
+            recurso: 'report_schedule',
+            recursoId: creada?.id,
+            despues: valores
+        });
+
         res.status(201).json(creada);
 
     } catch (error) {
@@ -84,8 +97,26 @@ exports.updateSchedule = async (req, res) => {
             return res.status(400).json({ msg: 'No se envio ningun campo para actualizar' });
         }
 
+        // El estado anterior se lee antes de escribir: sin el, el log de una
+        // edicion solo diria como quedo, no que cambio.
+        const anterior = await scheduledReports.obtenerProgramacion(id);
+
         const actualizada = await scheduledReports.actualizarProgramacion(id, valores);
         if (!actualizada) return res.status(404).json({ msg: `No existe la programacion ${id}` });
+
+        // Solo los campos que se tocaron, antes y despues.
+        const campos = Object.keys(valores);
+        const recortar = (fila) => Object.fromEntries(campos.map(c => [c, fila?.[c] ?? null]));
+
+        dataLogs.registrar({
+            req,
+            accion: dataLogs.ACCIONES.CONFIG_CHANGE,
+            modulo: dataLogs.MODULOS.REPORTS,
+            recurso: 'report_schedule',
+            recursoId: id,
+            antes: recortar(anterior),
+            despues: recortar(actualizada)
+        });
 
         res.status(200).json(actualizada);
 

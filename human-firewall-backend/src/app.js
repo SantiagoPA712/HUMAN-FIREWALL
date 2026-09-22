@@ -19,6 +19,12 @@ if (process.env.NODE_ENV !== 'production') {
 
 app.use(express.json());
 
+// ID de correlacion (trace_id) para cada request. Va antes de las rutas para
+// que cualquier log de auditoria que se registre dentro del request lo lleve.
+// Ver middlewares/traceId.middleware.js.
+const { asignarTraceId } = require('./middlewares/traceId.middleware');
+app.use(asignarTraceId);
+
 require('./config/passport');
 const passport = require('passport');
 
@@ -34,6 +40,10 @@ app.use('/api/courses', require('./routes/course.routes'));
 app.use('/api/simulations', require('./routes/simulation.routes'));
 app.use('/api/gamification', require('./routes/gamification.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
+
+// Logs de auditoria (data.logs). Solo admin: la verificacion vive en el
+// propio archivo de rutas, antes de cualquier controlador.
+app.use('/api/logs', require('./routes/logs.routes'));
 
 // 404 de la API en JSON.
 //
