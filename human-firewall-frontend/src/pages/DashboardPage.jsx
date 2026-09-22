@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
@@ -25,6 +25,9 @@ export default function DashboardPage() {
   // Resultados organizacionales: gerencia y administracion, igual que el
   // endpoint.
   const puedeVerOrganizacional = usuario?.role === 'manager' || usuario?.role === 'admin';
+
+  // Registro de acciones (data.logs): solo admin, igual que GET /api/logs.
+  const puedeVerLogs = usuario?.role === 'admin';
   
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -99,6 +102,12 @@ export default function DashboardPage() {
             <a href="/reports/organizacional" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
               <Building2 className="w-5 h-5" />
               Resultados organizacionales
+            </a>
+          )}
+          {puedeVerLogs && (
+            <a href="/admin/logs" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+              <ScrollText className="w-5 h-5" />
+              Registro de acciones
             </a>
           )}
         </nav>

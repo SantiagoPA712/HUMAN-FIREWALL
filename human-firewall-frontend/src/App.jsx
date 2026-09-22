@@ -23,6 +23,7 @@ import SecurityPanel from './pages/SecurityPanel';
 import ScheduledReportsPage from './pages/ScheduledReportsPage';
 import OrganizationalPage from './pages/OrganizationalPage';
 import NotificationsPage from './pages/NotificationsPage';
+import AuditLogsPage from './pages/AuditLogsPage';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -79,6 +80,11 @@ function App() {
         
         {/* Rutas Admin */}
         <Route path="/admin" element={<AdminDashboard />} />
+
+        {/* Logs de auditoria (data.logs): el backend rechaza con 403 a quien
+            no sea admin. Cuelga de /admin porque es una herramienta de
+            administracion, no una pantalla de negocio. */}
+        <Route path="/admin/logs" element={<AuditLogsPage />} />
 
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
