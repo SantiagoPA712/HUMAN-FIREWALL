@@ -103,6 +103,33 @@ const PLANTILLAS = {
 };
 
 /**
+ * Guarda el aviso SIN mandar ningun correo.
+ *
+ * Existe por el criterio tecnico 3 de la HU de notificacion de resultados: el
+ * correo se manda solo si el destinatario tiene ese canal habilitado, y
+ * notificar() lo manda siempre que haya SMTP configurado. Quien necesita
+ * decidir por canal crea el aviso con esta funcion y despues, si corresponde,
+ * llama a reenviarCorreo().
+ *
+ * No cambia el comportamiento de nadie: notificar() sigue haciendo lo mismo de
+ * siempre para los avisos de registro, nivel y recompensa.
+ *
+ * @returns {Promise<object|null>} la notificacion creada, o null si ya existia
+ */
+async function crearSinEnviar(eventName, aviso, userId) {
+    const { rows } = await db.query(
+        `INSERT INTO notifications (user_id, event_name, title, body, payload, dedupe_key)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (dedupe_key) DO NOTHING
+         RETURNING id, user_id, title, body, created_at`,
+        [userId, eventName, aviso.title, aviso.body,
+         JSON.stringify(aviso.payload || {}), aviso.dedupeKey]
+    );
+
+    return rows[0] || null;
+}
+
+/**
  * Guarda el aviso y, si hay SMTP, lo manda por correo.
  *
  * @returns {Promise<object|null>} la notificacion creada, o null si ya existia
@@ -285,6 +312,7 @@ function registrarHandlers() {
 module.exports = {
     PLANTILLAS,
     notificar,
+    crearSinEnviar,
     reenviarCorreo,
     manejar,
     obtenerBandeja,

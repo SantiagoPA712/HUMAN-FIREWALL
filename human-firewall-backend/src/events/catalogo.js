@@ -36,15 +36,47 @@ const EVENTOS = {
     COURSE_COMPLETED: 'course.completed',
 
     /** Evaluacion o desafio aprobado.
-     *  { userId, quizRef, quizType, score, passed, attemptNo?, basePoints? } */
+     *  { userId, quizRef, quizType, score, passed, attemptNo?, basePoints?, courseId? }
+     *
+     *  `courseId` se sumo con la HU de notificacion de resultados: es lo que
+     *  permite avisarle a RH cuando el contenido pertenece a un curso marcado
+     *  como critico. Es un campo mas y opcional; quienes ya consumian el
+     *  evento (points, rewards, recommendations) leen campos puntuales y no
+     *  se enteran de el. */
     QUIZ_APPROVED: 'quiz.approved',
+
+    /** Evaluacion o desafio reprobado.
+     *  { userId, quizRef, quizType, score, passed: false, attemptId, attemptNo, courseId }
+     *
+     *  `attemptId` es el id de la fila de quiz_attempts y es quien IDENTIFICA
+     *  el hecho: lo asigna la secuencia de la tabla, asi que dos envios
+     *  simultaneos del mismo desafio nunca comparten valor. `attemptNo` es
+     *  para el texto del aviso ("intento 2"); sale de un COUNT(*) sin lock y
+     *  por lo tanto puede repetirse, asi que no sirve como identidad.
+     *
+     *  Se agrego con la HU de notificacion de resultados. Hasta entonces un
+     *  intento reprobado quedaba en quiz_attempts y no publicaba nada: el
+     *  modulo de puntos no lo necesitaba, porque reprobar no otorga puntos.
+     *  Avisarle al usuario que reprobo si lo necesita, y un hecho que no se
+     *  publica no se puede escuchar.
+     *
+     *  Nadie mas que las notificaciones lo consume: no otorga puntos, no
+     *  mueve niveles y no dispara recompensas. */
+    QUIZ_FAILED: 'quiz.failed',
 
     /** Decision tomada dentro de una simulacion.
      *  { userId, optionId, simulationId, stepId, isCorrect, points } */
     SIMULATION_DECISION_MADE: 'simulation.decision_made',
 
     /** Simulacion cerrada, con el intento ya registrado.
-     *  { userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptNo } */
+     *  { userId, simulationId, courseId, score, aprobada, aciertos, pasos,
+     *    attemptId, attemptNo }
+     *
+     *  `attemptId` se sumo con la HU de notificacion de resultados, por la
+     *  misma razon que en quiz.failed: identifica el intento sin depender de
+     *  un numero calculado con COUNT(*), que dos envios simultaneos pueden
+     *  repetir. Es un campo mas y no reemplaza a ninguno, asi que los
+     *  suscriptores que ya existian siguen leyendo lo mismo de siempre. */
     SIMULATION_COMPLETED: 'simulation.completed',
 
     // --- Eventos de reaccion: los publican los propios servicios ---
@@ -89,10 +121,15 @@ const EVENTOS = {
 const SUSCRIPTORES_ESPERADOS = {
     [EVENTOS.USER_REGISTERED]:           ['notifications'],
     [EVENTOS.LESSON_COMPLETED]:          ['points'],
-    [EVENTOS.COURSE_COMPLETED]:          ['points', 'rewards'],
-    [EVENTOS.QUIZ_APPROVED]:             ['points', 'rewards', 'recommendations'],
+    // resultNotifications se sumo con la HU de notificacion de resultados:
+    // escucha los mismos hechos que ya se publicaban y arma el aviso con los
+    // datos que trae el evento. No hubo que tocar a quien los publica, salvo
+    // para crear quiz.failed, que no existia.
+    [EVENTOS.COURSE_COMPLETED]:          ['points', 'rewards', 'resultNotifications'],
+    [EVENTOS.QUIZ_APPROVED]:             ['points', 'rewards', 'recommendations', 'resultNotifications'],
+    [EVENTOS.QUIZ_FAILED]:               ['resultNotifications'],
     [EVENTOS.SIMULATION_DECISION_MADE]:  ['points'],
-    [EVENTOS.SIMULATION_COMPLETED]:      ['rewards', 'recommendations'],
+    [EVENTOS.SIMULATION_COMPLETED]:      ['rewards', 'recommendations', 'resultNotifications'],
     // anomalies se sumo con la HU de seguridad: evalua cada asignacion contra
     // los umbrales de anomaly_rules. No hubo que tocar points.service, que es
     // quien publica: alcanzo con suscribirse.

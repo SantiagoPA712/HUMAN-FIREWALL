@@ -307,6 +307,13 @@ exports.completeSimulation = async (req, res) => {
             aprobada,
             aciertos,
             pasos,
+            // El id de la fila viaja junto al numero de intento. El id lo
+            // asigna la secuencia de la tabla, asi que identifica este intento
+            // sin ambiguedad; attempt_no sale del COUNT(*) + 1 de arriba, que
+            // no toma lock, y dos envios simultaneos pueden calcular el mismo
+            // numero. La HU de notificacion de resultados usa el id como clave
+            // del aviso para no perder uno de los dos.
+            attemptId: attemptRows[0].id,
             attemptNo: attemptRows[0].attempt_no
         });
 

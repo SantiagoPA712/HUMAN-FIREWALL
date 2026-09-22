@@ -22,6 +22,7 @@ import ReportsPage from './pages/ReportsPage';
 import SecurityPanel from './pages/SecurityPanel';
 import ScheduledReportsPage from './pages/ScheduledReportsPage';
 import OrganizationalPage from './pages/OrganizationalPage';
+import NotificationsPage from './pages/NotificationsPage';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -40,6 +41,11 @@ function App() {
         <Route path="/rewards" element={<RewardsGallery />} />
         <Route path="/level" element={<MyLevel />} />
         <Route path="/performance" element={<Performance />} />
+
+        {/* Centro de notificaciones: es de cada usuario, no tiene restriccion
+            de rol. El bloque de cursos criticos, dentro de la pantalla, solo
+            lo ve RH porque el backend responde 403 al resto. */}
+        <Route path="/notifications" element={<NotificationsPage />} />
 
         {/* Reportes de RH: el backend rechaza con 403 a quien no sea rh o admin */}
         <Route path="/reports" element={<ReportsPage />} />

@@ -142,10 +142,11 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 |--------|-----------|------------|---------|
 | `user.registered` | `auth.service`, `passport.js` | notifications | `{ userId, email, role, provider }` |
 | `lesson.completed` | `course.controller` | points | `{ userId, contentId }` |
-| `course.completed` | `course.controller` | points, rewards | `{ userId, courseId }` |
-| `quiz.approved` | `gamification.controller` | points, rewards, recommendations | `{ userId, quizRef, quizType, score, passed, basePoints? }` |
+| `course.completed` | `course.controller` | points, rewards, resultNotifications | `{ userId, courseId }` |
+| `quiz.approved` | `gamification.controller` | points, rewards, recommendations, resultNotifications | `{ userId, quizRef, quizType, score, passed, basePoints?, courseId? }` |
+| `quiz.failed` | `gamification.controller` | resultNotifications | `{ userId, quizRef, quizType, score, passed: false, attemptId, attemptNo, courseId }` |
 | `simulation.decision_made` | `simulation.controller` | points | `{ userId, optionId, simulationId, stepId, isCorrect, points }` |
-| `simulation.completed` | `simulation.controller` | rewards, recommendations | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptNo }` |
+| `simulation.completed` | `simulation.controller` | rewards, recommendations, resultNotifications | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptId, attemptNo }` |
 | `points_assigned` | `points.service` | rewards, levels, anomalies | `{ userId, sourceType, sourceId, points, ledgerId }` |
 | `level_up` | `levels.service` | notifications | `{ userId, nivel, nombre, nivelesAlcanzados, puntos }` |
 | `reward_granted` | `rewards.service` | notifications | `{ userId, rewardId, rewardName, userRewardId }` |
@@ -417,10 +418,10 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 482 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 572 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
-recomendaciones, simulaciones, reportes, seguridad, reportes automaticos y
-resultados organizacionales. Ver `tests/README.md`.
+recomendaciones, simulaciones, reportes, seguridad, reportes automaticos,
+resultados organizacionales y notificacion de resultados. Ver `tests/README.md`.
 
 ---
 
@@ -488,6 +489,12 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/notifications`                           | Autenticado (solo lo propio)  |
 | PATCH  | `/api/notifications/:id/leida`                 | Autenticado (solo lo propio)  |
 | GET    | `/api/notifications/eventos/estado`            | Solo admin                    |
+| GET    | `/api/notifications/resultados`                | Autenticado (solo lo propio)  |
+| PATCH  | `/api/notifications/leidas`                    | Autenticado (solo lo propio)  |
+| GET    | `/api/notifications/preferencias`              | Autenticado (solo lo propio)  |
+| PATCH  | `/api/notifications/preferencias`              | Autenticado (solo lo propio)  |
+| GET    | `/api/notifications/cursos-criticos`           | Solo rh o admin               |
+| PATCH  | `/api/notifications/cursos-criticos/:courseId` | Solo rh o admin               |
 | GET    | `/api/simulations`                             | Autenticado (filtrado por rol) |
 | POST   | `/api/simulations/:id/complete`                | Autenticado                   |
 | GET    | `/api/gamification/reports/performance`        | Solo rh o admin               |
@@ -772,6 +779,49 @@ El "area" es `teams`, la misma tabla que ya filtra el reporte de RH. Una tabla
 `areas` paralela partiria la organizacion en dos jerarquias que habria que
 mantener sincronizadas a mano.
 
+### 0.8 Notificacion de resultados: se consume el evento, no se reevalua
+
+`resultNotifications.service` escucha `quiz.approved`, `quiz.failed`,
+`course.completed` y `simulation.completed`, y arma el aviso con los datos que
+**ya vienen dentro del evento**: el puntaje, si aprobo y cuantos aciertos tuvo
+los calculo el modulo de origen. Lo unico que se consulta a la base son
+etiquetas (el nombre del desafio, el titulo del curso), porque el evento viaja
+con el id y un aviso que diga "reprobaste el 903" no le sirve a nadie.
+
+**`quiz.failed` se creo con esta historia.** Hasta entonces un intento
+reprobado quedaba en `quiz_attempts` sin publicar nada: al modulo de puntos no
+le hacia falta, porque reprobar no otorga puntos. Avisar que reprobaste si lo
+necesita, y un hecho que no se publica no se puede escuchar. Su unico
+suscriptor es el servicio de notificaciones: no otorga puntos, no mueve
+niveles y no dispara recompensas.
+
+**RH entra solo si el curso esta marcado como critico** (`courses.is_critical`,
+que RH configura desde el centro de notificaciones). El destinatario se
+resuelve por equipo: los `rh` del mismo `team_id` que el empleado, y si ese
+equipo no tiene ninguno, todos los `rh` activos. El respaldo importa porque la
+migracion 025 siembra los equipos pero no reparte a la gente: sin el, una
+alerta de un curso critico se perderia en silencio. Toda esa resolucion corre
+en el backend; el cliente nunca manda ni recibe la lista de destinatarios.
+
+**Canales y estado de entrega.** `notification_preferences` guarda lo que
+alguien cambio, no el estado de todo el padron: sin fila, el canal esta
+habilitado. `notification_deliveries` lleva una fila por (aviso, canal) con su
+estado -- generada, entregada, fallida, leida -- y la fecha de cada uno. Por
+eso el estado de lectura es independiente por canal: marcar la bandeja como
+leida no dice nada sobre el correo.
+
+La deduplicacion es por el HECHO, no por el intento de procesarlo: la clave
+incluye el evento, su referencia, el numero de intento y el destinatario. Dos
+fallos del mismo desafio son dos avisos; el mismo fallo reprocesado por el bus
+es uno solo.
+
+Un detalle que conviene saber: las reglas se evaluan **cuando el evento se
+procesa**, no cuando se publico. Si alguien marca un curso como critico
+mientras un evento viejo sigue pendiente en la cola, al procesarse se generara
+el aviso a RH. Es deliberado: la alternativa seria congelar la configuracion
+dentro del evento y que un cambio de RH no aplicara hasta el siguiente
+resultado.
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
@@ -842,6 +892,8 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `report_schedules` | Que reporte se genera solo, cada cuanto y para que roles         |
 | `report_history` | Una corrida por fila (exito o error). No se borra sin politica de retencion |
 | `report_notifications` | Cola de avisos por destinatario: 3 intentos con backoff     |
+| `notification_preferences` | Canales habilitados por persona. Sin fila, el canal esta habilitado |
+| `notification_deliveries` | Estado de entrega por aviso y canal, con su timestamp    |
 | `org_kpi_snapshots` | KPIs organizacionales precalculados por periodo y area. Solo INSERT |
 | `org_report_access_log` | Quien consulto el consolidado. Solo INSERT, y no sale por ninguna API |
 | `anomaly_rules`  | Umbrales de deteccion: puntos por ventana de tiempo               |
