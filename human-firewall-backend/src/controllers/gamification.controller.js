@@ -228,15 +228,22 @@ exports.completeChallenge = async (req, res) => {
         // Los tipos van explicitos: $1 y $2 se usan en el VALUES y en la
         // subconsulta, y sin cast Postgres deduce tipos distintos en cada
         // contexto y rechaza la consulta.
-        // El RETURNING se agrego con la HU de notificacion de resultados: el
-        // numero de intento es lo que distingue un fallo de otro del mismo
-        // desafio, y sin el los dos avisos se deduplicarian en uno solo.
+        // El RETURNING se agrego con la HU de notificacion de resultados: hay
+        // que poder distinguir un fallo de otro del mismo desafio, porque si no
+        // los dos avisos se deduplican en uno solo.
+        //
+        // Vuelven dos columnas y cada una tiene su trabajo:
+        //   - `id` IDENTIFICA el intento. Lo asigna la secuencia de la tabla,
+        //     asi que es unico aunque dos envios entren a la vez.
+        //   - `attempt_no` es para el TEXTO del aviso ("intento 2"). Sale de un
+        //     COUNT(*) + 1 sin lock, asi que dos envios simultaneos pueden
+        //     calcular el mismo numero: sirve para mostrar, no para identificar.
         const { rows: intentoRows } = await client.query(
             `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
              VALUES ($1::int, $2::varchar, 'challenge', $3::int, $4::int, 60, $5::boolean,
                      (SELECT COUNT(*) + 1 FROM quiz_attempts
                        WHERE user_id = $1::int AND quiz_ref = $2::varchar))
-             RETURNING attempt_no`,
+             RETURNING id, attempt_no`,
             [userId, challengeId, challenge.course_id || null, puntaje, aprobado]
         );
 
@@ -270,6 +277,7 @@ exports.completeChallenge = async (req, res) => {
                 quizType: 'challenge',
                 score: puntaje,
                 passed: false,
+                attemptId: intentoRows[0].id,
                 attemptNo: intentoRows[0].attempt_no,
                 courseId: challenge.course_id || null
             }, client);

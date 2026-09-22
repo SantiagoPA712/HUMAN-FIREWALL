@@ -418,7 +418,7 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 542 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 560 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
 recomendaciones, simulaciones, reportes, seguridad, reportes automaticos,
 resultados organizacionales y notificacion de resultados. Ver `tests/README.md`.

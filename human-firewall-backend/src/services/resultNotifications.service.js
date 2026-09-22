@@ -41,6 +41,41 @@ const CANALES = ['in_app', 'email'];
 /** Estados de entrega del criterio tecnico 5. */
 const ESTADOS = ['generada', 'entregada', 'fallida', 'leida'];
 
+/** Largo de notifications.title (migracion 009). */
+const LARGO_TITULO = 150;
+
+/**
+ * Recorta un titulo para que entre en notifications.title.
+ *
+ * FALLO CORREGIDO: los titulos se armaban interpolando datos sin acotar.
+ * `courses.title` admite 255 caracteres y `users.email` otros 255, contra los
+ * 150 de `notifications.title`. Un curso con un titulo largo pero
+ * perfectamente valido hacia fallar el INSERT, y entonces el usuario no se
+ * enteraba de su resultado: el evento agotaba sus cinco reintentos y moria.
+ *
+ * Se recorta el titulo y no se amplia la columna porque la columna es de la
+ * migracion 009, ya mergeada, y el titulo es un resumen: el dato completo
+ * viaja en el cuerpo, que es TEXT y no tiene limite.
+ */
+function recortarTitulo(texto) {
+    const t = String(texto);
+    return t.length <= LARGO_TITULO ? t : `${t.slice(0, LARGO_TITULO - 1)}…`;
+}
+
+/**
+ * Parte de la clave de deduplicacion que identifica UN intento.
+ *
+ * Prefiere `attemptId` -- el id de la fila de quiz_attempts, que asigna la
+ * secuencia de la tabla y por lo tanto es unico aunque dos envios entren a la
+ * vez. `attemptNo` solo se usa como respaldo, para un productor que todavia no
+ * mande el id: sale de un COUNT(*) sin lock y puede repetirse.
+ *
+ * Los prefijos 'i' y 'n' evitan que las dos formas colisionen entre si.
+ */
+function claveDeIntento(p) {
+    return p.attemptId != null ? `i${p.attemptId}` : `n${p.attemptNo}`;
+}
+
 // ---------------------------------------------------------------------
 // Etiquetas
 // ---------------------------------------------------------------------
@@ -205,7 +240,7 @@ async function avisoDelDueno(evento, p) {
     if (evento === EVENTOS.QUIZ_APPROVED) {
         const nombre = await nombreDeDesafio(p.quizRef);
         return {
-            title: `Aprobaste: ${nombre}`,
+            title: recortarTitulo(`Aprobaste: ${nombre}`),
             body: `Superaste "${nombre}" con ${p.score} puntos de puntaje. ` +
                   `Los puntos ya quedaron sumados a tu historial.`,
             payload: { resultado: 'aprobado', quizRef: p.quizRef, score: p.score },
@@ -220,7 +255,7 @@ async function avisoDelDueno(evento, p) {
         // Criterio de aceptacion 1: "si reprobe, debo ver tambien las opciones
         // disponibles para reintentar".
         return {
-            title: `No superaste: ${nombre}`,
+            title: recortarTitulo(`No superaste: ${nombre}`),
             body: `Obtuviste ${p.score} de puntaje en "${nombre}" (intento ${p.attemptNo}).\n` +
                   `Podes reintentarlo cuando quieras desde Desafios y Retos: /challenges\n` +
                   `Si preferis reforzar antes, en Mi Desempeno tenes las lecciones sugeridas: /performance`,
@@ -232,7 +267,15 @@ async function avisoDelDueno(evento, p) {
                 reintentar_en: '/challenges',
                 reforzar_en: '/performance'
             },
-            clave: `quiz.failed:${p.userId}:${p.quizRef}:${p.attemptNo}`,
+            // La clave usa el ID de la fila del intento, no su numero.
+            //
+            // FALLO CORREGIDO: se usaba `attemptNo`, que el productor calcula
+            // con COUNT(*) + 1 sin lock. Dos envios simultaneos del mismo
+            // desafio pueden obtener el mismo numero, y entonces los dos
+            // eventos traen la misma clave: el segundo aviso se deduplica
+            // contra el primero y el usuario pierde uno de sus resultados.
+            // El id sale de la secuencia de la tabla y es unico siempre.
+            clave: `quiz.failed:${p.userId}:${p.quizRef}:${claveDeIntento(p)}`,
             courseId: p.courseId || null,
             aprobado: false
         };
@@ -241,7 +284,7 @@ async function avisoDelDueno(evento, p) {
     if (evento === EVENTOS.COURSE_COMPLETED) {
         const curso = await tituloDeCurso(p.courseId);
         return {
-            title: `Completaste el curso: ${curso?.title || p.courseId}`,
+            title: recortarTitulo(`Completaste el curso: ${curso?.title || p.courseId}`),
             body: `Terminaste todas las lecciones de "${curso?.title || p.courseId}". ` +
                   `Podes ver tu avance en Mi Desempeno: /performance`,
             payload: { resultado: 'curso_completado', courseId: p.courseId },
@@ -256,20 +299,20 @@ async function avisoDelDueno(evento, p) {
 
         if (p.aprobada) {
             return {
-                title: `Completaste la simulacion: ${titulo}`,
+                title: recortarTitulo(`Completaste la simulacion: ${titulo}`),
                 body: `Terminaste "${titulo}" con ${p.score}% (${p.aciertos} de ${p.pasos} decisiones correctas).`,
                 payload: {
                     resultado: 'aprobada', simulationId: p.simulationId,
                     score: p.score, aciertos: p.aciertos, pasos: p.pasos
                 },
-                clave: `simulation.completed:${p.userId}:${p.simulationId}:${p.attemptNo}`,
+                clave: `simulation.completed:${p.userId}:${p.simulationId}:${claveDeIntento(p)}`,
                 courseId: p.courseId || null,
                 aprobado: true
             };
         }
 
         return {
-            title: `No superaste la simulacion: ${titulo}`,
+            title: recortarTitulo(`No superaste la simulacion: ${titulo}`),
             body: `Terminaste "${titulo}" con ${p.score}% (${p.aciertos} de ${p.pasos} decisiones correctas).\n` +
                   `Podes volver a intentarla desde la simulacion: /simulation/play/${p.simulationId}\n` +
                   `En Mi Desempeno tenes las lecciones de refuerzo relacionadas: /performance`,
@@ -279,7 +322,7 @@ async function avisoDelDueno(evento, p) {
                 reintentar_en: `/simulation/play/${p.simulationId}`,
                 reforzar_en: '/performance'
             },
-            clave: `simulation.completed:${p.userId}:${p.simulationId}:${p.attemptNo}`,
+            clave: `simulation.completed:${p.userId}:${p.simulationId}:${claveDeIntento(p)}`,
             courseId: p.courseId || null,
             aprobado: false
         };
@@ -293,7 +336,7 @@ async function avisoParaRh(aviso, empleado, curso) {
     const detalle = aviso.aprobado ? 'completo' : 'no supero';
 
     return {
-        title: `Curso critico: ${empleado.email} ${detalle} "${curso.title}"`,
+        title: recortarTitulo(`Curso critico: ${empleado.email} ${detalle} "${curso.title}"`),
         body: `${empleado.email} ${detalle} contenido del curso critico "${curso.title}".\n` +
               `Detalle del resultado: ${aviso.title}\n` +
               `Podes ver su desempeno completo en el reporte de RH: /reports`,
@@ -346,6 +389,35 @@ async function registrarEntrega(notificationId, canal, estado, error = null) {
 }
 
 /**
+ * Completa las entregas que le falten a un aviso que YA existia.
+ *
+ * FALLO CORREGIDO: crear el aviso y registrar sus entregas son dos escrituras
+ * separadas. Si la primera pasaba y la segunda fallaba, el worker reintentaba
+ * el evento, pero en el reintento `crearSinEnviar` devolvia null (la clave ya
+ * estaba tomada) y se salia antes de registrar nada. El aviso quedaba sin
+ * entregas para siempre, sin salir en el centro y sin rastro para soporte,
+ * que es justo lo contrario de lo que pide el criterio tecnico 5.
+ *
+ * Las entregas que faltan se registran; las que ya estan no se tocan, porque
+ * `registrarEntrega` usa ON CONFLICT DO NOTHING.
+ *
+ * El correo NO se reenvia. Si no hay fila de email no sabemos si el envio
+ * anterior salio, y mandar dos correos por un mismo resultado es peor que
+ * dejar constancia de que se genero: queda en 'generada', que es lo unico que
+ * consta de verdad.
+ */
+async function reconciliarEntregas(dedupeKey, canales) {
+    const { rows } = await db.query(
+        'SELECT id FROM notifications WHERE dedupe_key = $1', [dedupeKey]
+    );
+    const existente = rows[0];
+    if (!existente) return;
+
+    if (canales.in_app) await registrarEntrega(existente.id, 'in_app', 'entregada');
+    if (canales.email) await registrarEntrega(existente.id, 'email', 'generada');
+}
+
+/**
  * Entrega un aviso a una persona por los canales que tenga habilitados.
  *
  * El aviso se guarda una sola vez (es el registro del hecho); los canales
@@ -355,17 +427,21 @@ async function registrarEntrega(notificationId, canal, estado, error = null) {
  */
 async function entregar(eventName, aviso, userId) {
     const canales = await canalesDe(userId);
+    const dedupeKey = `res:${aviso.clave}:${userId}`;
 
     const notificacion = await notificationsService.crearSinEnviar(
         eventName,
-        { title: aviso.title, body: aviso.body, payload: aviso.payload, dedupeKey: `res:${aviso.clave}:${userId}` },
+        { title: aviso.title, body: aviso.body, payload: aviso.payload, dedupeKey },
         userId
     );
 
     // Criterio tecnico 4: el mismo evento reprocesado no genera una segunda
     // notificacion. La clave de deduplicacion identifica el HECHO (evento +
     // referencia + intento + destinatario), no el intento de procesarlo.
-    if (!notificacion) return null;
+    if (!notificacion) {
+        await reconciliarEntregas(dedupeKey, canales);
+        return null;
+    }
 
     // In-app: guardar el aviso ES entregarlo, asi que los dos instantes
     // coinciden y se registra directamente como entregada.
@@ -463,8 +539,23 @@ const EVENTOS_DE_RESULTADO = [
  * por canal, y eso no cabe en la columna read_at del aviso.
  */
 async function obtenerCentro(userId, { soloNoLeidas = false, limit = 50 } = {}) {
+    // FALLO CORREGIDO: el centro listaba y contaba con `notifications.read_at`,
+    // que es el campo global y viejo de la migracion 009. Dos consecuencias:
+    //
+    //   1. Un usuario que apagaba el canal in_app igual veia los avisos aca.
+    //      El aviso SE CREA siempre -- es el registro del hecho, y RH lo
+    //      necesita aunque el empleado no quiera verlo -- pero sin entrega
+    //      in_app no fue entregado por este canal y no corresponde mostrarlo.
+    //   2. El contador de "sin leer" era uno solo para los dos canales, asi
+    //      que la independencia por canal que promete el criterio 3 existia en
+    //      notification_deliveries pero no en lo que ve el usuario.
+    //
+    // Ahora el centro ES la vista del canal in_app: el JOIN (no LEFT) contra
+    // su entrega decide que se lista, y el estado de lectura sale de ahi.
     const { rows } = await db.query(
-        `SELECT n.id, n.event_name, n.title, n.body, n.payload, n.read_at, n.created_at,
+        `SELECT n.id, n.event_name, n.title, n.body, n.payload, n.created_at,
+                app.read_at AS leida_en_app,
+                app.status  AS estado_en_app,
                 COALESCE(
                     json_agg(
                         json_build_object('canal', d.channel, 'estado', d.status,
@@ -474,11 +565,13 @@ async function obtenerCentro(userId, { soloNoLeidas = false, limit = 50 } = {}) 
                     '[]'
                 ) AS canales
            FROM notifications n
+           JOIN notification_deliveries app
+             ON app.notification_id = n.id AND app.channel = 'in_app'
            LEFT JOIN notification_deliveries d ON d.notification_id = n.id
           WHERE n.user_id = $1
             AND n.event_name = ANY($2::text[])
-            AND ($3::boolean = false OR n.read_at IS NULL)
-          GROUP BY n.id
+            AND ($3::boolean = false OR app.status <> 'leida')
+          GROUP BY n.id, app.read_at, app.status
           ORDER BY n.created_at DESC, n.id DESC
           LIMIT $4`,
         [userId, EVENTOS_DE_RESULTADO, soloNoLeidas, limit]
@@ -486,8 +579,12 @@ async function obtenerCentro(userId, { soloNoLeidas = false, limit = 50 } = {}) 
 
     const { rows: [contador] } = await db.query(
         `SELECT COUNT(*)::int AS no_leidas
-           FROM notifications
-          WHERE user_id = $1 AND event_name = ANY($2::text[]) AND read_at IS NULL`,
+           FROM notifications n
+           JOIN notification_deliveries app
+             ON app.notification_id = n.id AND app.channel = 'in_app'
+          WHERE n.user_id = $1
+            AND n.event_name = ANY($2::text[])
+            AND app.status <> 'leida'`,
         [userId, EVENTOS_DE_RESULTADO]
     );
 
@@ -505,7 +602,16 @@ async function obtenerCentro(userId, { soloNoLeidas = false, limit = 50 } = {}) 
  * Marca la bandeja entera, no solo los resultados: un boton que dice "marcar
  * todas" y deja algunas sin marcar miente.
  *
- * El estado por canal se actualiza tambien, que es lo que pide el criterio 3.
+ * Se escriben los DOS estados y cada uno tiene su razon:
+ *
+ *   - `notifications.read_at` es el campo global de la migracion 009 y es el
+ *     que lee la bandeja general (/api/notifications), que no es de esta HU.
+ *     Si dejara de escribirse, ese modulo quedaria mostrando todo sin leer.
+ *   - La entrega in_app es la que manda para ESTE centro, y es la unica que se
+ *     toca: la de correo no se marca leida porque nadie leyo el correo.
+ *     Esa es la independencia por canal del criterio 3.
+ *
+ * El conteo que se devuelve es el de este centro, o sea el del canal in_app.
  */
 async function marcarTodasLeidas(userId) {
     const { rows } = await db.query(
@@ -516,20 +622,22 @@ async function marcarTodasLeidas(userId) {
         [userId]
     );
 
-    const ids = rows.map(r => r.id);
+    const { rows: entregas } = await db.query(
+        `UPDATE notification_deliveries d
+            SET status = 'leida', read_at = now()
+           FROM notifications n
+          WHERE d.notification_id = n.id
+            AND n.user_id = $1
+            AND d.channel = 'in_app'
+            AND d.status <> 'leida'
+          RETURNING d.id`,
+        [userId]
+    );
 
-    if (ids.length > 0) {
-        await db.query(
-            `UPDATE notification_deliveries
-                SET status = 'leida', read_at = now()
-              WHERE notification_id = ANY($1::bigint[])
-                AND channel = 'in_app'
-                AND status <> 'leida'`,
-            [ids]
-        );
-    }
-
-    return { marcadas: ids.length };
+    return {
+        marcadas: entregas.length,
+        avisos_marcados_en_bandeja: rows.length
+    };
 }
 
 /** Conecta el servicio al bus. */

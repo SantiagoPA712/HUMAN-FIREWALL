@@ -214,7 +214,9 @@ export default function NotificationsPage() {
 
 /** Una notificacion, con su estado por canal y sus opciones de reintento. */
 function Aviso({ n, fecha }) {
-    const leida = !!n.read_at;
+    // El estado de lectura sale de la entrega in_app, no del campo global del
+    // aviso: el correo se marca leido por su cuenta (criterio tecnico 3).
+    const leida = !!n.leida_en_app;
     const reprobado = n.payload?.resultado === 'reprobado' || n.payload?.resultado === 'reprobada';
 
     return (

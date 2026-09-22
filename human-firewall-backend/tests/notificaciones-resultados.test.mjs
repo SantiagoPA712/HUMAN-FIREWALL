@@ -409,5 +409,143 @@ check('marcar las propias no toca las de otra persona',
     rhIntacto.every(n => n.read_at === null));
 
 // ---------------------------------------------------------------------
+console.log('\n--- REGRESIONES DE LA REVISION DEL PR ---');
+
+// 1. El titulo del aviso tiene que caber en notifications.title (VARCHAR 150),
+//    aunque courses.title admita 255. Antes reventaba el INSERT y el usuario
+//    no se enteraba de su resultado.
+const TITULO_LARGO = 'Proteccion de Datos Sensibles y Respuesta ante Incidentes de Ransomware '.repeat(3);
+await pg.query(
+    `INSERT INTO courses (id, title, description) VALUES (930, $1, 'curso de prueba')
+     ON CONFLICT (id) DO NOTHING`, [TITULO_LARGO]
+);
+check('el caso de prueba usa un titulo valido para courses pero largo',
+    TITULO_LARGO.length > 150 && TITULO_LARGO.length <= 255, `(${TITULO_LARGO.length} caracteres)`);
+
+await eventBus.publish(EVENTOS.COURSE_COMPLETED, { userId: beto, courseId: 930 });
+await eventBus.procesarPendientes();
+
+const { rows: avisoLargo } = await pg.query(
+    `SELECT title, body FROM notifications WHERE user_id = $1 AND event_name = 'course.completed'`,
+    [beto]
+);
+check('un curso de titulo largo SI genera el aviso', avisoLargo.length === 1);
+check('y su titulo entra en la columna', (avisoLargo[0]?.title.length || 999) <= 150,
+    `(${avisoLargo[0]?.title.length} caracteres)`);
+check('el titulo completo no se pierde: va en el cuerpo, que es TEXT',
+    (avisoLargo[0]?.body || '').includes(TITULO_LARGO.slice(0, 60)));
+
+// 2. Dos intentos distintos con el MISMO attempt_no (que es lo que pasa cuando
+//    dos envios simultaneos calculan el COUNT a la vez) no se pueden deduplicar
+//    en uno solo: la identidad la da attemptId, no attemptNo.
+const { rows: antesCarrera } = await pg.query(
+    `SELECT COUNT(*)::int AS n FROM notifications WHERE user_id = $1`, [beto]
+);
+for (const attemptId of [8001, 8002]) {
+    await eventBus.publish(EVENTOS.QUIZ_FAILED, {
+        userId: beto, quizRef: 'phishing', quizType: 'challenge',
+        score: 30, passed: false, attemptId, attemptNo: 7, courseId: null
+    });
+}
+await eventBus.procesarPendientes();
+const { rows: despuesCarrera } = await pg.query(
+    `SELECT COUNT(*)::int AS n FROM notifications WHERE user_id = $1`, [beto]
+);
+check('dos intentos con el mismo numero pero distinto id generan DOS avisos',
+    despuesCarrera[0].n - antesCarrera[0].n === 2,
+    `(genero ${despuesCarrera[0].n - antesCarrera[0].n})`);
+
+// Y el mismo intento reprocesado sigue sin duplicar.
+await eventBus.publish(EVENTOS.QUIZ_FAILED, {
+    userId: beto, quizRef: 'phishing', quizType: 'challenge',
+    score: 30, passed: false, attemptId: 8001, attemptNo: 7, courseId: null
+});
+await eventBus.procesarPendientes();
+const { rows: reprocesado } = await pg.query(
+    `SELECT COUNT(*)::int AS n FROM notifications WHERE user_id = $1`, [beto]
+);
+check('pero el MISMO intento reprocesado sigue sin duplicar',
+    reprocesado[0].n === despuesCarrera[0].n);
+
+// 3. Quien apaga el canal in-app no ve los avisos en el centro, aunque el
+//    aviso exista: el centro ES la vista de ese canal.
+await pg.exec(`INSERT INTO users (email, password, role) VALUES ('sincanal@hf.com', 'x', 'employee');`);
+const sinCanal = await idDe('sincanal@hf.com');
+await resultados.actualizarPreferencias(sinCanal, { in_app: false });
+
+await eventBus.publish(EVENTOS.COURSE_COMPLETED, { userId: sinCanal, courseId: 901 });
+await eventBus.procesarPendientes();
+
+const { rows: existeElAviso } = await pg.query(
+    `SELECT COUNT(*)::int AS n FROM notifications WHERE user_id = $1`, [sinCanal]
+);
+check('el aviso se registra igual: es el hecho, no la entrega', existeElAviso[0].n === 1);
+
+const centroSinCanal = await resultados.obtenerCentro(sinCanal);
+check('pero NO aparece en el centro de quien apago el canal in-app',
+    centroSinCanal.resultados.length === 0, `(vio ${centroSinCanal.resultados.length})`);
+check('ni suma en el contador de sin leer', centroSinCanal.no_leidas === 0,
+    `(conto ${centroSinCanal.no_leidas})`);
+
+// 4. Si el aviso quedo sin entregas (fallo entre las dos escrituras), el
+//    reintento del evento las reconstruye en vez de salirse de largo.
+await pg.exec(`INSERT INTO users (email, password, role) VALUES ('huerfano@hf.com', 'x', 'employee');`);
+const huerfano = await idDe('huerfano@hf.com');
+
+await eventBus.publish(EVENTOS.COURSE_COMPLETED, { userId: huerfano, courseId: 901 });
+await eventBus.procesarPendientes();
+
+const { rows: avisoHuerfano } = await pg.query(
+    `SELECT id FROM notifications WHERE user_id = $1`, [huerfano]
+);
+await pg.query(`DELETE FROM notification_deliveries WHERE notification_id = $1`,
+    [avisoHuerfano[0].id]);
+
+const { rows: sinEntregas } = await pg.query(
+    `SELECT COUNT(*)::int AS n FROM notification_deliveries WHERE notification_id = $1`,
+    [avisoHuerfano[0].id]
+);
+check('el escenario arranca con el aviso sin ninguna entrega', sinEntregas[0].n === 0);
+
+await eventBus.publish(EVENTOS.COURSE_COMPLETED, { userId: huerfano, courseId: 901 });
+await eventBus.procesarPendientes();
+
+const { rows: reconciliadas } = await pg.query(
+    `SELECT channel, status FROM notification_deliveries
+      WHERE notification_id = $1 ORDER BY channel`, [avisoHuerfano[0].id]
+);
+check('reprocesar reconstruye las entregas que faltaban',
+    reconciliadas.length === 2, `(quedaron ${reconciliadas.length})`);
+check('sin reenviar el correo: queda como generada, que es lo unico que consta',
+    reconciliadas.find(d => d.channel === 'email')?.status === 'generada');
+
+const { rows: sinDuplicar } = await pg.query(
+    `SELECT COUNT(*)::int AS n FROM notifications WHERE user_id = $1`, [huerfano]
+);
+check('y sigue habiendo un solo aviso', sinDuplicar[0].n === 1);
+
+const centroHuerfano = await resultados.obtenerCentro(huerfano);
+check('el aviso reconciliado vuelve a salir en el centro',
+    centroHuerfano.resultados.length === 1);
+
+// 5. Marcar como leido es del canal, no del aviso.
+const marcadoHuerfano = await resultados.marcarTodasLeidas(huerfano);
+check('marcar todas informa cuantas entregas in-app marco',
+    marcadoHuerfano.marcadas === 1, `(${marcadoHuerfano.marcadas})`);
+
+const { rows: porCanal } = await pg.query(
+    `SELECT channel, status FROM notification_deliveries
+      WHERE notification_id = $1 ORDER BY channel`, [avisoHuerfano[0].id]
+);
+check('la entrega in-app queda leida',
+    porCanal.find(d => d.channel === 'in_app')?.status === 'leida');
+check('y la de correo NO, aunque el aviso figure leido en la bandeja general',
+    porCanal.find(d => d.channel === 'email')?.status !== 'leida');
+
+const centroLeido = await resultados.obtenerCentro(huerfano);
+check('el centro cuenta la lectura por el canal, no por el campo global',
+    centroLeido.no_leidas === 0 && !!centroLeido.resultados[0].leida_en_app);
+
+// ---------------------------------------------------------------------
 console.log(`\nRESULTADO: ${ok} OK, ${fallos} fallos`);
 process.exit(fallos > 0 ? 1 : 0);

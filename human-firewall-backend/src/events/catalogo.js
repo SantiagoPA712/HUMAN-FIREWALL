@@ -40,7 +40,13 @@ const EVENTOS = {
     QUIZ_APPROVED: 'quiz.approved',
 
     /** Evaluacion o desafio reprobado.
-     *  { userId, quizRef, quizType, score, passed: false, attemptNo, courseId }
+     *  { userId, quizRef, quizType, score, passed: false, attemptId, attemptNo, courseId }
+     *
+     *  `attemptId` es el id de la fila de quiz_attempts y es quien IDENTIFICA
+     *  el hecho: lo asigna la secuencia de la tabla, asi que dos envios
+     *  simultaneos del mismo desafio nunca comparten valor. `attemptNo` es
+     *  para el texto del aviso ("intento 2"); sale de un COUNT(*) sin lock y
+     *  por lo tanto puede repetirse, asi que no sirve como identidad.
      *
      *  Se agrego con la HU de notificacion de resultados. Hasta entonces un
      *  intento reprobado quedaba en quiz_attempts y no publicaba nada: el
@@ -57,7 +63,14 @@ const EVENTOS = {
     SIMULATION_DECISION_MADE: 'simulation.decision_made',
 
     /** Simulacion cerrada, con el intento ya registrado.
-     *  { userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptNo } */
+     *  { userId, simulationId, courseId, score, aprobada, aciertos, pasos,
+     *    attemptId, attemptNo }
+     *
+     *  `attemptId` se sumo con la HU de notificacion de resultados, por la
+     *  misma razon que en quiz.failed: identifica el intento sin depender de
+     *  un numero calculado con COUNT(*), que dos envios simultaneos pueden
+     *  repetir. Es un campo mas y no reemplaza a ninguno, asi que los
+     *  suscriptores que ya existian siguen leyendo lo mismo de siempre. */
     SIMULATION_COMPLETED: 'simulation.completed',
 
     // --- Eventos de reaccion: los publican los propios servicios ---
