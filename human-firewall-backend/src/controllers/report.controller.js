@@ -15,6 +15,7 @@
 
 const reportsService = require('../services/reports.service');
 const exportsService = require('../services/reportExports.service');
+const dataLogs = require('../services/dataLogs.service');
 
 /**
  * GET /api/gamification/reports/performance
@@ -88,6 +89,18 @@ exports.exportPerformanceReport = async (req, res) => {
             userId: req.user.id,
             formato,
             filtros
+        });
+
+        // Exportacion de datos de personas: accion critica (HU de logs,
+        // criterio tecnico 1). Se registra en los dos caminos, sincrono y
+        // encolado: lo que importa es que alguien pidio los datos.
+        dataLogs.registrar({
+            req,
+            accion: dataLogs.ACCIONES.EXPORT,
+            modulo: dataLogs.MODULOS.REPORTS,
+            recurso: 'performance_report',
+            recursoId: resultado.exportUid || null,
+            despues: { formato, filtros, modo: resultado.modo, registros: resultado.total ?? null }
         });
 
         if (resultado.modo === 'asincrono') {

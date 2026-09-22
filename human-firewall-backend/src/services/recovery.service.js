@@ -48,5 +48,7 @@ exports.resetPassword = async (token, newPassword) => {
     await db.query("UPDATE users SET password = $1 WHERE id = $2", [hashed, user_id]);
     await db.query("DELETE FROM password_reset_tokens WHERE token = $1", [token]);
 
-    return true;
+    // Antes devolvia true. Ahora devuelve a quien se le cambio la contrasena,
+    // para que el log de auditoria sepa sobre que cuenta fue.
+    return { userId: user_id };
 };
