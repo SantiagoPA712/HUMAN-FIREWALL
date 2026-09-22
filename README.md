@@ -143,10 +143,10 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 | `user.registered` | `auth.service`, `passport.js` | notifications | `{ userId, email, role, provider }` |
 | `lesson.completed` | `course.controller` | points | `{ userId, contentId }` |
 | `course.completed` | `course.controller` | points, rewards, resultNotifications | `{ userId, courseId }` |
-| `quiz.approved` | `gamification.controller` | points, rewards, recommendations, resultNotifications | `{ userId, quizRef, quizType, score, passed, basePoints? }` |
-| `quiz.failed` | `gamification.controller` | resultNotifications | `{ userId, quizRef, quizType, score, passed: false, attemptNo, courseId }` |
+| `quiz.approved` | `gamification.controller` | points, rewards, recommendations, resultNotifications | `{ userId, quizRef, quizType, score, passed, basePoints?, courseId? }` |
+| `quiz.failed` | `gamification.controller` | resultNotifications | `{ userId, quizRef, quizType, score, passed: false, attemptId, attemptNo, courseId }` |
 | `simulation.decision_made` | `simulation.controller` | points | `{ userId, optionId, simulationId, stepId, isCorrect, points }` |
-| `simulation.completed` | `simulation.controller` | rewards, recommendations, resultNotifications | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptNo }` |
+| `simulation.completed` | `simulation.controller` | rewards, recommendations, resultNotifications | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptId, attemptNo }` |
 | `points_assigned` | `points.service` | rewards, levels, anomalies | `{ userId, sourceType, sourceId, points, ledgerId }` |
 | `level_up` | `levels.service` | notifications | `{ userId, nivel, nombre, nivelesAlcanzados, puntos }` |
 | `reward_granted` | `rewards.service` | notifications | `{ userId, rewardId, rewardName, userRewardId }` |
@@ -418,7 +418,7 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 560 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 572 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
 recomendaciones, simulaciones, reportes, seguridad, reportes automaticos,
 resultados organizacionales y notificacion de resultados. Ver `tests/README.md`.

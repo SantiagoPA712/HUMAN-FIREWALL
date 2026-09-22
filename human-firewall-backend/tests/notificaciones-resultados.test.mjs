@@ -547,5 +547,93 @@ check('el centro cuenta la lectura por el canal, no por el campo global',
     centroLeido.no_leidas === 0 && !!centroLeido.resultados[0].leida_en_app);
 
 // ---------------------------------------------------------------------
+console.log('\n--- SEGUNDA REVISION DEL PR ---');
+
+// 6. Aprobar contenido de un curso critico tambien le llega a RH. Antes solo
+//    llegaba al reprobar, y esa asimetria no tenia defensa.
+await pg.exec(`INSERT INTO users (email, password, role, team_id) VALUES ('cris@hf.com', 'x', 'employee', 1);`);
+const cris = await idDe('cris@hf.com');
+
+const { rows: cursoCritico } = await pg.query(
+    `SELECT id FROM courses WHERE is_critical = true LIMIT 1`
+);
+check('hay un curso marcado como critico para la prueba', !!cursoCritico[0]);
+
+// Se ejercita el controlador real, no un evento armado a mano: asi se verifica
+// que quien publica mande el courseId.
+const { rows: desafioDelCurso } = await pg.query(
+    `SELECT id FROM challenges WHERE course_id = $1 LIMIT 1`, [cursoCritico[0].id]
+);
+check('y ese curso tiene un desafio asociado', !!desafioDelCurso[0]);
+
+await llamar(gamification.completeChallenge, {
+    user: { id: cris, role: 'employee' },
+    body: { challengeId: desafioDelCurso[0].id, passed: true, score: 95 }
+});
+
+const { rows: eventoAprobado } = await pg.query(
+    `SELECT payload FROM event_outbox
+      WHERE event_name = 'quiz.approved' AND (payload->>'userId')::int = $1`, [cris]
+);
+check('aprobar publica quiz.approved con el curso adentro',
+    eventoAprobado[0]?.payload?.courseId === cursoCritico[0].id,
+    `(${JSON.stringify(eventoAprobado[0]?.payload)})`);
+
+await eventBus.procesarPendientes();
+
+const { rows: avisoPropio } = await pg.query(
+    `SELECT title FROM notifications WHERE user_id = $1 AND event_name = 'quiz.approved'`,
+    [cris]
+);
+check('el que aprobo recibe su aviso', avisoPropio.length === 1);
+
+const { rows: avisoRhAprobado } = await pg.query(
+    `SELECT title, payload FROM notifications
+      WHERE user_id = $1 AND dedupe_key LIKE 'res:quiz.approved%:rh:%'`, [rhDelEquipo]
+);
+check('y RH recibe copia porque el curso es critico', avisoRhAprobado.length === 1,
+    `(recibio ${avisoRhAprobado.length})`);
+check('el aviso a RH dice que lo completo, no que fallo',
+    /completo/i.test(avisoRhAprobado[0]?.title || ''), `(${avisoRhAprobado[0]?.title})`);
+check('y sigue sin ofrecerle acciones del empleado',
+    !('reintentar_en' in (avisoRhAprobado[0]?.payload || {})));
+
+// 7. Marcar leidas es de ESTE centro: no toca avisos de otros modulos ni el
+//    canal de correo.
+await pg.query(
+    `INSERT INTO notifications (user_id, event_name, title, body, dedupe_key)
+     VALUES ($1, 'level_up', 'Subiste de nivel', 'felicitaciones', 'ajeno:level:cris')`,
+    [cris]
+);
+
+const marcadoCris = await resultados.marcarTodasLeidas(cris);
+check('marcar todas marca el resultado del centro', marcadoCris.marcadas === 1,
+    `(${marcadoCris.marcadas})`);
+
+const { rows: avisoAjeno } = await pg.query(
+    `SELECT read_at FROM notifications WHERE dedupe_key = 'ajeno:level:cris'`
+);
+check('pero NO toca el aviso de nivel, que es de otro modulo',
+    avisoAjeno[0]?.read_at === null);
+
+const { rows: canalesCris } = await pg.query(
+    `SELECT d.channel, d.status FROM notification_deliveries d
+       JOIN notifications n ON n.id = d.notification_id
+      WHERE n.user_id = $1 AND n.event_name = 'quiz.approved' ORDER BY d.channel`, [cris]
+);
+check('la entrega in-app queda leida',
+    canalesCris.find(d => d.channel === 'in_app')?.status === 'leida');
+check('y marcar in-app NO altera el estado de lectura del correo',
+    canalesCris.find(d => d.channel === 'email')?.status !== 'leida',
+    `(${JSON.stringify(canalesCris)})`);
+
+const { rows: readAtPropio } = await pg.query(
+    `SELECT read_at FROM notifications WHERE user_id = $1 AND event_name = 'quiz.approved'`,
+    [cris]
+);
+check('el campo global solo se escribe para los avisos de esta historia',
+    readAtPropio[0]?.read_at !== null);
+
+// ---------------------------------------------------------------------
 console.log(`\nRESULTADO: ${ok} OK, ${fallos} fallos`);
 process.exit(fallos > 0 ? 1 : 0);

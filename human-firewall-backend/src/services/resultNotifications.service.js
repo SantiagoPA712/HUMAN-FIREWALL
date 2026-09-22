@@ -245,7 +245,9 @@ async function avisoDelDueno(evento, p) {
                   `Los puntos ya quedaron sumados a tu historial.`,
             payload: { resultado: 'aprobado', quizRef: p.quizRef, score: p.score },
             clave: `quiz.approved:${p.userId}:${p.quizRef}`,
-            courseId: null,
+            // El curso viene del evento: si esta marcado como critico, RH
+            // recibe copia tanto de las aprobaciones como de las reprobaciones.
+            courseId: p.courseId || null,
             aprobado: true
         };
     }
@@ -599,17 +601,22 @@ async function obtenerCentro(userId, { soloNoLeidas = false, limit = 50 } = {}) 
  * Marca como leidas todas las notificaciones del usuario (criterio de
  * aceptacion 3: "debo poder marcar todas como leidas de una vez").
  *
- * Marca la bandeja entera, no solo los resultados: un boton que dice "marcar
- * todas" y deja algunas sin marcar miente.
+ * Marca solo los avisos de ESTE centro, no la bandeja entera.
  *
- * Se escriben los DOS estados y cada uno tiene su razon:
+ * FALLO CORREGIDO: marcaba todas las notificaciones del usuario, incluidas las
+ * de nivel, recompensa y reportes, que no son de esta historia y que el usuario
+ * ni siquiera esta viendo cuando aprieta el boton. Un boton del centro de
+ * resultados no tiene por que tocar avisos de otros modulos.
  *
- *   - `notifications.read_at` es el campo global de la migracion 009 y es el
- *     que lee la bandeja general (/api/notifications), que no es de esta HU.
- *     Si dejara de escribirse, ese modulo quedaria mostrando todo sin leer.
- *   - La entrega in_app es la que manda para ESTE centro, y es la unica que se
- *     toca: la de correo no se marca leida porque nadie leyo el correo.
- *     Esa es la independencia por canal del criterio 3.
+ * Se escriben los DOS estados, y la diferencia entre ellos es deliberada:
+ *
+ *   - `notifications.read_at` es el campo global de la migracion 009 y NO
+ *     representa la lectura por canal: es el unico estado que entiende la
+ *     bandeja general (/api/notifications), que no modela canales. Se escribe
+ *     para que las dos vistas no se contradigan sobre estos mismos avisos.
+ *   - `notification_deliveries` es donde vive la lectura por canal del
+ *     criterio 3. Solo se marca la entrega in_app: la de correo queda como
+ *     estaba, porque nadie leyo el correo.
  *
  * El conteo que se devuelve es el de este centro, o sea el del canal in_app.
  */
@@ -617,9 +624,11 @@ async function marcarTodasLeidas(userId) {
     const { rows } = await db.query(
         `UPDATE notifications
             SET read_at = now()
-          WHERE user_id = $1 AND read_at IS NULL
+          WHERE user_id = $1
+            AND event_name = ANY($2::text[])
+            AND read_at IS NULL
           RETURNING id`,
-        [userId]
+        [userId, EVENTOS_DE_RESULTADO]
     );
 
     const { rows: entregas } = await db.query(
@@ -628,10 +637,11 @@ async function marcarTodasLeidas(userId) {
            FROM notifications n
           WHERE d.notification_id = n.id
             AND n.user_id = $1
+            AND n.event_name = ANY($2::text[])
             AND d.channel = 'in_app'
             AND d.status <> 'leida'
           RETURNING d.id`,
-        [userId]
+        [userId, EVENTOS_DE_RESULTADO]
     );
 
     return {

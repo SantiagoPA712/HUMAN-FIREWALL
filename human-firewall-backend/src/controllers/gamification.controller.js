@@ -256,7 +256,16 @@ exports.completeChallenge = async (req, res) => {
                 quizType: 'challenge',
                 score: puntaje,
                 passed: true,
-                basePoints: challenge.points_reward
+                basePoints: challenge.points_reward,
+                // El curso viaja en el evento igual que en quiz.failed. Sin el,
+                // RH se enteraba cuando alguien REPROBABA contenido de un curso
+                // critico pero no cuando lo APROBABA, y esa asimetria no tiene
+                // defensa: el curso se marca critico para tener visibilidad de
+                // lo que pasa con el, no solo de lo que sale mal.
+                //
+                // Es un campo mas: points, rewards y recommendations leen
+                // campos puntuales del payload y no se enteran de este.
+                courseId: challenge.course_id || null
             }, client);
 
         } else if (!aprobado) {

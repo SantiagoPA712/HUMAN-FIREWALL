@@ -36,7 +36,13 @@ const EVENTOS = {
     COURSE_COMPLETED: 'course.completed',
 
     /** Evaluacion o desafio aprobado.
-     *  { userId, quizRef, quizType, score, passed, attemptNo?, basePoints? } */
+     *  { userId, quizRef, quizType, score, passed, attemptNo?, basePoints?, courseId? }
+     *
+     *  `courseId` se sumo con la HU de notificacion de resultados: es lo que
+     *  permite avisarle a RH cuando el contenido pertenece a un curso marcado
+     *  como critico. Es un campo mas y opcional; quienes ya consumian el
+     *  evento (points, rewards, recommendations) leen campos puntuales y no
+     *  se enteran de el. */
     QUIZ_APPROVED: 'quiz.approved',
 
     /** Evaluacion o desafio reprobado.
