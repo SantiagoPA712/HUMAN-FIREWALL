@@ -160,3 +160,50 @@ exports.deactivateUser = async (req, res) => {
         res.status(500).json({ msg: error.message });
     }
 };
+
+// Mismos valores que el CHECK de users.language (migracion 034).
+const IDIOMAS_VALIDOS = ['es', 'en'];
+
+/**
+ * GET /api/users/me
+ *
+ * El id sale del token, igual que en las notificaciones: nadie consulta el
+ * perfil de otro por aca.
+ */
+exports.getMe = async (req, res) => {
+    try {
+        const perfil = await userService.getProfile(req.user.id);
+        if (!perfil) return res.status(404).json({ msg: 'Usuario no encontrado' });
+        res.status(200).json(perfil);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+/**
+ * PATCH /api/users/me   Body: { language: 'es' | 'en' | null }
+ *
+ * Idioma de la cuenta (HU de notificaciones por correo, criterio de
+ * aceptacion 3). null vuelve al idioma por defecto de la plataforma.
+ */
+exports.updateMe = async (req, res) => {
+    try {
+        const { language } = req.body || {};
+
+        if (language === undefined || (language !== null && !IDIOMAS_VALIDOS.includes(language))) {
+            return res.status(400).json({
+                msg: 'Parametros invalidos',
+                errores: [{
+                    campo: 'language',
+                    detalle: `Idioma invalido. Validos: ${IDIOMAS_VALIDOS.join(', ')} o null para el de la plataforma.`
+                }]
+            });
+        }
+
+        const perfil = await userService.updateLanguage(req.user.id, language);
+        if (!perfil) return res.status(404).json({ msg: 'Usuario no encontrado' });
+        res.status(200).json(perfil);
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};

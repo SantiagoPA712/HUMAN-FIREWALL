@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     Bell, ArrowLeft, CheckCheck, RotateCcw, BookOpen, Mail, Monitor,
-    ShieldAlert, RefreshCw, CheckCircle2, XCircle
+    ShieldAlert, RefreshCw, CheckCircle2, XCircle, Lock, Languages
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -29,6 +29,7 @@ export default function NotificationsPage() {
     const [centro, setCentro] = useState(null);
     const [preferencias, setPreferencias] = useState(null);
     const [cursos, setCursos] = useState(null);
+    const [correo, setCorreo] = useState(null);
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState(null);
 
@@ -39,12 +40,14 @@ export default function NotificationsPage() {
         try {
             // Se piden por separado para que un fallo en la parte de RH no
             // deje sin bandeja al usuario.
-            const [resCentro, resPrefs] = await Promise.all([
+            const [resCentro, resPrefs, resCorreo] = await Promise.all([
                 api.get('/api/notifications/resultados'),
-                api.get('/api/notifications/preferencias')
+                api.get('/api/notifications/preferencias'),
+                api.get('/api/notifications/correo/preferencias')
             ]);
             setCentro(resCentro.data);
             setPreferencias(resPrefs.data.canales);
+            setCorreo(resCorreo.data);
 
             if (esRh) {
                 const { data } = await api.get('/api/notifications/cursos-criticos');
@@ -77,8 +80,39 @@ export default function NotificationsPage() {
         try {
             const { data } = await api.patch('/api/notifications/preferencias', { [canal]: valor });
             setPreferencias(data.canales);
+            // El canal de correo apagado tambien corta los correos por tipo:
+            // se recarga ese bloque para que no muestre algo que no va a pasar.
+            if (canal === 'email') {
+                const { data: prefsCorreo } = await api.get('/api/notifications/correo/preferencias');
+                setCorreo(prefsCorreo);
+            }
         } catch {
             setError('No se pudo guardar la preferencia');
+        }
+    };
+
+    // HU de notificaciones por correo (criterio de aceptacion 2). El backend
+    // rechaza con 400 desactivar un critico; la pantalla ni lo ofrece.
+    const cambiarTipoDeCorreo = async (tipo, valor) => {
+        try {
+            const { data } = await api.patch('/api/notifications/correo/preferencias', {
+                tipos: { [tipo]: valor }
+            });
+            setCorreo(data);
+        } catch (e) {
+            setError(e.response?.data?.errores?.[0]?.detalle || 'No se pudo guardar la preferencia de correo');
+        }
+    };
+
+    // Criterio de aceptacion 3: el idioma es de la cuenta, no de esta pantalla.
+    // '' vuelve a "sin configurar" y los correos siguen al idioma de la plataforma.
+    const cambiarIdioma = async (valor) => {
+        try {
+            await api.patch('/api/users/me', { language: valor || null });
+            const { data } = await api.get('/api/notifications/correo/preferencias');
+            setCorreo(data);
+        } catch {
+            setError('No se pudo guardar el idioma');
         }
     };
 
@@ -131,6 +165,65 @@ export default function NotificationsPage() {
                     />
                 </div>
             </Card>
+
+            {/* --- Correos por tipo e idioma (HU de notificaciones por correo) --- */}
+            {correo && (
+                <Card className="mb-6 p-6">
+                    <h2 className="mb-1 flex items-center gap-2 font-bold">
+                        <Mail className="h-5 w-5 text-brand-blue" /> Qué correos querés recibir
+                    </h2>
+                    <p className="mb-4 text-sm text-text-secondary">
+                        {correo.canal_email
+                            ? 'Los avisos de seguridad llegan siempre y no se pueden desactivar.'
+                            : 'Tenés el canal de correo apagado: solo te llegan los avisos de seguridad.'}
+                    </p>
+
+                    <label className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+                        <span className="flex items-center gap-2 text-text-secondary">
+                            <Languages className="h-4 w-4" /> Idioma de los correos
+                        </span>
+                        <select
+                            value={correo.idioma || ''}
+                            onChange={e => cambiarIdioma(e.target.value)}
+                            className="rounded-lg border border-gray-700 bg-bg-deep px-3 py-1.5 text-sm"
+                        >
+                            <option value="">Predeterminado de la plataforma ({correo.idioma_por_defecto})</option>
+                            <option value="es">Español</option>
+                            <option value="en">English</option>
+                        </select>
+                    </label>
+
+                    <div className="space-y-2">
+                        {correo.tipos.map(t => (
+                            <div key={t.tipo} className="flex items-center justify-between gap-3 rounded-lg border border-gray-800 px-3 py-2">
+                                <span className="flex items-center gap-2 text-sm">
+                                    {t.critico
+                                        ? <Lock className="h-4 w-4 text-amber-400" />
+                                        : <Mail className="h-4 w-4 text-text-secondary" />}
+                                    {t.descripcion}
+                                </span>
+                                {t.critico ? (
+                                    <span className="rounded-full border border-amber-500/50 bg-amber-500/10 px-3 py-1 text-xs text-amber-400">
+                                        Obligatorio
+                                    </span>
+                                ) : (
+                                    <button
+                                        onClick={() => cambiarTipoDeCorreo(t.tipo, !t.habilitado)}
+                                        disabled={!correo.canal_email}
+                                        className={`rounded-full border px-3 py-1 text-xs disabled:opacity-50 ${
+                                            t.habilitado
+                                                ? 'border-brand-blue bg-brand-blue/15 text-brand-light'
+                                                : 'border-gray-700 text-text-secondary'
+                                        }`}
+                                    >
+                                        {t.habilitado ? 'Activado' : 'Desactivado'}
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
 
             {/* --- Cursos criticos: solo RH (criterio de aceptacion 2) --- */}
             {esRh && cursos && (

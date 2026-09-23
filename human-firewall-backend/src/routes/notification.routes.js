@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const notificationController = require('../controllers/notification.controller');
 const resultNotificationsController = require('../controllers/resultNotifications.controller');
+const emailNotificationsController = require('../controllers/emailNotifications.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { requireRoles } = require('../middlewares/role.middleware');
 
@@ -31,6 +32,16 @@ const soloRhOAdmin = [verifyToken(), requireRoles(['rh', 'admin'])];
 
 router.get('/cursos-criticos', ...soloRhOAdmin, resultNotificationsController.getCursosCriticos);
 router.patch('/cursos-criticos/:courseId', ...soloRhOAdmin, resultNotificationsController.patchCursoCritico);
+
+// ---------------------------------------------------------------------
+// Notificaciones por correo (HU: correo ante eventos relevantes)
+// ---------------------------------------------------------------------
+//
+// Las preferencias por TIPO de correo. Las de arriba (/preferencias) son por
+// CANAL; las dos conviven y las dos se respetan al encolar.
+router.get('/correo/preferencias', verifyToken(), emailNotificationsController.getPreferencias);
+router.patch('/correo/preferencias', verifyToken(), emailNotificationsController.patchPreferencias);
+router.get('/correo/estado', verifyToken(['admin']), emailNotificationsController.getEstado);
 
 router.get('/', verifyToken(), notificationController.getMisNotificaciones);
 router.patch('/:id/leida', verifyToken(), notificationController.marcarLeida);

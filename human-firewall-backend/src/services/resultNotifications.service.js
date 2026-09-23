@@ -34,6 +34,7 @@ const db = require('../config/db');
 const eventBus = require('./eventBus');
 const { EVENTOS } = require('../events/catalogo');
 const notificationsService = require('./notifications.service');
+const emailNotifications = require('./emailNotifications.service');
 
 /** Los dos canales del criterio tecnico 3. */
 const CANALES = ['in_app', 'email'];
@@ -232,6 +233,20 @@ async function marcarCursoCritico(courseId, critico) {
 // el aviso. Ninguna vuelve a decidir si el intento se aprobo: eso viene dado.
 
 /**
+ * Datos del correo de un resultado (HU de notificaciones por correo).
+ *
+ * Aca NO se arma el correo: solo se dice que tipo es y que datos lleva. El
+ * asunto, el HTML y el idioma los pone la plantilla de emailNotifications
+ * (criterio tecnico 2 de esa HU: ningun modulo de negocio construye HTML).
+ */
+function datosDeCorreo(evaluacion, puntaje, aprobado, ruta) {
+    return {
+        tipo: emailNotifications.TIPOS.EVALUATION_RESULT,
+        datos: { evaluacion, puntaje: puntaje ?? null, aprobado, ruta }
+    };
+}
+
+/**
  * Arma el aviso del dueno del resultado.
  *
  * @returns {Promise<{title, body, payload, dedupeKey, courseId, aprobado} | null>}
@@ -248,7 +263,8 @@ async function avisoDelDueno(evento, p) {
             // El curso viene del evento: si esta marcado como critico, RH
             // recibe copia tanto de las aprobaciones como de las reprobaciones.
             courseId: p.courseId || null,
-            aprobado: true
+            aprobado: true,
+            correo: datosDeCorreo(nombre, p.score, true, '/performance')
         };
     }
 
@@ -279,7 +295,8 @@ async function avisoDelDueno(evento, p) {
             // El id sale de la secuencia de la tabla y es unico siempre.
             clave: `quiz.failed:${p.userId}:${p.quizRef}:${claveDeIntento(p)}`,
             courseId: p.courseId || null,
-            aprobado: false
+            aprobado: false,
+            correo: datosDeCorreo(nombre, p.score, false, '/challenges')
         };
     }
 
@@ -292,7 +309,8 @@ async function avisoDelDueno(evento, p) {
             payload: { resultado: 'curso_completado', courseId: p.courseId },
             clave: `course.completed:${p.userId}:${p.courseId}`,
             courseId: p.courseId,
-            aprobado: true
+            aprobado: true,
+            correo: datosDeCorreo(curso?.title || `curso ${p.courseId}`, null, true, '/performance')
         };
     }
 
@@ -309,7 +327,8 @@ async function avisoDelDueno(evento, p) {
                 },
                 clave: `simulation.completed:${p.userId}:${p.simulationId}:${claveDeIntento(p)}`,
                 courseId: p.courseId || null,
-                aprobado: true
+                aprobado: true,
+                correo: datosDeCorreo(titulo, `${p.score}%`, true, '/performance')
             };
         }
 
@@ -326,7 +345,8 @@ async function avisoDelDueno(evento, p) {
             },
             clave: `simulation.completed:${p.userId}:${p.simulationId}:${claveDeIntento(p)}`,
             courseId: p.courseId || null,
-            aprobado: false
+            aprobado: false,
+            correo: datosDeCorreo(titulo, `${p.score}%`, false, `/simulation/play/${p.simulationId}`)
         };
     }
 
@@ -357,7 +377,17 @@ async function avisoParaRh(aviso, empleado, curso) {
             curso_critico: true,
             ver_desempeno_en: '/reports'
         },
-        clave: `${aviso.clave}:rh`
+        clave: `${aviso.clave}:rh`,
+        correo: {
+            tipo: emailNotifications.TIPOS.CRITICAL_COURSE_ALERT,
+            datos: {
+                empleado: empleado.email,
+                curso: curso.title,
+                aprobado: aviso.aprobado,
+                puntaje: aviso.correo?.datos?.puntaje ?? null,
+                ruta: '/reports'
+            }
+        }
     };
 }
 
@@ -451,19 +481,27 @@ async function entregar(eventName, aviso, userId) {
         await registrarEntrega(notificacion.id, 'in_app', 'entregada');
     }
 
-    if (canales.email) {
-        // reenviarCorreo hace el envio sobre el aviso ya creado y devuelve como
-        // termino: 'sent', 'failed' o 'skipped' (sin SMTP configurado, que es
-        // el modo por defecto del proyecto).
-        const resultado = await notificationsService.reenviarCorreo({ id: notificacion.id });
+    if (canales.email && aviso.correo) {
+        // HU de notificaciones por correo: el correo ya no se manda aca, en
+        // linea y sin reintentos. Se encola como job y el worker de
+        // emailNotifications lo envia con plantilla, en el idioma del usuario
+        // y con hasta 3 reintentos. Cuando termina, el propio worker pasa esta
+        // entrega a 'entregada' o 'fallida'; hasta entonces queda 'generada',
+        // que es exactamente lo que paso.
+        const correo = await emailNotifications.encolar({
+            userId,
+            tipo: aviso.correo.tipo,
+            datos: aviso.correo.datos,
+            dedupeKey,
+            notificationId: notificacion.id
+        });
 
-        if (resultado === 'sent') {
-            await registrarEntrega(notificacion.id, 'email', 'entregada');
-        } else if (resultado === 'failed') {
-            await registrarEntrega(notificacion.id, 'email', 'fallida', 'el envio por correo fallo');
-        } else {
-            // Sin transporte configurado no hubo entrega ni fallo: queda
-            // generada, que es exactamente lo que paso.
+        if (correo.estado === 'no_entregable') {
+            await registrarEntrega(notificacion.id, 'email', 'fallida',
+                'el destinatario no tiene un correo valido registrado');
+        } else if (correo.estado !== 'omitido') {
+            // 'omitido' es un tipo de correo que el usuario apago: no hubo
+            // entrega por este canal y no corresponde registrar ninguna.
             await registrarEntrega(notificacion.id, 'email', 'generada');
         }
     }
