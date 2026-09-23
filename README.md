@@ -424,7 +424,7 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 775 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 777 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
 recomendaciones, simulaciones, reportes, seguridad, reportes automaticos,
 resultados organizacionales, notificacion de resultados, logs de auditoria y
@@ -1116,6 +1116,7 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | 3 | `config/db.js` desactivaba la verificacion TLS de todo el proceso Node | Ya estaba corregido en `9f48d97`: el SSL se decide por URL y queda acotado al pool |
 | - | `auth.controller` tenia un bypass que entregaba un token de admin con `AdminPassword123!` sin consultar la base | Eliminado con la HU de logs de auditoria; el login fallido ahora queda en `data.logs` |
 | - | `PUT /api/users/:id` con un rol inexistente devolvia 500 con el error crudo de Postgres, y un id inexistente respondia "Usuario actualizado" | Valida rol e `is_active` (400) y responde 404 si el usuario no existe |
+| - | Un correo con el proveedor caido se daba por fallido tras 1 intento + 2 reintentos, y el criterio pide 3 reintentos | `email_jobs.max_attempts` pasa a contar intentos totales (`MAX_REINTENTOS + 1`), con prueba de regresion |
 
 ### Pendiente
 

@@ -60,6 +60,18 @@ function numeroDeEntorno(nombre, porDefecto) {
 const MAX_REINTENTOS = 3;
 
 /**
+ * Intentos totales de un job: el primero mas los reintentos. Es lo que se
+ * guarda en email_jobs.max_attempts, y el worker corta al llegar a ese numero.
+ *
+ * FALLO CORREGIDO: el job se encolaba con max_attempts = MAX_REINTENTOS. La
+ * columna cuenta intentos TOTALES, asi que con el proveedor caido se hacian
+ * 1 intento + 2 reintentos y el correo se daba por fallido un reintento antes
+ * de lo que pide el criterio tecnico 3. Si el proveedor volvia justo para el
+ * tercer reintento, el usuario se quedaba sin su notificacion.
+ */
+const MAX_INTENTOS = MAX_REINTENTOS + 1;
+
+/**
  * Base del backoff, en segundos. La espera antes del reintento n es
  * base * 2^(n-1): 30, 60 y 120 s con el valor por defecto. Sumados quedan
  * holgadamente dentro de los 5 minutos del criterio de aceptacion 1, y un
@@ -440,7 +452,7 @@ async function encolar({ userId, tipo, datos = {}, dedupeKey, notificationId = n
          RETURNING id`,
         [userId, tipo, dedupeKey, notificationId, usuario.email.trim(), plantilla.language,
          plantilla.id, plantilla.version, contenido.subject, contenido.html, contenido.text,
-         MAX_REINTENTOS]
+         MAX_INTENTOS]
     );
 
     if (rows.length === 0) return { estado: 'duplicado' };
@@ -845,6 +857,7 @@ function registrarHandlers() {
 module.exports = {
     TIPOS,
     MAX_REINTENTOS,
+    MAX_INTENTOS,
     BACKOFF_BASE_SEGUNDOS,
     VENTANA_VENCIMIENTO_HORAS,
     esCorreoValido,

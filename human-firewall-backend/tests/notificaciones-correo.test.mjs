@@ -370,6 +370,14 @@ check('el backoff es exponencial: cada espera es mayor que la anterior',
     `(${esperas.map(s => Math.round(s)).join(', ')})`);
 check('y guarda el ultimo error tecnico', /ETIMEDOUT/.test(jobA.last_error || ''));
 
+// Regresion del bug de reintentos: se encolaba con max_attempts = 3 y el job
+// se rendia tras 1 intento + 2 reintentos. El criterio pide hasta 3 REINTENTOS.
+check('regresion: con el proveedor caido hace 1 intento + 3 reintentos (4 en total)',
+    jobA.attempts === 4 && jobA.max_attempts === 4 && correo.MAX_INTENTOS === correo.MAX_REINTENTOS + 1,
+    `(attempts=${jobA.attempts}, max_attempts=${jobA.max_attempts})`);
+check('regresion: y espera antes de cada uno de los 3 reintentos', esperas.length === correo.MAX_REINTENTOS,
+    `(${esperas.length} esperas)`);
+
 const { rows: intentosA } = await pg.query(
     `SELECT attempt_no, outcome, error_code, error_detail FROM email_job_attempts WHERE job_id = $1 ORDER BY attempt_no`,
     [jobA.id]
