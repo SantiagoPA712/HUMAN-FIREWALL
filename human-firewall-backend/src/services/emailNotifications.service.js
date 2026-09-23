@@ -24,6 +24,8 @@
  * ---------------------------------------------------------------------
  *   - Sus propios handlers: curso asignado, fecha limite proxima y cambio de
  *     contrasena. Esos eventos no los escuchaba nadie para avisar.
+ *   - La invitacion de la HU de invitaciones (user.invited), que va a una
+ *     direccion sin cuenta: por eso encolar() acepta un destinatario suelto.
  *   - resultNotifications.service, para el canal de correo de los resultados
  *     de evaluaciones. Ese modulo decide QUE resultado se avisa y a QUIEN;
  *     este decide COMO sale el correo. Ninguno de los dos arma HTML: eso lo
@@ -45,7 +47,10 @@ const TIPOS = {
     DEADLINE_APPROACHING:      'deadline_approaching',
     EVALUATION_RESULT:         'evaluation_result',
     CRITICAL_COURSE_ALERT:     'critical_course_alert',
-    SECURITY_PASSWORD_CHANGED: 'security_password_changed'
+    SECURITY_PASSWORD_CHANGED: 'security_password_changed',
+    // HU de invitaciones (migracion 035). Va a alguien que todavia no tiene
+    // cuenta, asi que no figura en las preferencias de nadie.
+    USER_INVITATION:           'user_invitation'
 };
 
 function numeroDeEntorno(nombre, porDefecto) {
@@ -237,6 +242,7 @@ async function obtenerPreferencias(userId) {
            FROM email_notification_types t
            LEFT JOIN email_preferences p
                   ON p.notification_type = t.code AND p.user_id = $1
+          WHERE t.user_configurable
           ORDER BY t.is_critical DESC, t.code`,
         [userId]
     );
@@ -280,7 +286,7 @@ async function actualizarPreferencias(userId, cambios = {}) {
         errores.push({ campo: 'tipos', detalle: 'Debe ser un objeto { tipo: true|false }.' });
     } else {
         const { rows: catalogo } = await db.query(
-            'SELECT code, is_critical FROM email_notification_types'
+            'SELECT code, is_critical FROM email_notification_types WHERE user_configurable'
         );
         const porCodigo = new Map(catalogo.map(t => [t.code, t]));
 
@@ -337,10 +343,27 @@ function formatearFecha(valor, idioma) {
     }).format(fecha);
 }
 
-/** "ana.perez@empresa.com" -> "ana.perez". No hay columna de nombre en users. */
-function nombreVisible(email) {
-    return String(email || '').split('@')[0] || 'usuario';
+/**
+ * Como se nombra a quien recibe el correo. El nombre completo si lo cargo
+ * (users.full_name, migracion 035); si no, la parte local del correo:
+ * "ana.perez@empresa.com" -> "ana.perez".
+ */
+function nombreVisible(usuario) {
+    if (usuario.full_name) return usuario.full_name;
+    return String(usuario.email || '').split('@')[0] || 'usuario';
 }
+
+/**
+ * Nombre legible de un rol en el idioma del correo. Es presentacion, igual
+ * que el formato de las fechas: el modulo que encola manda el codigo
+ * ('rh') y el correo dice "Recursos Humanos" o "Human Resources".
+ */
+const ETIQUETAS_ROL = {
+    es: { employee: 'Empleado', instructor: 'Instructor', rh: 'Recursos Humanos',
+          admin: 'Administrador', security: 'Seguridad', manager: 'Gerencia' },
+    en: { employee: 'Employee', instructor: 'Instructor', rh: 'Human Resources',
+          admin: 'Administrator', security: 'Security', manager: 'Management' }
+};
 
 /**
  * Variables que recibe la plantilla. Las fechas se formatean en el idioma del
@@ -348,7 +371,9 @@ function nombreVisible(email) {
  * "/performance" no lleva a ningun lado.
  */
 function prepararVariables(datos, usuario, idioma) {
-    const variables = { nombre: nombreVisible(usuario.email), ...datos };
+    const variables = { nombre: nombreVisible(usuario), ...datos };
+
+    if (datos.rol) variables.rol = ETIQUETAS_ROL[idioma]?.[datos.rol] || datos.rol;
 
     for (const campo of CAMPOS_FECHA) {
         if (variables[campo]) variables[campo] = formatearFecha(variables[campo], idioma);
@@ -378,7 +403,10 @@ function despertarWorker() {
  * Encola un correo. NO lo envia.
  *
  * @param {object} p
- * @param {number} p.userId
+ * @param {number} [p.userId]        destinatario con cuenta
+ * @param {object} [p.destinatario]  { email, language? } para quien todavia no
+ *                                   tiene cuenta (invitaciones). Sin cuenta no
+ *                                   hay preferencias que consultar.
  * @param {string} p.tipo            uno de TIPOS
  * @param {object} p.datos           variables de la plantilla; `ruta` se vuelve {{enlace}}
  * @param {string} p.dedupeKey       identifica el hecho: reprocesar no duplica el correo
@@ -391,25 +419,32 @@ function despertarWorker() {
  * 4 y 5). Si lanza es por algo que si merece reintento del bus, como la base
  * caida o una plantilla que no existe.
  */
-async function encolar({ userId, tipo, datos = {}, dedupeKey, notificationId = null }) {
+async function encolar({ userId = null, destinatario = null, tipo, datos = {}, dedupeKey, notificationId = null }) {
     if (!dedupeKey) throw new Error('encolar() necesita dedupeKey');
+    if (!userId && !destinatario) throw new Error('encolar() necesita userId o destinatario');
 
     const info = await obtenerTipo(tipo);
     if (!info) throw new Error(`tipo de correo desconocido: ${tipo}`);
 
     // Criterio tecnico 5: la preferencia se mira ANTES de encolar, y omitir no
-    // es un error ni deja registro de fallo. Los criticos no la consultan.
-    if (!info.is_critical && !(await quiereRecibir(userId, tipo))) {
+    // es un error ni deja registro de fallo. Los criticos no la consultan, y
+    // quien no tiene cuenta no tiene preferencias.
+    if (userId && !info.is_critical && !(await quiereRecibir(userId, tipo))) {
         return { estado: 'omitido' };
     }
 
-    const { rows: [usuario] } = await db.query(
-        'SELECT id, email, language FROM users WHERE id = $1',
-        [userId]
-    );
-    if (!usuario) {
-        console.warn(`[email] ${tipo}: el usuario ${userId} no existe, no hay a quien escribirle`);
-        return { estado: 'sin_usuario' };
+    let usuario;
+    if (userId) {
+        ({ rows: [usuario] } = await db.query(
+            'SELECT id, email, language, full_name FROM users WHERE id = $1',
+            [userId]
+        ));
+        if (!usuario) {
+            console.warn(`[email] ${tipo}: el usuario ${userId} no existe, no hay a quien escribirle`);
+            return { estado: 'sin_usuario' };
+        }
+    } else {
+        usuario = { id: null, email: destinatario.email, language: destinatario.language || null };
     }
 
     const idiomaPedido = plantillas.resolverIdioma(usuario.language);
@@ -429,7 +464,7 @@ async function encolar({ userId, tipo, datos = {}, dedupeKey, notificationId = n
              'el destinatario no tiene un correo valido registrado']
         );
         console.warn(
-            `[email] ${tipo} -> usuario ${userId}: no entregable, correo invalido ` +
+            `[email] ${tipo} -> ${userId ? `usuario ${userId}` : 'destinatario sin cuenta'}: no entregable, correo invalido ` +
             `(${JSON.stringify(usuario.email)}). Se descarta sin reintentar.`
         );
         return { estado: 'no_entregable', jobId: rows[0]?.id };
@@ -767,6 +802,26 @@ async function alAcercarseLaFechaLimite({ userId, courseId, assignmentId, dueDat
     });
 }
 
+/**
+ * Correo de invitacion (HU de invitaciones). El token viaja en el evento
+ * porque es la unica forma de armar el enlace: en user_invitations solo esta
+ * su hash. Cada envio (el original y cada reenvio) es un correo distinto.
+ */
+async function alInvitar({ invitationId, email, role, language, token, expiresAt, invitedByEmail, sendNo }) {
+    if (!invitationId || !token) return null;
+    return encolar({
+        destinatario: { email, language },
+        tipo: TIPOS.USER_INVITATION,
+        dedupeKey: `invitation:${invitationId}:${sendNo}`,
+        datos: {
+            invitador: invitedByEmail || 'El equipo de Human Firewall',
+            rol: role,
+            fechaLimite: expiresAt,
+            ruta: `/invitacion?token=${encodeURIComponent(token)}`
+        }
+    });
+}
+
 async function alCambiarContrasena({ userId, changedAt }) {
     if (!userId) return null;
     return encolar({
@@ -851,6 +906,7 @@ function registrarHandlers() {
     eventBus.subscribe(EVENTOS.COURSE_ASSIGNED, alAsignarCurso);
     eventBus.subscribe(EVENTOS.COURSE_DEADLINE_APPROACHING, alAcercarseLaFechaLimite);
     eventBus.subscribe(EVENTOS.USER_PASSWORD_CHANGED, alCambiarContrasena);
+    eventBus.subscribe(EVENTOS.USER_INVITED, alInvitar);
     console.log('[emailNotifications.service] handlers registrados');
 }
 
@@ -872,6 +928,7 @@ module.exports = {
     alAsignarCurso,
     alAcercarseLaFechaLimite,
     alCambiarContrasena,
+    alInvitar,
     estadoDeLaCola,
     iniciarWorker,
     detenerWorker,

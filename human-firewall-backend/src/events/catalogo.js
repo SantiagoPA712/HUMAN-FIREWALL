@@ -138,7 +138,17 @@ const EVENTOS = {
     /** Se cambio la contrasena de una cuenta. Dispara un correo CRITICO de
      *  seguridad, que el usuario no puede desactivar.
      *  { userId, changedAt } */
-    USER_PASSWORD_CHANGED: 'user.password_changed'
+    USER_PASSWORD_CHANGED: 'user.password_changed',
+
+    // --- HU de invitaciones ---
+
+    /** Un admin creo o reenvio una invitacion. Se publica en la misma
+     *  transaccion que la fila, asi el correo existe si y solo si la
+     *  invitacion existe. Lleva el token EN CLARO: en user_invitations solo
+     *  queda el hash, y sin el token no hay enlace que mandar.
+     *  { invitationId, email, role, language, token, expiresAt,
+     *    invitedBy, invitedByEmail, sendNo } */
+    USER_INVITED: 'user.invited'
 };
 
 /**
@@ -179,7 +189,8 @@ const SUSCRIPTORES_ESPERADOS = {
     // correo a emailNotifications como un canal mas.
     [EVENTOS.COURSE_ASSIGNED]:             ['emailNotifications'],
     [EVENTOS.COURSE_DEADLINE_APPROACHING]: ['emailNotifications'],
-    [EVENTOS.USER_PASSWORD_CHANGED]:       ['emailNotifications']
+    [EVENTOS.USER_PASSWORD_CHANGED]:       ['emailNotifications'],
+    [EVENTOS.USER_INVITED]:                ['emailNotifications']
 };
 
 /** Todos los nombres validos, para validar en publish(). */

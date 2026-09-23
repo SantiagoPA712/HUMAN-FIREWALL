@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Users, Activity, AlertTriangle, ArrowRight, BookOpen } from 'lucide-react';
+import { ShieldCheck, Users, Activity, AlertTriangle, ArrowRight, BookOpen, MailPlus } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import InvitationsPanel from '../components/InvitationsPanel';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -37,6 +38,11 @@ export default function AdminDashboard() {
           <button onClick={() => setActiveTab('users')} className={`flex items-center gap-3 px-4 py-3 rounded-lg text-left ${activeTab==='users' ? 'bg-brand-blue/10 text-brand-light' : 'text-text-secondary hover:bg-gray-800'}`}>
             <Users className="w-5 h-5" />
             Directorio y Riesgos
+          </button>
+          {/* HU de invitaciones: alta de usuarios por correo, sin compartir credenciales. */}
+          <button onClick={() => setActiveTab('invitations')} className={`flex items-center gap-3 px-4 py-3 rounded-lg text-left ${activeTab==='invitations' ? 'bg-brand-blue/10 text-brand-light' : 'text-text-secondary hover:bg-gray-800'}`}>
+            <MailPlus className="w-5 h-5" />
+            Invitaciones
           </button>
         </nav>
 
@@ -104,11 +110,13 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {activeTab === 'invitations' && <InvitationsPanel />}
+
         {activeTab === 'users' && (
           <Card className="p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-lg">Directorio de Empleados</h3>
-              <Button>Inscribir Empleado</Button>
+              <Button onClick={() => setActiveTab('invitations')}>Inscribir Empleado</Button>
             </div>
             
             <div className="overflow-x-auto">

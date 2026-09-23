@@ -64,7 +64,12 @@ const ACCIONES = {
     CONFIG_CHANGE:     'config_change',
     MANUAL_ADJUSTMENT: 'manual_adjustment',
     STATUS_CHANGE:     'status_change',
-    RETENTION_PURGE:   'retention_purge'
+    RETENTION_PURGE:   'retention_purge',
+    // HU de invitaciones (criterio tecnico 4): cada cambio de estado.
+    INVITE:            'invite',
+    INVITE_RESEND:     'invite_resend',
+    INVITE_CANCEL:     'invite_cancel',
+    INVITE_ACCEPT:     'invite_accept'
 };
 
 /** Modulos de origen. Son los valores de data.logs.module. */

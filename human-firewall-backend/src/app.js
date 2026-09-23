@@ -41,6 +41,10 @@ app.use('/api/simulations', require('./routes/simulation.routes'));
 app.use('/api/gamification', require('./routes/gamification.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 
+// Invitaciones de usuarios. Mezcla rutas de admin (con token) y rutas del
+// invitado (sin sesion, con el token de invitacion en el cuerpo).
+app.use('/api/invitations', require('./routes/invitations.routes'));
+
 // Logs de auditoria (data.logs). Solo admin: la verificacion vive en el
 // propio archivo de rutas, antes de cualquier controlador.
 app.use('/api/logs', require('./routes/logs.routes'));
