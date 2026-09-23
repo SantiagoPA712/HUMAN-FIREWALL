@@ -30,6 +30,7 @@ const scheduledReportsService = require('../services/scheduledReports.service');
 const orgReportsService = require('../services/orgReports.service');
 const dataLogsService = require('../services/dataLogs.service');
 const resultNotificationsService = require('../services/resultNotifications.service');
+const emailNotificationsService = require('../services/emailNotifications.service');
 
 const SERVICIOS = [
     pointsService,          // lesson/quiz/course/simulation.decision -> puntos
@@ -42,7 +43,8 @@ const SERVICIOS = [
     scheduledReportsService,// corrida programada                     -> reporte + aviso
     orgReportsService,      // (sin suscripciones: trabaja por job periodico)
     resultNotificationsService,// quiz/curso/simulacion terminados    -> aviso al usuario y a RH
-    dataLogsService         // accion critica en cualquier modulo    -> fila en data.logs
+    dataLogsService,        // accion critica en cualquier modulo    -> fila en data.logs
+    emailNotificationsService // curso asignado/por vencer, contrasena -> job de correo
 ];
 
 /**
@@ -81,6 +83,11 @@ function conectarTodo({ iniciarWorker = true } = {}) {
         // logs de auditoria): purga lo que supera LOGS_RETENTION_MONTHS y deja
         // la evidencia en data.logs_purges. Es un reloj, no una suscripcion.
         dataLogsService.iniciarJobRetencion();
+
+        // HU de notificaciones por correo: el worker de email_jobs (con sus
+        // reintentos) y el reloj que detecta fechas limite proximas. La cola
+        // de correo es aparte del outbox: tiene otra politica de reintentos.
+        emailNotificationsService.iniciarWorker();
     }
 
     const suscritos = eventBus.eventosSuscritos();

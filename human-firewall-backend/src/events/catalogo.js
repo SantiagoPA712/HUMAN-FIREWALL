@@ -120,7 +120,25 @@ const EVENTOS = {
      *  { logUid, userId, actorType, actorEmail, actionType, module,
      *    resourceType, resourceId, oldValue, newValue, ipAddress, traceId,
      *    occurredAt } */
-    AUDIT_LOG_RECORDED: 'audit.log_recorded'
+    AUDIT_LOG_RECORDED: 'audit.log_recorded',
+
+    // --- HU de notificaciones por correo ---
+
+    /** Se asigno un curso a un usuario. Lo publica course.controller en la
+     *  misma transaccion que el INSERT de la asignacion.
+     *  { userId, courseId, assignmentId, dueDate } (dueDate: ISO o null) */
+    COURSE_ASSIGNED: 'course.assigned',
+
+    /** Una asignacion abierta vence dentro de la ventana configurada
+     *  (EMAIL_DEADLINE_WINDOW_HOURS). No lo publica una accion de nadie sino
+     *  el reloj de emailNotifications, una sola vez por asignacion.
+     *  { userId, courseId, assignmentId, dueDate } */
+    COURSE_DEADLINE_APPROACHING: 'course.deadline_approaching',
+
+    /** Se cambio la contrasena de una cuenta. Dispara un correo CRITICO de
+     *  seguridad, que el usuario no puede desactivar.
+     *  { userId, changedAt } */
+    USER_PASSWORD_CHANGED: 'user.password_changed'
 };
 
 /**
@@ -155,7 +173,13 @@ const SUSCRIPTORES_ESPERADOS = {
     [EVENTOS.REPORT_AUTO_GENERATED]:     ['scheduledReports'],
     // Un solo suscriptor: el que escribe la fila. Cualquier modulo publica,
     // ninguno necesita saber que existe data.logs.
-    [EVENTOS.AUDIT_LOG_RECORDED]:        ['dataLogs']
+    [EVENTOS.AUDIT_LOG_RECORDED]:        ['dataLogs'],
+    // HU de notificaciones por correo. Los resultados de evaluaciones NO
+    // estan aca: esos ya los escucha resultNotifications, que le pide el
+    // correo a emailNotifications como un canal mas.
+    [EVENTOS.COURSE_ASSIGNED]:             ['emailNotifications'],
+    [EVENTOS.COURSE_DEADLINE_APPROACHING]: ['emailNotifications'],
+    [EVENTOS.USER_PASSWORD_CHANGED]:       ['emailNotifications']
 };
 
 /** Todos los nombres validos, para validar en publish(). */

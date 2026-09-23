@@ -37,18 +37,53 @@ exports.addContent = async (req, res) => {
     }
 };
 
+/**
+ * POST /api/courses/assign   Body: { course_id, user_id, due_date? }
+ *
+ * HU de notificaciones por correo: publica course.assigned en la MISMA
+ * transaccion que el INSERT, asi el evento existe si y solo si la asignacion
+ * existe. El correo NO se manda aca (criterio tecnico 1): este endpoint
+ * responde en cuanto la fila esta confirmada, y el aviso sale despues por el
+ * bus y la cola de correo. Si el SMTP esta caido, asignar sigue funcionando.
+ */
 exports.assignCourse = async (req, res) => {
-    try {
-        const { course_id, user_id } = req.body;
+    const { course_id, user_id, due_date } = req.body || {};
 
-        const { rows } = await db.query(
-            "INSERT INTO course_assignments (course_id, user_id, status) VALUES ($1, $2, 'assigned') RETURNING *",
-            [course_id, user_id]
+    let fechaLimite = null;
+    if (due_date !== undefined && due_date !== null && due_date !== '') {
+        fechaLimite = new Date(due_date);
+        if (Number.isNaN(fechaLimite.getTime())) {
+            return res.status(400).json({
+                msg: 'Parametros invalidos',
+                errores: [{ campo: 'due_date', detalle: 'Debe ser una fecha ISO 8601 valida.' }]
+            });
+        }
+    }
+
+    const client = await db.connect();
+    try {
+        await client.query('BEGIN');
+
+        const { rows } = await client.query(
+            `INSERT INTO course_assignments (course_id, user_id, status, due_date)
+             VALUES ($1, $2, 'assigned', $3) RETURNING *`,
+            [course_id, user_id, fechaLimite]
         );
 
+        await eventBus.publish(EVENTOS.COURSE_ASSIGNED, {
+            userId: rows[0].user_id,
+            courseId: rows[0].course_id,
+            assignmentId: rows[0].id,
+            dueDate: fechaLimite ? fechaLimite.toISOString() : null
+        }, client);
+
+        await client.query('COMMIT');
         res.status(201).json(rows[0]);
     } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
         res.status(500).json({ msg: error.message });
+    } finally {
+        client.release();
     }
 };
 

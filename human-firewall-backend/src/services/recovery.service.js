@@ -1,6 +1,8 @@
 const db = require('../config/db');
 const crypto = require('crypto');
 const { hashPassword } = require('../utils/hash');
+const eventBus = require('./eventBus');
+const { EVENTOS } = require('../events/catalogo');
 
 exports.generateResetToken = async (email) => {
     // Verificar si el usuario existe
@@ -45,8 +47,26 @@ exports.resetPassword = async (token, newPassword) => {
 
     const hashed = await hashPassword(newPassword);
 
-    await db.query("UPDATE users SET password = $1 WHERE id = $2", [hashed, user_id]);
-    await db.query("DELETE FROM password_reset_tokens WHERE token = $1", [token]);
+    // HU de notificaciones por correo: el cambio publica user.password_changed,
+    // que dispara un correo CRITICO de seguridad (no desactivable). Va en la
+    // misma transaccion que el UPDATE: si la contrasena cambio, el aviso
+    // existe; si el UPDATE se revierte, no sale un aviso falso.
+    const client = await db.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query("UPDATE users SET password = $1 WHERE id = $2", [hashed, user_id]);
+        await client.query("DELETE FROM password_reset_tokens WHERE token = $1", [token]);
+        await eventBus.publish(EVENTOS.USER_PASSWORD_CHANGED, {
+            userId: user_id,
+            changedAt: new Date().toISOString()
+        }, client);
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+    }
 
     // Antes devolvia true. Ahora devuelve a quien se le cambio la contrasena,
     // para que el log de auditoria sepa sobre que cuenta fue.

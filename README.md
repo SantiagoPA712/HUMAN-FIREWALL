@@ -154,6 +154,9 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 | `report.scheduled_run` | `scheduledReports.service` (scheduler) | scheduledReports | `{ scheduleId, tipo, formato, periodo, params }` |
 | `report.auto_generated` | `scheduledReports.service` (job) | scheduledReports | `{ historyId, scheduleId, periodo }` |
 | `audit.log_recorded` | `dataLogs.registrar()`, desde cualquier modulo | dataLogs | `{ logUid, userId, actorType, actorEmail, actionType, module, resourceType, resourceId, oldValue, newValue, ipAddress, traceId, occurredAt }` |
+| `course.assigned` | `course.controller` (misma transaccion que la asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
+| `course.deadline_approaching` | `emailNotifications` (reloj, una vez por asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
+| `user.password_changed` | `recovery.service` (misma transaccion que el UPDATE) | emailNotifications | `{ userId, changedAt }` |
 
 Los nombres mezclan dos estilos (`lesson.completed` con punto, `points_assigned`
 con guion bajo). Es herencia de la HU de gamificacion y **no se unifico a
@@ -421,10 +424,11 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 572 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 775 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
 recomendaciones, simulaciones, reportes, seguridad, reportes automaticos,
-resultados organizacionales y notificacion de resultados. Ver `tests/README.md`.
+resultados organizacionales, notificacion de resultados, logs de auditoria y
+notificaciones por correo. Ver `tests/README.md`.
 
 ---
 
@@ -498,6 +502,11 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | PATCH  | `/api/notifications/preferencias`              | Autenticado (solo lo propio)  |
 | GET    | `/api/notifications/cursos-criticos`           | Solo rh o admin               |
 | PATCH  | `/api/notifications/cursos-criticos/:courseId` | Solo rh o admin               |
+| GET    | `/api/notifications/correo/preferencias`       | Autenticado (solo lo propio)  |
+| PATCH  | `/api/notifications/correo/preferencias`       | Autenticado (solo lo propio)  |
+| GET    | `/api/notifications/correo/estado`             | Solo admin                    |
+| GET    | `/api/users/me`                                | Autenticado (solo lo propio)  |
+| PATCH  | `/api/users/me`                                | Autenticado (solo lo propio)  |
 | GET    | `/api/simulations`                             | Autenticado (filtrado por rol) |
 | POST   | `/api/simulations/:id/complete`                | Autenticado                   |
 | GET    | `/api/gamification/reports/performance`        | Solo rh o admin               |
@@ -891,6 +900,65 @@ La pantalla esta en `/admin/logs` ("Registro de acciones" en el menu del admin).
 respeta el `X-Trace-Id` que venga de otro modulo) y lo devuelve en la
 respuesta. Todas las filas que produjo un mismo request comparten ese id.
 
+### 0.10 Notificaciones por correo: un job por correo, con plantilla
+
+`emailNotifications.service` es el unico que habla con el servidor de correo
+para las notificaciones de esta HU. El camino es siempre el mismo:
+
+```
+accion -> event_outbox -> handler: encolar() -> email_jobs -> worker: sendMail()
+            (responde)     preferencias,         (pending)    reintentos,
+                           direccion valida,                  un registro por
+                           idioma + plantilla                 intento fallido
+```
+
+**Quien dispara que correo:**
+
+| Tipo | Critico | Lo dispara |
+|------|---------|------------|
+| `course_assigned` | no | `course.assigned`, al asignar (`POST /api/courses/assign`, que ahora acepta `due_date`) |
+| `deadline_approaching` | no | `course.deadline_approaching`, que publica un reloj cada 15 min para lo que vence en las proximas 48 h |
+| `evaluation_result` | no | el canal de correo de `resultNotifications` (evaluaciones, simulaciones, cursos) |
+| `critical_course_alert` | no | la copia a RH de un curso critico, tambien desde `resultNotifications` |
+| `security_password_changed` | **si** | `user.password_changed`, al restablecer la contrasena |
+
+**Por que una cola propia y no el outbox.** El outbox reintenta el evento
+entero y corre todos sus handlers. El correo necesita otra politica: 3
+reintentos con backoff de 30/60/120 s, un estado `undeliverable` que no se
+reintenta y un rastro por intento. Mezclarlos haria que un SMTP caido
+reprocesara puntos y niveles.
+
+**Plantillas, no HTML en el codigo.** Ningun modulo arma el correo: pasa un
+tipo y un diccionario de datos, y `emailTemplates.service` renderiza la version
+activa de `email_templates` para ese tipo e idioma (`{{dato}}`, escapado en
+HTML, y secciones `{{#dato}}...{{/dato}}`). Cambiar un texto es insertar la
+version siguiente en una migracion y desactivar la anterior: un trigger impide
+editar una version publicada. El job guarda con que version se armo.
+
+**Idioma.** `users.language` (`es`/`en`, o NULL = sin configurar) se cambia
+con `PATCH /api/users/me`. Sin idioma, el correo sale en `DEFAULT_LANGUAGE`
+(`es`). Si un tipo no tiene plantilla en el idioma del usuario, cae a la del
+idioma por defecto y el job registra el idioma real.
+
+**Preferencias.** Dos niveles, y se respetan los dos antes de encolar: el canal
+de correo entero (`/api/notifications/preferencias`, de la HU de resultados) y
+cada tipo (`/api/notifications/correo/preferencias`). Un tipo apagado se omite
+sin error ni registro de fallo. Los criticos ignoran ambos, y pedir apagarlos
+devuelve 400.
+
+**Direccion invalida.** Se valida antes de encolar: sin un correo valido el job
+queda en `undeliverable`, sin intentos y sin reintento, y el handler termina
+bien para no frenar al modulo que publico el evento.
+
+**Errores.** Timeout, fallas de red y respuestas 5xx del proveedor son
+transitorios y se reintentan; lo demas (destinatario rechazado, peticion mal
+formada) marca el job como `failed` de una. Cada intento fallido queda en
+`email_job_attempts` y en el log del servidor con el detalle tecnico.
+`GET /api/notifications/correo/estado` muestra los fallidos con sus intentos.
+
+**Sin `SMTP_HOST`** el correo se encola y se renderiza igual, pero el job
+queda en `skipped`: se puede ver en la base que se habria mandado.
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
@@ -963,6 +1031,11 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `report_notifications` | Cola de avisos por destinatario: 3 intentos con backoff     |
 | `notification_preferences` | Canales habilitados por persona. Sin fila, el canal esta habilitado |
 | `notification_deliveries` | Estado de entrega por aviso y canal, con su timestamp    |
+| `email_notification_types` | Tipos de correo y cuales son criticos (no desactivables) |
+| `email_templates` | Plantillas por tipo, idioma y version. Una version publicada no se edita |
+| `email_preferences` | Tipos de correo apagados por persona. Sin fila, habilitado    |
+| `email_jobs`     | Cola de correos: un job por correo, con estado, intentos y el contenido ya renderizado |
+| `email_job_attempts` | Un registro por intento de envio, con el error tecnico       |
 | `org_kpi_snapshots` | KPIs organizacionales precalculados por periodo y area. Solo INSERT |
 | `org_report_access_log` | Quien consulto el consolidado. Solo INSERT, y no sale por ninguna API |
 | `anomaly_rules`  | Umbrales de deteccion: puntos por ventana de tiempo               |
