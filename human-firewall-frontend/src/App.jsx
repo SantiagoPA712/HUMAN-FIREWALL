@@ -24,6 +24,8 @@ import ScheduledReportsPage from './pages/ScheduledReportsPage';
 import OrganizationalPage from './pages/OrganizationalPage';
 import NotificationsPage from './pages/NotificationsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
+import AcceptInvitationPage from './pages/AcceptInvitationPage';
+import InvitationsPage from './pages/InvitationsPage';
 import { PuntosProvider } from './context/PuntosContext';
 
 function App() {
@@ -36,6 +38,10 @@ function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Completar el registro desde una invitacion. Publica: el token del
+            correo es la credencial, y lo valida el backend. */}
+        <Route path="/invitacion" element={<AcceptInvitationPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/challenges" element={<ChallengesHub />} />
         <Route path="/points" element={<PointsHistory />} />
@@ -85,6 +91,10 @@ function App() {
             no sea admin. Cuelga de /admin porque es una herramienta de
             administracion, no una pantalla de negocio. */}
         <Route path="/admin/logs" element={<AuditLogsPage />} />
+
+        {/* Invitaciones de usuarios: el backend rechaza con 403 a quien no
+            sea admin. Mismo lugar que el registro de acciones. */}
+        <Route path="/admin/invitaciones" element={<InvitationsPage />} />
 
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

@@ -157,6 +157,7 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 | `course.assigned` | `course.controller` (misma transaccion que la asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
 | `course.deadline_approaching` | `emailNotifications` (reloj, una vez por asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
 | `user.password_changed` | `recovery.service` (misma transaccion que el UPDATE) | emailNotifications | `{ userId, changedAt }` |
+| `user.invited` | `invitations.service` (misma transaccion que crear o reenviar) | emailNotifications | `{ invitationId, email, role, language, token, expiresAt, invitedBy, invitedByEmail, sendNo }` |
 
 Los nombres mezclan dos estilos (`lesson.completed` con punto, `points_assigned`
 con guion bajo). Es herencia de la HU de gamificacion y **no se unifico a
@@ -424,11 +425,11 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 777 pruebas sobre
+base levantada ni credenciales, y no tocan Supabase. Son 868 pruebas sobre
 migraciones, asignacion de puntos, motor de recompensas, niveles,
 recomendaciones, simulaciones, reportes, seguridad, reportes automaticos,
-resultados organizacionales, notificacion de resultados, logs de auditoria y
-notificaciones por correo. Ver `tests/README.md`.
+resultados organizacionales, notificacion de resultados, logs de auditoria,
+notificaciones por correo e invitaciones. Ver `tests/README.md`.
 
 ---
 
@@ -507,6 +508,13 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/notifications/correo/estado`             | Solo admin                    |
 | GET    | `/api/users/me`                                | Autenticado (solo lo propio)  |
 | PATCH  | `/api/users/me`                                | Autenticado (solo lo propio)  |
+| GET    | `/api/invitations`                             | Solo admin                    |
+| POST   | `/api/invitations`                             | Solo admin                    |
+| POST   | `/api/invitations/:id/reenviar`                | Solo admin                    |
+| POST   | `/api/invitations/:id/cancelar`                | Solo admin                    |
+| POST   | `/api/invitations/validar`                     | Publico (token en el cuerpo, con limite de pedidos) |
+| POST   | `/api/invitations/aceptar`                     | Publico (token en el cuerpo, con limite de pedidos) |
+| POST   | `/api/invitations/solicitar-reenvio`           | Publico (token en el cuerpo, con limite de pedidos) |
 | GET    | `/api/simulations`                             | Autenticado (filtrado por rol) |
 | POST   | `/api/simulations/:id/complete`                | Autenticado                   |
 | GET    | `/api/gamification/reports/performance`        | Solo rh o admin               |
@@ -959,6 +967,63 @@ formada) marca el job como `failed` de una. Cada intento fallido queda en
 **Sin `SMTP_HOST`** el correo se encola y se renderiza igual, pero el job
 queda en `skipped`: se puede ver en la base que se habria mandado.
 
+### 0.11 Invitaciones: el alta sin compartir credenciales
+
+El admin invita desde **Panel administrativo > Invitaciones**, con correo y rol
+(`employee`, `instructor` o `rh`; no se puede invitar a un admin). La
+persona recibe un correo con `/invitacion?token=...`, define su contrasena y
+su nombre, y entra con la cuenta ya activa con ese rol.
+
+```
+pending --acepta--> accepted
+   |  ^--reenvia (token nuevo)--+
+   +--vence--> expired ---------+--cancela--> cancelled
+   +--cancela---------------------------------> cancelled
+```
+
+**El token.** 32 bytes de `crypto.randomBytes`. En `user_invitations` se guarda
+solo su SHA-256: con la tabla en la mano no se arma un enlace. Es de un solo
+uso: aceptar es un `UPDATE ... WHERE status = 'pending' AND expires_at > now()`,
+y con varios envios simultaneos solo uno encuentra la fila. Reenviar pisa el
+hash, asi que el enlace anterior deja de servir en el mismo instante. La
+vigencia es `INVITATION_EXPIRY_HOURS` (72 por defecto).
+
+Lo que hay que saber: el token en claro **si** queda en dos lugares internos,
+el payload de `user.invited` en `event_outbox` y el cuerpo del correo en
+`email_jobs`. Es inevitable si el correo se encola en vez de mandarse dentro
+del request. Se acota con el vencimiento y el uso unico.
+
+**El token viaja en el cuerpo, no en la URL de la API.** Las rutas del invitado
+son `POST` con `{ token }`: las URLs quedan en logs de acceso e historiales.
+Tienen limite de pedidos por IP para que no se puedan probar tokens en rafaga.
+
+**Duplicados (409).** Un correo con invitacion pendiente, con cuenta activa o con
+cuenta desactivada no se puede invitar; la respuesta trae `estado_actual`. Un
+indice unico parcial (`WHERE status = 'pending'`) cubre dos pedidos simultaneos.
+
+**Vencidas.** No hay un reloj: se marcan `expired` cada vez que alguien mira
+(listar, validar, invitar), con `expired_at = expires_at`. Aceptar exige
+`expires_at > now()`, asi que entre medio tampoco sirven.
+
+**Pedir un enlace nuevo.** Con un enlace vencido, el invitado puede pedir otro.
+Eso no genera un enlace: registra el pedido y le avisa en la bandeja al admin
+que invito (o a todos los admins si esa cuenta ya no esta activa). Si un enlace
+vencido alcanzara para emitir otro, cualquiera con un correo viejo podria
+reactivar una invitacion que el admin dejo vencer a proposito.
+
+**Trazabilidad.** Cada cambio (creada, reenviada, cancelada, aceptada, vencida,
+reenvio pedido) deja una fila en `user_invitation_events` (solo INSERT) con el
+admin que la genero, el correo, el rol, quien hizo el cambio y cuando. Los
+cambios que hace una persona llegan ademas a `data.logs` como `invite`,
+`invite_resend`, `invite_cancel` e `invite_accept`.
+
+**Probarlo sin SMTP.** El correo queda en `email_jobs` con estado `skipped`,
+pero con el enlace armado:
+
+```bash
+docker compose exec postgres psql -U postgres -c "SELECT to_email, substring(body_text from 'https?://[^ ]+') AS enlace FROM email_jobs WHERE notification_type = 'user_invitation' ORDER BY id DESC LIMIT 5;"
+```
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
@@ -1036,6 +1101,8 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `email_preferences` | Tipos de correo apagados por persona. Sin fila, habilitado    |
 | `email_jobs`     | Cola de correos: un job por correo, con estado, intentos y el contenido ya renderizado |
 | `email_job_attempts` | Un registro por intento de envio, con el error tecnico       |
+| `user_invitations` | Invitaciones: correo, rol, hash del token, vencimiento y estado |
+| `user_invitation_events` | Historial de cada cambio de estado de una invitacion. Solo INSERT |
 | `org_kpi_snapshots` | KPIs organizacionales precalculados por periodo y area. Solo INSERT |
 | `org_report_access_log` | Quien consulto el consolidado. Solo INSERT, y no sale por ninguna API |
 | `anomaly_rules`  | Umbrales de deteccion: puntos por ventana de tiempo               |

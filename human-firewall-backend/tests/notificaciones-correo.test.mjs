@@ -143,7 +143,7 @@ for (const evento of ['course.assigned', 'course.deadline_approaching', 'user.pa
 }
 
 const { rows: tipos } = await pg.query(
-    'SELECT code, is_critical FROM email_notification_types ORDER BY code'
+    'SELECT code, is_critical, user_configurable FROM email_notification_types ORDER BY code'
 );
 check('el catalogo distingue criticos de opcionales (tecnico 5)',
     tipos.some(t => t.is_critical) && tipos.some(t => !t.is_critical));
@@ -441,8 +441,11 @@ console.log('\n--- PREFERENCIAS (criterio de aceptacion 2, tecnico 5) ---');
 // =====================================================================
 
 const prefs = await llamar(emailController.getPreferencias, { user: { id: ana } });
-check('las preferencias listan todos los tipos, habilitados por defecto',
-    prefs.cuerpo.tipos.length === tipos.length && prefs.cuerpo.tipos.every(t => t.habilitado));
+check('las preferencias listan todos los tipos configurables, habilitados por defecto',
+    prefs.cuerpo.tipos.length === tipos.filter(t => t.user_configurable).length &&
+    prefs.cuerpo.tipos.every(t => t.habilitado));
+check('y no listan los que no son para usuarios con cuenta (la invitacion)',
+    !prefs.cuerpo.tipos.some(t => t.tipo === 'user_invitation'));
 check('y marcan cuales son criticos',
     prefs.cuerpo.tipos.find(t => t.tipo === 'security_password_changed')?.critico === true);
 

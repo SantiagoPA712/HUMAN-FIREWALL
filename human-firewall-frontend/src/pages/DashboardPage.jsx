@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText, MailPlus } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
@@ -102,6 +102,13 @@ export default function DashboardPage() {
             <a href="/reports/organizacional" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
               <Building2 className="w-5 h-5" />
               Resultados organizacionales
+            </a>
+          )}
+          {/* Invitaciones de usuarios: solo admin, igual que /api/invitations. */}
+          {puedeVerLogs && (
+            <a href="/admin/invitaciones" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+              <MailPlus className="w-5 h-5" />
+              Invitaciones
             </a>
           )}
           {puedeVerLogs && (
