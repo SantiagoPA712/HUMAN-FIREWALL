@@ -21,11 +21,17 @@ function getSavedTheme() {
 function applyThemeToDocument(theme) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
+  const body = document.body;
   root.setAttribute('data-theme', theme);
+  if (body) {
+    body.setAttribute('data-theme', theme);
+  }
   if (theme === 'dark') {
     root.classList.add('dark');
+    if (body) body.classList.add('dark');
   } else {
     root.classList.remove('dark');
+    if (body) body.classList.remove('dark');
   }
 }
 
@@ -37,20 +43,23 @@ if (typeof window !== 'undefined') {
 export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(getSavedTheme);
 
-  const setTheme = useCallback((newTheme) => {
-    const targetTheme = newTheme === 'dark' ? 'dark' : 'light';
-    setThemeState(targetTheme);
-    applyThemeToDocument(targetTheme);
-    try {
-      localStorage.setItem(THEME_KEY, targetTheme);
-      localStorage.setItem(FALLBACK_THEME_KEY, targetTheme);
-    } catch (e) {
-      console.warn('No se pudo guardar la preferencia de tema en localStorage:', e);
-    }
+  const setTheme = useCallback((valueOrFn) => {
+    setThemeState((prevTheme) => {
+      const resolved = typeof valueOrFn === 'function' ? valueOrFn(prevTheme) : valueOrFn;
+      const targetTheme = resolved === 'dark' ? 'dark' : 'light';
+      applyThemeToDocument(targetTheme);
+      try {
+        localStorage.setItem(THEME_KEY, targetTheme);
+        localStorage.setItem(FALLBACK_THEME_KEY, targetTheme);
+      } catch (e) {
+        console.warn('No se pudo guardar la preferencia de tema en localStorage:', e);
+      }
+      return targetTheme;
+    });
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, [setTheme]);
 
   useEffect(() => {
