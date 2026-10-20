@@ -3,6 +3,7 @@ import { ShieldCheck, Mail, Lock, UserPlus } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import { ThemeToggle } from '../components/ThemeToggle';
 import api from '../lib/api';
 
 export default function RegisterPage() {
@@ -41,6 +42,9 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-bg-deep text-text-primary flex flex-col items-center justify-center p-6 bg-gradient-to-b from-bg-deep to-brand-dark/20 relative overflow-hidden">
+      <div className="absolute top-6 right-6 z-20">
+        <ThemeToggle />
+      </div>
 
       <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 blur-[100px] rounded-full pointer-events-none"></div>
 

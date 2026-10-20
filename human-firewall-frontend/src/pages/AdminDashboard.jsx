@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { ShieldCheck, Users, Activity, AlertTriangle, ArrowRight, BookOpen, MailPlus } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { ThemeSelector } from '../components/ThemeSelector';
 import InvitationsPanel from '../components/InvitationsPanel';
 
 export default function AdminDashboard() {
@@ -46,19 +48,29 @@ export default function AdminDashboard() {
           </button>
         </nav>
 
-        <div className="mt-auto">
-          <Button variant="outline" className="w-full justify-center text-text-secondary border-gray-700" onClick={() => window.location.href = '/dashboard'}>
+        <div className="mt-auto flex flex-col gap-3">
+          <div className="rounded-xl border border-border-color bg-bg-card/40 p-3">
+            <span className="text-xs font-semibold text-text-secondary block mb-2">
+              Tema
+            </span>
+            <ThemeSelector variant="segmented" className="w-full justify-center" />
+          </div>
+
+          <Button variant="outline" className="w-full justify-center text-text-secondary border-border-color hover:bg-nav-hover" onClick={() => window.location.href = '/dashboard'}>
             Salir a Modo Empleado
           </Button>
         </div>
       </aside>
 
       {/* Contenido */}
-      <main className="flex-1 p-10 overflow-y-auto bg-gradient-to-b from-bg-deep to-gray-900/50">
+      <main className="flex-1 p-10 overflow-y-auto bg-bg-deep">
         
-        <header className="mb-10">
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Panel Administrativo de Ciberseguridad</h1>
-          <p className="text-text-secondary">Monitorea el nivel real de la coraza humana de tu organización.</p>
+        <header className="mb-10 flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight mb-2">Panel Administrativo de Ciberseguridad</h1>
+            <p className="text-text-secondary">Monitorea el nivel real de la coraza humana de tu organización.</p>
+          </div>
+          <ThemeToggle />
         </header>
 
         {activeTab === 'overview' && (

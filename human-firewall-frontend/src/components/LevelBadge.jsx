@@ -17,8 +17,8 @@ import { Shield } from 'lucide-react';
 export function LevelBadge({ nivel, compacto = false }) {
     if (!nivel) {
         return compacto
-            ? <div className="h-12 w-12 animate-pulse rounded-full bg-gray-800" />
-            : <div className="h-24 animate-pulse rounded-lg bg-gray-800" />;
+            ? <div className="h-12 w-12 animate-pulse rounded-full bg-border-color" />
+            : <div className="h-24 animate-pulse rounded-lg bg-border-color" />;
     }
 
     const {
@@ -33,7 +33,7 @@ export function LevelBadge({ nivel, compacto = false }) {
                     <p className="text-sm text-text-secondary">Nivel actual</p>
                     <p className="font-bold text-brand-light">{nombre}</p>
                 </div>
-                <div className="relative flex h-12 w-12 items-center justify-center rounded-full border-2 border-brand-blue bg-gray-800 font-bold">
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-full border-2 border-brand-blue bg-bg-card font-bold text-text-primary shadow-sm">
                     {nivel_actual}
                 </div>
             </div>
@@ -57,7 +57,7 @@ export function LevelBadge({ nivel, compacto = false }) {
             </div>
 
             <div
-                className="h-2.5 overflow-hidden rounded-full bg-gray-800"
+                className="h-2.5 overflow-hidden rounded-full bg-border-color"
                 role="progressbar"
                 aria-valuenow={porcentaje_avance}
                 aria-valuemin={0}

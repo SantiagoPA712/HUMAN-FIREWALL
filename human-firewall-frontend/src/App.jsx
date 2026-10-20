@@ -27,12 +27,14 @@ import AuditLogsPage from './pages/AuditLogsPage';
 import AcceptInvitationPage from './pages/AcceptInvitationPage';
 import InvitationsPage from './pages/InvitationsPage';
 import { PuntosProvider } from './context/PuntosContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
     <BrowserRouter>
-      <PuntosProvider>
-      <Routes>
+      <ThemeProvider>
+        <PuntosProvider>
+          <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -99,6 +101,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       </PuntosProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }
