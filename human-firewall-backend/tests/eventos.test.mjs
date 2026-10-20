@@ -42,7 +42,7 @@ const adapter = {
         };
     }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 // Esquema + TODAS las migraciones del directorio, en orden. Se leen del disco
@@ -54,11 +54,11 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const eventBus      = require_('./services/eventBus');
-const catalogo      = require_('./events/catalogo');
-const suscriptores  = require_('./events/suscriptores');
-const authService   = require_('./services/auth.service');
-const simController = require_('./controllers/simulation.controller');
+const eventBus      = require_('./compartido/eventos/eventBus');
+const catalogo      = require_('./compartido/eventos/catalogo');
+const suscriptores  = require_('./servicios/suscriptores');
+const authService   = require_('./servicios/identidad/aplicacion/auth.service');
+const simController = require_('./servicios/evaluaciones/api/simulation.controller');
 
 const { EVENTOS, SUSCRIPTORES_ESPERADOS } = catalogo;
 

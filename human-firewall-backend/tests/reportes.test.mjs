@@ -24,7 +24,7 @@ const adapter = {
     };
   }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -40,12 +40,12 @@ for (const f of ['001_points_ledger', '002_points_rules', '003_lesson_quiz_track
 }
 console.log('Migraciones aplicadas\n');
 
-const reports = require_('./services/reports.service');
-const exports_ = require_('./services/reportExports.service');
-const points = require_('./services/points.service');
-const levels = require_('./services/levels.service');
-const controller = require_('./controllers/report.controller');
-const { requireRoles } = require_('./middlewares/role.middleware');
+const reports = require_('./servicios/reportes/aplicacion/reports.service');
+const exports_ = require_('./servicios/reportes/aplicacion/reportExports.service');
+const points = require_('./servicios/gamificacion/aplicacion/points.service');
+const levels = require_('./servicios/gamificacion/aplicacion/levels.service');
+const controller = require_('./servicios/reportes/api/report.controller');
+const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 
 // ---------------------------------------------------------------------
 // Datos: tres equipos, seis personas con distinto desempeno.
@@ -342,8 +342,8 @@ console.log('\n--- EXPORTACION ASINCRONA (criterio tecnico 5) ---');
 // Se fuerza el camino asincrono bajando el umbral a 1.
 const umbralOriginal = process.env.REPORT_EXPORT_SYNC_LIMIT;
 process.env.REPORT_EXPORT_SYNC_LIMIT = '1';
-delete require_.cache[require_.resolve('./services/reportExports.service')];
-const exportsBajoUmbral = require_('./services/reportExports.service');
+delete require_.cache[require_.resolve('./servicios/reportes/aplicacion/reportExports.service')];
+const exportsBajoUmbral = require_('./servicios/reportes/aplicacion/reportExports.service');
 
 check('el umbral se lee del entorno', exportsBajoUmbral.LIMITE_SINCRONO === 1);
 
@@ -379,7 +379,7 @@ check('reprocesar una exportacion ya lista no la regenera', reintento === null);
 process.env.REPORT_EXPORT_SYNC_LIMIT = umbralOriginal;
 
 console.log('\n--- CATALOGO DE EVENTOS ---');
-const { EVENTOS, SUSCRIPTORES_ESPERADOS } = require_('./events/catalogo');
+const { EVENTOS, SUSCRIPTORES_ESPERADOS } = require_('./compartido/eventos/catalogo');
 check('el evento de exportacion esta en el catalogo',
   EVENTOS.REPORT_EXPORT_REQUESTED === 'report.export_requested');
 check('y declara su suscriptor',

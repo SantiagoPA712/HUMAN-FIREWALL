@@ -68,6 +68,34 @@ Para el volumen de esta plataforma la balanza favorece claramente al monolito.
 Como se comunican esos modulos entre si es una decision aparte, y esta en la
 seccion siguiente: **no se llaman, publican eventos**.
 
+### Microservicios por capas
+
+Dentro de ese unico proceso, el backend esta organizado en **siete
+microservicios logicos**, cada uno con sus capas, sus tablas, sus eventos y
+sus contratos:
+
+| Servicio | Responsabilidad |
+|----------|-----------------|
+| `identidad` | Cuentas, login, roles, perfil, equipos e invitaciones |
+| `cursos` | Cursos, lecciones, asignaciones, progreso y fechas limite |
+| `evaluaciones` | Simulaciones, desafios e intentos (puntaje calculado en el servidor) |
+| `gamificacion` | Puntos, recompensas, niveles, ranking y recomendaciones |
+| `notificaciones` | Bandeja, resultados, preferencias y cola de correo |
+| `reportes` | Reportes para RH, programados y organizacional |
+| `seguridad` | Anomalias, auditoria de ajustes y `data.logs` |
+
+Cada uno vive en `human-firewall-backend/src/servicios/<servicio>/` con la
+misma forma: `api/` (rutas, controladores sin SQL y DTO), `aplicacion/`
+(casos de uso), `dominio/` (reglas puras, cuando hay), `infraestructura/`
+(repositorios y clientes de otros servicios) y `contrato/` (OpenAPI). Un
+servicio solo llega a otro por su `index.js`, y solo es dueno de sus tablas.
+`tests/arquitectura.test.mjs` verifica esas reglas en cada `npm test`.
+
+- Documento de arquitectura: [`docs/arquitectura/README.md`](docs/arquitectura/README.md)
+- Catalogo de servicios (generado): [`docs/arquitectura/SERVICIOS.md`](docs/arquitectura/SERVICIOS.md)
+- Contrato de la API: `http://localhost:3000/api/docs` (Swagger UI) y `/api/docs/openapi.json`
+- Cambios de contrato: [`docs/contratos/POLITICA.md`](docs/contratos/POLITICA.md) y [`CHANGELOG.md`](docs/contratos/CHANGELOG.md)
+
 ---
 
 ## Arquitectura basada en eventos
@@ -105,8 +133,9 @@ POST /api/simulations/submit-decision
                                                   -> reward_granted   -> notifications
 ```
 
-`simulation.controller.js` ya no sabe que existen los puntos, ni los niveles,
-ni las recompensas, ni los correos. Publica lo que paso y se va.
+`simulaciones.service.js` (servicio de evaluaciones) ya no sabe que existen
+los puntos, ni los niveles, ni las recompensas, ni los correos. Publica lo que
+paso y se va.
 
 ### Diagrama
 
@@ -116,9 +145,9 @@ ni las recompensas, ni los correos. Publica lo que paso y se va.
 
   auth.service ---------+                        +---> points.service
   passport.js ----------+                        |     (asigna puntos)
-  course.controller ----+                        |
-  gamification.ctrl ----+--> [ publish() ] --+   +---> rewards.service
-  simulation.ctrl ------+          |         |   |     (otorga logros)
+  cursos.service -------+                        |
+  desafios.service -----+--> [ publish() ] --+   +---> rewards.service
+  simulaciones.service -+          |         |   |     (otorga logros)
                                    v         |   |
                           +-----------------+|   +---> levels.service
                           |  event_outbox   ||   |     (recalcula nivel)
@@ -134,19 +163,21 @@ ni las recompensas, ni los correos. Publica lo que paso y se va.
 
 Un publicador **no conoce a ningun suscriptor**. Lo unico que comparten es el
 nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
-`src/events/catalogo.js`.
+`src/compartido/eventos/catalogo.js`. Cada evento lo publica un solo servicio
+(su dueno) y el `manifiesto.js` de cada servicio declara que publica y que
+consume; las pruebas de arquitectura comparan eso con el codigo.
 
 ### Catalogo de eventos
 
 | Evento | Lo publica | Reaccionan | Payload |
 |--------|-----------|------------|---------|
 | `user.registered` | `auth.service`, `passport.js` | notifications | `{ userId, email, role, provider }` |
-| `lesson.completed` | `course.controller` | points | `{ userId, contentId }` |
-| `course.completed` | `course.controller` | points, rewards, resultNotifications | `{ userId, courseId }` |
-| `quiz.approved` | `gamification.controller` | points, rewards, recommendations, resultNotifications | `{ userId, quizRef, quizType, score, passed, basePoints?, courseId? }` |
-| `quiz.failed` | `gamification.controller` | resultNotifications | `{ userId, quizRef, quizType, score, passed: false, attemptId, attemptNo, courseId }` |
-| `simulation.decision_made` | `simulation.controller` | points | `{ userId, optionId, simulationId, stepId, isCorrect, points }` |
-| `simulation.completed` | `simulation.controller` | rewards, recommendations, resultNotifications | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptId, attemptNo }` |
+| `lesson.completed` | cursos (`cursos.service`) | points | `{ userId, contentId }` |
+| `course.completed` | cursos (`cursos.service`) | points, rewards, resultNotifications | `{ userId, courseId }` |
+| `quiz.approved` | evaluaciones (`desafios.service`) | points, rewards, recommendations, resultNotifications | `{ userId, quizRef, quizType, score, passed, basePoints?, courseId? }` |
+| `quiz.failed` | evaluaciones (`desafios.service`) | resultNotifications | `{ userId, quizRef, quizType, score, passed: false, attemptId, attemptNo, courseId }` |
+| `simulation.decision_made` | evaluaciones (`simulaciones.service`) | points | `{ userId, optionId, simulationId, stepId, isCorrect, points }` |
+| `simulation.completed` | evaluaciones (`simulaciones.service`) | rewards, recommendations, resultNotifications | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptId, attemptNo }` |
 | `points_assigned` | `points.service` | rewards, levels, anomalies | `{ userId, sourceType, sourceId, points, ledgerId }` |
 | `level_up` | `levels.service` | notifications | `{ userId, nivel, nombre, nivelesAlcanzados, puntos }` |
 | `reward_granted` | `rewards.service` | notifications | `{ userId, rewardId, rewardName, userRewardId }` |
@@ -154,6 +185,10 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 | `report.scheduled_run` | `scheduledReports.service` (scheduler) | scheduledReports | `{ scheduleId, tipo, formato, periodo, params }` |
 | `report.auto_generated` | `scheduledReports.service` (job) | scheduledReports | `{ historyId, scheduleId, periodo }` |
 | `audit.log_recorded` | `dataLogs.registrar()`, desde cualquier modulo | dataLogs | `{ logUid, userId, actorType, actorEmail, actionType, module, resourceType, resourceId, oldValue, newValue, ipAddress, traceId, occurredAt }` |
+| `course.assigned` | cursos (`cursos.service`, misma transaccion que la asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
+| `course.deadline_approaching` | cursos (reloj de fechas limite, una vez por asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
+| `user.password_changed` | `recovery.service` (misma transaccion que el UPDATE) | emailNotifications | `{ userId, changedAt }` |
+| `user.invited` | `invitations.service` (misma transaccion que crear o reenviar) | emailNotifications | `{ invitationId, email, role, language, token, expiresAt, invitedBy, invitedByEmail, sendNo }` |
 
 Los nombres mezclan dos estilos (`lesson.completed` con punto, `points_assigned`
 con guion bajo). Es herencia de la HU de gamificacion y **no se unifico a
@@ -212,9 +247,9 @@ no se dupliquen ni los puntos, ni los avisos.
 Sin tocar a quien publica:
 
 ```js
-// src/services/mi.service.js
-const eventBus = require('./eventBus');
-const { EVENTOS } = require('../events/catalogo');
+// src/servicios/<servicio>/aplicacion/mi.service.js
+const eventBus = require('../../../compartido/eventos/eventBus');
+const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 
 async function reaccionar({ userId, courseId }) {
     // ...
@@ -227,9 +262,11 @@ function registrarHandlers() {
 module.exports = { reaccionar, registrarHandlers };
 ```
 
-Y agregarlo a la lista de `src/events/suscriptores.js`. Nada mas.
+Y llamarlo desde `registrarHandlers()` del `index.js` del servicio, sumando
+el evento a `consume` en su `manifiesto.js`. `src/servicios/suscriptores.js`
+conecta todos los servicios al arrancar. Nada mas.
 
-Si el evento es nuevo, primero va al catalogo (`src/events/catalogo.js`), junto
+Si el evento es nuevo, primero va al catalogo (`src/compartido/eventos/catalogo.js`), junto
 con su payload y sus suscriptores esperados. Publicar o suscribir un nombre que
 no este en el catalogo funciona igual, pero imprime un warning en el arranque:
 asi un typo se nota ahi y no tres pantallas mas adelante.
@@ -421,10 +458,13 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 572 pruebas sobre
-migraciones, asignacion de puntos, motor de recompensas, niveles,
+base levantada ni credenciales, y no tocan Supabase. Son 18 suites: las de
+integracion de cada HU (migraciones, puntos, recompensas, niveles,
 recomendaciones, simulaciones, reportes, seguridad, reportes automaticos,
-resultados organizacionales y notificacion de resultados. Ver `tests/README.md`.
+resultados organizacionales, notificacion de resultados, logs de auditoria,
+correo e invitaciones) mas las de la HU de microservicios: **unitarias**,
+**arquitectura** (reglas de capas, dependencias y datos) y **contratos** (la
+API real contra su OpenAPI). Ver `tests/README.md`.
 
 ---
 
@@ -498,6 +538,18 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | PATCH  | `/api/notifications/preferencias`              | Autenticado (solo lo propio)  |
 | GET    | `/api/notifications/cursos-criticos`           | Solo rh o admin               |
 | PATCH  | `/api/notifications/cursos-criticos/:courseId` | Solo rh o admin               |
+| GET    | `/api/notifications/correo/preferencias`       | Autenticado (solo lo propio)  |
+| PATCH  | `/api/notifications/correo/preferencias`       | Autenticado (solo lo propio)  |
+| GET    | `/api/notifications/correo/estado`             | Solo admin                    |
+| GET    | `/api/users/me`                                | Autenticado (solo lo propio)  |
+| PATCH  | `/api/users/me`                                | Autenticado (solo lo propio)  |
+| GET    | `/api/invitations`                             | Solo admin                    |
+| POST   | `/api/invitations`                             | Solo admin                    |
+| POST   | `/api/invitations/:id/reenviar`                | Solo admin                    |
+| POST   | `/api/invitations/:id/cancelar`                | Solo admin                    |
+| POST   | `/api/invitations/validar`                     | Publico (token en el cuerpo, con limite de pedidos) |
+| POST   | `/api/invitations/aceptar`                     | Publico (token en el cuerpo, con limite de pedidos) |
+| POST   | `/api/invitations/solicitar-reenvio`           | Publico (token en el cuerpo, con limite de pedidos) |
 | GET    | `/api/simulations`                             | Autenticado (filtrado por rol) |
 | POST   | `/api/simulations/:id/complete`                | Autenticado                   |
 | GET    | `/api/gamification/reports/performance`        | Solo rh o admin               |
@@ -836,10 +888,13 @@ ajustes manuales llegan a los dos.
 
 **Para registrar una accion nueva, una sola llamada, sin `await`:**
 
-```js
-const dataLogs = require('../services/dataLogs.service');
+Desde otro servicio, por su cliente de seguridad
+(`infraestructura/clientes/seguridad.cliente.js`):
 
-dataLogs.registrar({
+```js
+const dataLogs = require('../infraestructura/clientes/seguridad.cliente');
+
+dataLogs.registrarAccion({
     req,                                        // de aca salen usuario, IP y trace_id
     accion: dataLogs.ACCIONES.CONFIG_CHANGE,
     modulo: dataLogs.MODULOS.REPORTS,
@@ -891,6 +946,122 @@ La pantalla esta en `/admin/logs` ("Registro de acciones" en el menu del admin).
 respeta el `X-Trace-Id` que venga de otro modulo) y lo devuelve en la
 respuesta. Todas las filas que produjo un mismo request comparten ese id.
 
+### 0.10 Notificaciones por correo: un job por correo, con plantilla
+
+`emailNotifications.service` es el unico que habla con el servidor de correo
+para las notificaciones de esta HU. El camino es siempre el mismo:
+
+```
+accion -> event_outbox -> handler: encolar() -> email_jobs -> worker: sendMail()
+            (responde)     preferencias,         (pending)    reintentos,
+                           direccion valida,                  un registro por
+                           idioma + plantilla                 intento fallido
+```
+
+**Quien dispara que correo:**
+
+| Tipo | Critico | Lo dispara |
+|------|---------|------------|
+| `course_assigned` | no | `course.assigned`, al asignar (`POST /api/courses/assign`, que ahora acepta `due_date`) |
+| `deadline_approaching` | no | `course.deadline_approaching`, que publica un reloj cada 15 min para lo que vence en las proximas 48 h |
+| `evaluation_result` | no | el canal de correo de `resultNotifications` (evaluaciones, simulaciones, cursos) |
+| `critical_course_alert` | no | la copia a RH de un curso critico, tambien desde `resultNotifications` |
+| `security_password_changed` | **si** | `user.password_changed`, al restablecer la contrasena |
+
+**Por que una cola propia y no el outbox.** El outbox reintenta el evento
+entero y corre todos sus handlers. El correo necesita otra politica: 3
+reintentos con backoff de 30/60/120 s, un estado `undeliverable` que no se
+reintenta y un rastro por intento. Mezclarlos haria que un SMTP caido
+reprocesara puntos y niveles.
+
+**Plantillas, no HTML en el codigo.** Ningun modulo arma el correo: pasa un
+tipo y un diccionario de datos, y `emailTemplates.service` renderiza la version
+activa de `email_templates` para ese tipo e idioma (`{{dato}}`, escapado en
+HTML, y secciones `{{#dato}}...{{/dato}}`). Cambiar un texto es insertar la
+version siguiente en una migracion y desactivar la anterior: un trigger impide
+editar una version publicada. El job guarda con que version se armo.
+
+**Idioma.** `users.language` (`es`/`en`, o NULL = sin configurar) se cambia
+con `PATCH /api/users/me`. Sin idioma, el correo sale en `DEFAULT_LANGUAGE`
+(`es`). Si un tipo no tiene plantilla en el idioma del usuario, cae a la del
+idioma por defecto y el job registra el idioma real.
+
+**Preferencias.** Dos niveles, y se respetan los dos antes de encolar: el canal
+de correo entero (`/api/notifications/preferencias`, de la HU de resultados) y
+cada tipo (`/api/notifications/correo/preferencias`). Un tipo apagado se omite
+sin error ni registro de fallo. Los criticos ignoran ambos, y pedir apagarlos
+devuelve 400.
+
+**Direccion invalida.** Se valida antes de encolar: sin un correo valido el job
+queda en `undeliverable`, sin intentos y sin reintento, y el handler termina
+bien para no frenar al modulo que publico el evento.
+
+**Errores.** Timeout, fallas de red y respuestas 5xx del proveedor son
+transitorios y se reintentan; lo demas (destinatario rechazado, peticion mal
+formada) marca el job como `failed` de una. Cada intento fallido queda en
+`email_job_attempts` y en el log del servidor con el detalle tecnico.
+`GET /api/notifications/correo/estado` muestra los fallidos con sus intentos.
+
+**Sin `SMTP_HOST`** el correo se encola y se renderiza igual, pero el job
+queda en `skipped`: se puede ver en la base que se habria mandado.
+
+### 0.11 Invitaciones: el alta sin compartir credenciales
+
+El admin invita desde **Panel administrativo > Invitaciones**, con correo y rol
+(`employee`, `instructor` o `rh`; no se puede invitar a un admin). La
+persona recibe un correo con `/invitacion?token=...`, define su contrasena y
+su nombre, y entra con la cuenta ya activa con ese rol.
+
+```
+pending --acepta--> accepted
+   |  ^--reenvia (token nuevo)--+
+   +--vence--> expired ---------+--cancela--> cancelled
+   +--cancela---------------------------------> cancelled
+```
+
+**El token.** 32 bytes de `crypto.randomBytes`. En `user_invitations` se guarda
+solo su SHA-256: con la tabla en la mano no se arma un enlace. Es de un solo
+uso: aceptar es un `UPDATE ... WHERE status = 'pending' AND expires_at > now()`,
+y con varios envios simultaneos solo uno encuentra la fila. Reenviar pisa el
+hash, asi que el enlace anterior deja de servir en el mismo instante. La
+vigencia es `INVITATION_EXPIRY_HOURS` (72 por defecto).
+
+Lo que hay que saber: el token en claro **si** queda en dos lugares internos,
+el payload de `user.invited` en `event_outbox` y el cuerpo del correo en
+`email_jobs`. Es inevitable si el correo se encola en vez de mandarse dentro
+del request. Se acota con el vencimiento y el uso unico.
+
+**El token viaja en el cuerpo, no en la URL de la API.** Las rutas del invitado
+son `POST` con `{ token }`: las URLs quedan en logs de acceso e historiales.
+Tienen limite de pedidos por IP para que no se puedan probar tokens en rafaga.
+
+**Duplicados (409).** Un correo con invitacion pendiente, con cuenta activa o con
+cuenta desactivada no se puede invitar; la respuesta trae `estado_actual`. Un
+indice unico parcial (`WHERE status = 'pending'`) cubre dos pedidos simultaneos.
+
+**Vencidas.** No hay un reloj: se marcan `expired` cada vez que alguien mira
+(listar, validar, invitar), con `expired_at = expires_at`. Aceptar exige
+`expires_at > now()`, asi que entre medio tampoco sirven.
+
+**Pedir un enlace nuevo.** Con un enlace vencido, el invitado puede pedir otro.
+Eso no genera un enlace: registra el pedido y le avisa en la bandeja al admin
+que invito (o a todos los admins si esa cuenta ya no esta activa). Si un enlace
+vencido alcanzara para emitir otro, cualquiera con un correo viejo podria
+reactivar una invitacion que el admin dejo vencer a proposito.
+
+**Trazabilidad.** Cada cambio (creada, reenviada, cancelada, aceptada, vencida,
+reenvio pedido) deja una fila en `user_invitation_events` (solo INSERT) con el
+admin que la genero, el correo, el rol, quien hizo el cambio y cuando. Los
+cambios que hace una persona llegan ademas a `data.logs` como `invite`,
+`invite_resend`, `invite_cancel` e `invite_accept`.
+
+**Probarlo sin SMTP.** El correo queda en `email_jobs` con estado `skipped`,
+pero con el enlace armado:
+
+```bash
+docker compose exec postgres psql -U postgres -c "SELECT to_email, substring(body_text from 'https?://[^ ]+') AS enlace FROM email_jobs WHERE notification_type = 'user_invitation' ORDER BY id DESC LIMIT 5;"
+```
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
@@ -908,17 +1079,17 @@ recalcular el nivel o evaluar recompensas, **no hay que modificar
 `points.service.js`**: alcanza con suscribirse desde el archivo propio.
 
 ```js
-const eventBus = require('./eventBus');
-const { EVENTOS } = require('../events/catalogo');
+const eventBus = require('../../../compartido/eventos/eventBus');
+const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 
 eventBus.subscribe(EVENTOS.POINTS_ASSIGNED, async ({ userId, points, sourceType }) => {
     // recalcular nivel, evaluar recompensas, etc.
 });
 ```
 
-El nombre del evento se toma de `src/events/catalogo.js`, nunca se escribe a
-mano. El servicio se agrega a la lista de `src/events/suscriptores.js`, que es
-el unico lugar que decide quien participa del bus.
+El nombre del evento se toma de `src/compartido/eventos/catalogo.js`, nunca se
+escribe a mano. La suscripcion se registra en `registrarHandlers()` del
+`index.js` del servicio, y `src/servicios/suscriptores.js` conecta a todos.
 
 Si el handler lanza una excepcion, el evento se reintenta solo con backoff, asi
 que **el handler tiene que ser idempotente**. Ver "Arquitectura basada en
@@ -930,7 +1101,7 @@ Los endpoints de `/api/gamification/*` que reciben un `:userId` usan siempre el
 mismo middleware, que ya resuelve la regla propio-usuario / admin / rh:
 
 ```js
-const { selfOrRoles } = require('../middlewares/role.middleware');
+const { selfOrRoles } = require('../../../compartido/middlewares/role.middleware');
 
 router.get('/level/:userId',
     verifyToken(),
@@ -963,6 +1134,13 @@ Devuelve 403 cuando corresponde, sin que haya que repetir la logica.
 | `report_notifications` | Cola de avisos por destinatario: 3 intentos con backoff     |
 | `notification_preferences` | Canales habilitados por persona. Sin fila, el canal esta habilitado |
 | `notification_deliveries` | Estado de entrega por aviso y canal, con su timestamp    |
+| `email_notification_types` | Tipos de correo y cuales son criticos (no desactivables) |
+| `email_templates` | Plantillas por tipo, idioma y version. Una version publicada no se edita |
+| `email_preferences` | Tipos de correo apagados por persona. Sin fila, habilitado    |
+| `email_jobs`     | Cola de correos: un job por correo, con estado, intentos y el contenido ya renderizado |
+| `email_job_attempts` | Un registro por intento de envio, con el error tecnico       |
+| `user_invitations` | Invitaciones: correo, rol, hash del token, vencimiento y estado |
+| `user_invitation_events` | Historial de cada cambio de estado de una invitacion. Solo INSERT |
 | `org_kpi_snapshots` | KPIs organizacionales precalculados por periodo y area. Solo INSERT |
 | `org_report_access_log` | Quien consulto el consolidado. Solo INSERT, y no sale por ninguna API |
 | `anomaly_rules`  | Umbrales de deteccion: puntos por ventana de tiempo               |
@@ -992,21 +1170,29 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 |-- docker-compose.yml          PostgreSQL de desarrollo
 |-- migrations/                 Migraciones SQL numeradas (leer su README)
 |-- schema.sql                  Esquema historico (NO editar, ver migrations/)
+|-- docs/
+|   |-- arquitectura/           README.md (la arquitectura) y SERVICIOS.md (catalogo generado)
+|   `-- contratos/              Politica de cambios de contrato y CHANGELOG
 |-- human-firewall-backend/
+|   |-- scripts/                setup-env.js y el generador del catalogo de servicios
+|   |-- tests/                  Suites de integracion, unitarias, arquitectura y contratos
 |   `-- src/
-|       |-- app.js              Monta la API y sirve el build de la interfaz
-|       |-- server.js           Arranque: conecta el bus y escucha el puerto
-|       |-- config/             Conexion a BD, Passport, seeds
-|       |-- controllers/        Manejadores de ruta
-|       |-- events/
-|       |   |-- catalogo.js     Nombres y payloads de todos los eventos
-|       |   `-- suscriptores.js Que servicios se conectan al bus
-|       |-- middlewares/        Autenticacion, roles, rate limiting
-|       |-- routes/             Definicion de endpoints
-|       |-- services/
-|       |   |-- eventBus.js     Publicacion, cola outbox, worker y reintentos
-|       |   `-- ...             Resto de la logica de negocio
-|       `-- utils/              Hashing y tokens
+|       |-- app.js              Monta las rutas de cada servicio, /api/docs y el manejo de errores
+|       |-- server.js           Arranque: valida el entorno, conecta el bus y escucha el puerto
+|       |-- compartido/         Plataforma transversal (no depende de ningun servicio)
+|       |   |-- config/         db, entorno, rutas, migraciones
+|       |   |-- eventos/        eventBus (outbox + worker) y catalogo de eventos
+|       |   |-- http/           formato comun de errores y validacion por DTO
+|       |   |-- middlewares/    autenticacion, roles, rate limiting, trace_id
+|       |   |-- contratos/      arma y sirve el OpenAPI de todos los servicios
+|       |   `-- utils/          hash, token, csv, correo
+|       `-- servicios/
+|           |-- index.js        Registro de los siete servicios
+|           |-- suscriptores.js Conecta los servicios al bus de eventos
+|           `-- <servicio>/     identidad, cursos, evaluaciones, gamificacion,
+|               |-- index.js        notificaciones, reportes, seguridad
+|               |-- manifiesto.js   (ver docs/arquitectura/README.md)
+|               |-- api/  aplicacion/  dominio/  infraestructura/  contrato/
 `-- human-firewall-frontend/
     |-- dist/                   Build compilado; lo sirve el backend (no se versiona)
     `-- src/
@@ -1043,11 +1229,22 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | 3 | `config/db.js` desactivaba la verificacion TLS de todo el proceso Node | Ya estaba corregido en `9f48d97`: el SSL se decide por URL y queda acotado al pool |
 | - | `auth.controller` tenia un bypass que entregaba un token de admin con `AdminPassword123!` sin consultar la base | Eliminado con la HU de logs de auditoria; el login fallido ahora queda en `data.logs` |
 | - | `PUT /api/users/:id` con un rol inexistente devolvia 500 con el error crudo de Postgres, y un id inexistente respondia "Usuario actualizado" | Valida rol e `is_active` (400) y responde 404 si el usuario no existe |
+| - | Un correo con el proveedor caido se daba por fallido tras 1 intento + 2 reintentos, y el criterio pide 3 reintentos | `email_jobs.max_attempts` pasa a contar intentos totales (`MAX_REINTENTOS + 1`), con prueba de regresion |
+| 4 | `JWT_SECRET` caia a `'secret'` si faltaba la variable | Sin valor por defecto (`compartido/config/entorno.js`): el servidor no arranca sin `DATABASE_URL` ni `JWT_SECRET` |
+| 7 | `auth.forgotPassword` devolvia el error real y permitia enumerar usuarios registrados | Responde siempre el mismo mensaje, exista o no la cuenta |
+| - | 68 respuestas 500 devolvian `error.message`, con el texto crudo de PostgreSQL | Formato comun de errores: un 500 responde un mensaje generico y el `traceId`; el detalle va al log |
+| - | Cuatro controladores (course, simulation, gamification, user) tenian 47 consultas SQL | Repositorios en `infraestructura/` y casos de uso en `aplicacion/`; ningun controlador importa la base |
+| - | Servicios que escribian en tablas de otro (notificaciones en `courses` y `course_assignments`, gamificacion en `quiz_attempts`) | Cada tabla tiene un dueno; las escrituras pasan por el contrato del dueno |
+| - | `seed_admin.js` tenia la contrasena del admin escrita en el codigo | La lee de `ADMIN_EMAIL` / `ADMIN_PASSWORD` |
+| - | La API no tenia contrato: la coleccion de Postman cubria 5 de 80 endpoints | Contrato OpenAPI 3.1 en `/api/docs`, verificado contra la API real por `tests/contratos.test.mjs` |
+| - | En una simulacion cuyas opciones no dan puntos, `pasos` daba 0 y el score por aciertos nunca se calculaba | Corregido en `evaluaciones/dominio/puntaje.js`; lo encontro la prueba unitaria |
 
 ### Pendiente
 
 | # | Fallo | Nota |
 |---|-------|------|
-| 4 | `JWT_SECRET` cae a `'secret'` si falta la variable | Mitigado con un aviso al arrancar; falta quitar el fallback |
-| 6 | `init_db.js` desincronizado con `schema.sql` | Reemplazar por el runner de `migrations/` |
-| 7 | `auth.forgotPassword` devuelve el error real y permite enumerar usuarios registrados | |
+| 6 | `init_db.js` desincronizado con `schema.sql` | Reemplazar por el runner de `migrations/` (ya existe: `npm run migrate`) |
+| - | Lecturas de tablas ajenas que quedan (reportes, resumen de desempeno, ranking, anomalias) | Declaradas con su motivo en cada `manifiesto.js`. Si se separa la base, reemplazarlas por proyecciones alimentadas por eventos |
+| - | Los servicios de aplicacion grandes (puntos, recompensas, notificaciones, reportes) todavia tienen su SQL adentro | El SQL nuevo va en repositorios; separar el existente cuando se toque cada archivo |
+| - | La migracion 027 siembra cuentas de desarrollo con contrasenas conocidas | No se edita (es una migracion mergeada); cambiarlas en cualquier entorno real |
+| - | La coleccion de Postman esta desactualizada | Importar `/api/docs/openapi.json` en Postman (Import > Link) |

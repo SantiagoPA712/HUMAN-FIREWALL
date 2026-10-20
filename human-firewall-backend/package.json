@@ -5,10 +5,10 @@
   "main": "index.js",
   "scripts": {
     "setup": "node scripts/setup-env.js",
-    "migrate": "node src/config/migrate.js",
+    "migrate": "node src/compartido/config/migrate.js",
     "dev": "npm run migrate && nodemon src/server.js",
     "start": "npm run migrate && node src/server.js",
-    "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs && node tests/recompensas.test.mjs && node tests/niveles.test.mjs && node tests/recomendaciones.test.mjs && node tests/simulaciones.test.mjs && node tests/eventos.test.mjs && node tests/reportes.test.mjs && node tests/seguridad.test.mjs && node tests/notificaciones-resultados.test.mjs && node tests/reportes-automaticos.test.mjs && node tests/reportes-organizacionales.test.mjs && node tests/logs.test.mjs",
+    "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs && node tests/recompensas.test.mjs && node tests/niveles.test.mjs && node tests/recomendaciones.test.mjs && node tests/simulaciones.test.mjs && node tests/eventos.test.mjs && node tests/reportes.test.mjs && node tests/seguridad.test.mjs && node tests/notificaciones-resultados.test.mjs && node tests/reportes-automaticos.test.mjs && node tests/reportes-organizacionales.test.mjs && node tests/logs.test.mjs && node tests/notificaciones-correo.test.mjs && node tests/invitaciones.test.mjs && node tests/unitarias.test.mjs && node tests/arquitectura.test.mjs && node tests/contratos.test.mjs",
     "test:migraciones": "node tests/migraciones.test.mjs",
     "test:gamificacion": "node tests/gamificacion.test.mjs",
     "test:recompensas": "node tests/recompensas.test.mjs",
@@ -21,13 +21,21 @@
     "test:notificaciones": "node tests/notificaciones-resultados.test.mjs",
     "test:reportes-automaticos": "node tests/reportes-automaticos.test.mjs",
     "test:organizacionales": "node tests/reportes-organizacionales.test.mjs",
-    "test:logs": "node tests/logs.test.mjs"
+    "test:logs": "node tests/logs.test.mjs",
+    "test:correo": "node tests/notificaciones-correo.test.mjs",
+    "test:invitaciones": "node tests/invitaciones.test.mjs",
+    "test:unitarias": "node tests/unitarias.test.mjs",
+    "test:arquitectura": "node tests/arquitectura.test.mjs",
+    "test:contratos": "node tests/contratos.test.mjs",
+    "docs:arquitectura": "node scripts/generar-catalogo-de-servicios.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -40,10 +48,12 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pdfkit": "^0.20.2",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.0",
+    "@seriousme/openapi-schema-validator": "^2.11.0",
     "nodemon": "^3.1.14"
   }
 }
