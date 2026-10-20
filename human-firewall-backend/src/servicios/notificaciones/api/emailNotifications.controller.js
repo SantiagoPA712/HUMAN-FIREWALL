@@ -7,6 +7,7 @@
  */
 
 const emailNotifications = require('../aplicacion/emailNotifications.service');
+const { responderError } = require('../../../compartido/http/errores');
 
 /**
  * GET /api/notifications/correo/preferencias
@@ -18,7 +19,7 @@ exports.getPreferencias = async (req, res) => {
     try {
         res.status(200).json(await emailNotifications.obtenerPreferencias(req.user.id));
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -39,7 +40,7 @@ exports.patchPreferencias = async (req, res) => {
         if (error.codigo === 400) {
             return res.status(400).json({ msg: error.message, errores: error.errores });
         }
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -53,6 +54,6 @@ exports.getEstado = async (req, res) => {
     try {
         res.status(200).json(await emailNotifications.estadoDeLaCola());
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

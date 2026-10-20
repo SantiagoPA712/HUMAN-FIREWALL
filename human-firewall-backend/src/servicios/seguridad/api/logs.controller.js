@@ -8,6 +8,7 @@
  */
 
 const dataLogs = require('../aplicacion/dataLogs.service');
+const { responderError } = require('../../../compartido/http/errores');
 
 /** Respuesta 400 con el detalle por campo, mismo formato que el resto de la API. */
 const invalidos = (res, errores) =>
@@ -27,7 +28,7 @@ exports.listLogs = async (req, res) => {
 
         res.status(200).json(await dataLogs.listar(filtros));
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -40,7 +41,7 @@ exports.getFilterOptions = async (req, res) => {
     try {
         res.status(200).json(await dataLogs.opcionesDeFiltro());
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -87,7 +88,7 @@ exports.exportLogs = async (req, res) => {
         if (error.campo) {
             return invalidos(res, [{ campo: error.campo, detalle: error.message }]);
         }
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -108,7 +109,7 @@ exports.getLog = async (req, res) => {
 
         res.status(200).json(log);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 

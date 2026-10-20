@@ -37,7 +37,8 @@
  */
 
 const db = require('../../../compartido/config/db');
-const levelsService = require('../../gamificacion/aplicacion/levels.service');
+// Escalera de niveles y progreso: por el contrato de gamificacion.
+const gamificacion = require('../infraestructura/clientes/gamificacion.cliente');
 
 /**
  * Cada cuanto recalcula el job. Criterio tecnico 3: configurable, diaria por
@@ -215,14 +216,14 @@ async function calcularProgresoPromedio(inicio, fin) {
               GROUP BY u.id, u.team_id`,
             [fin]
         ),
-        levelsService.obtenerEscalera()
+        gamificacion.obtenerEscalera()
     ]);
 
     // Acumuladores: uno por area, mas el de toda la organizacion (clave null).
     const acumulado = new Map([[null, { suma: 0, usuarios: 0 }]]);
 
     for (const u of usuarios) {
-        const progreso = levelsService.calcularProgreso(u.puntos, escalera);
+        const progreso = gamificacion.calcularProgreso(u.puntos, escalera);
         const nivel = progreso.nivel_actual || 0;
 
         const total = acumulado.get(null);
@@ -721,7 +722,7 @@ async function obtenerReporteOrganizacional({ userId, periodo, compararCon, area
  * @returns {Promise<{buffer: Buffer, mime: string, filas: number}>}
  */
 async function generarCsvOrganizacional({ periodo, areaId = null }) {
-    const { escaparCSV } = require('./reportExports.service');
+    const { escaparCSV } = require('../../../compartido/utils/csv');
 
     const reporte = await obtenerReporteOrganizacional({
         userId: null, periodo, areaId

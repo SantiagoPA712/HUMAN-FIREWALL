@@ -15,7 +15,9 @@
 
 const reportsService = require('../aplicacion/reports.service');
 const exportsService = require('../aplicacion/reportExports.service');
-const dataLogs = require('../../seguridad/aplicacion/dataLogs.service');
+const { responderError } = require('../../../compartido/http/errores');
+// data.logs es de seguridad: se llega por su contrato.
+const dataLogs = require('../infraestructura/clientes/seguridad.cliente');
 
 /**
  * GET /api/gamification/reports/performance
@@ -43,7 +45,7 @@ exports.getPerformanceReport = async (req, res) => {
         res.status(200).json(reporte);
 
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -55,7 +57,7 @@ exports.getReportFilters = async (req, res) => {
     try {
         res.status(200).json(await reportsService.obtenerOpcionesDeFiltro());
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -94,7 +96,7 @@ exports.exportPerformanceReport = async (req, res) => {
         // Exportacion de datos de personas: accion critica (HU de logs,
         // criterio tecnico 1). Se registra en los dos caminos, sincrono y
         // encolado: lo que importa es que alguien pidio los datos.
-        dataLogs.registrar({
+        dataLogs.registrarAccion({
             req,
             accion: dataLogs.ACCIONES.EXPORT,
             modulo: dataLogs.MODULOS.REPORTS,
@@ -130,7 +132,7 @@ exports.exportPerformanceReport = async (req, res) => {
                 errores: [{ campo: error.campo, detalle: error.message }]
             });
         }
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -158,7 +160,7 @@ exports.getExportStatus = async (req, res) => {
             completada_en: estado.completed_at
         });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -179,6 +181,6 @@ exports.downloadExport = async (req, res) => {
         res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
         res.download(archivo.ruta, archivo.file_name);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

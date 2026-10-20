@@ -17,7 +17,9 @@
  */
 
 const scheduledReports = require('../aplicacion/scheduledReports.service');
-const dataLogs = require('../../seguridad/aplicacion/dataLogs.service');
+const { responderError } = require('../../../compartido/http/errores');
+// data.logs es de seguridad: se llega por su contrato.
+const dataLogs = require('../infraestructura/clientes/seguridad.cliente');
 
 /**
  * GET /api/gamification/reports/schedules
@@ -33,7 +35,7 @@ exports.listSchedules = async (req, res) => {
             programaciones: await scheduledReports.listarProgramaciones()
         });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -58,7 +60,7 @@ exports.createSchedule = async (req, res) => {
 
         // Cambio de configuracion (HU de logs, criterio tecnico 1): una
         // programacion decide que datos salen, cada cuanto y hacia quien.
-        dataLogs.registrar({
+        dataLogs.registrarAccion({
             req,
             accion: dataLogs.ACCIONES.CONFIG_CHANGE,
             modulo: dataLogs.MODULOS.REPORTS,
@@ -70,7 +72,7 @@ exports.createSchedule = async (req, res) => {
         res.status(201).json(creada);
 
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -108,7 +110,7 @@ exports.updateSchedule = async (req, res) => {
         const campos = Object.keys(valores);
         const recortar = (fila) => Object.fromEntries(campos.map(c => [c, fila?.[c] ?? null]));
 
-        dataLogs.registrar({
+        dataLogs.registrarAccion({
             req,
             accion: dataLogs.ACCIONES.CONFIG_CHANGE,
             modulo: dataLogs.MODULOS.REPORTS,
@@ -121,7 +123,7 @@ exports.updateSchedule = async (req, res) => {
         res.status(200).json(actualizada);
 
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -149,7 +151,7 @@ exports.listHistory = async (req, res) => {
         res.status(200).json({ total: historial.length, resultados: historial });
 
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -179,6 +181,6 @@ exports.downloadHistoryFile = async (req, res) => {
         res.download(archivo.ruta, archivo.nombre);
 
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

@@ -1,21 +1,35 @@
-const db = require('../../../compartido/config/db');
+/**
+ * Controlador HTTP de gamificacion.
+ *
+ * Capa de presentacion: ya no importa la base de datos. Las consultas que
+ * tenia (18) pasaron a infraestructura/gamificacion.repositorio.js, el
+ * "usuario existe" lo responde identidad por su contrato, y los registros de
+ * auditoria van por el cliente de seguridad.
+ *
+ * POST /api/gamification/challenge se mudo a evaluaciones
+ * (api/desafios.controller.js): registra un intento, y los intentos son de
+ * ese servicio. La URL no cambio.
+ */
+
+const repo = require('../infraestructura/gamificacion.repositorio');
 const pointsService = require('../aplicacion/points.service');
-const eventBus = require('../../../compartido/eventos/eventBus');
-const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const rewardsService = require('../aplicacion/rewards.service');
 const levelsService = require('../aplicacion/levels.service');
 const recommendationsService = require('../aplicacion/recommendations.service');
-const auditService = require('../../seguridad/aplicacion/audit.service');
-const dataLogs = require('../../seguridad/aplicacion/dataLogs.service');
+const identidad = require('../infraestructura/clientes/identidad.cliente');
+const seguridad = require('../infraestructura/clientes/seguridad.cliente');
+const { responderError, ErrorHttp } = require('../../../compartido/http/errores');
+
+/** 404 si el usuario de la ruta no existe. */
+async function exigirUsuario(userId) {
+    if (!(await identidad.usuarioExiste(userId))) throw ErrorHttp.noEncontrado('Usuario no encontrado');
+}
 
 exports.getLeaderboard = async (req, res) => {
     try {
-        const { rows } = await db.query(
-            "SELECT id, email, total_points, level FROM users WHERE is_active = true ORDER BY total_points DESC LIMIT 10"
-        );
-        res.status(200).json(rows);
+        res.status(200).json(await repo.ranking(10));
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -23,30 +37,18 @@ exports.getMyStatus = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        const { rows: userRows } = await db.query(
-            "SELECT total_points, level FROM users WHERE id = $1",
-            [userId]
-        );
-
-        if (userRows.length === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+        const estado = await repo.estadoDe(userId);
+        if (!estado) return res.status(404).json({ msg: "Usuario no encontrado", codigo: 'NO_ENCONTRADO' });
 
         // Los datos salen del snapshot guardado en user_rewards, no del
         // catalogo: asi la respuesta no cambia si la recompensa se edito o se
         // elimino despues de otorgarse.
-        const { rows: badgeRows } = await db.query(`
-            SELECT reward_name AS name, reward_description AS description,
-                   reward_icon_url AS icon_url, earned_at
-            FROM user_rewards
-            WHERE user_id = $1
-            ORDER BY earned_at DESC
-        `, [userId]);
-
         res.status(200).json({
-            gamification: userRows[0],
-            badges: badgeRows
+            gamification: estado,
+            badges: await repo.insigniasDe(userId)
         });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -60,38 +62,33 @@ exports.createBadge = async (req, res) => {
             is_repeatable = false
         } = req.body;
 
-        if (!name) return res.status(400).json({ msg: "El nombre de la insignia es obligatorio" });
+        if (!name) return res.status(400).json({ msg: "El nombre de la insignia es obligatorio", codigo: 'VALIDACION' });
 
         // points_required se sigue aceptando por compatibilidad con el cliente
         // viejo, pero internamente ya es un parametro de condicion mas.
         const umbral = threshold != null ? threshold : (points_required || 0);
 
-        const { rows } = await db.query(
-            `INSERT INTO rewards_catalog
-                (name, description, icon_url, condition_type, condition_params, is_repeatable, points_required)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING *`,
-            [name, description, icon_url, condition_type,
-             JSON.stringify({ threshold: umbral }), is_repeatable, umbral]
-        );
+        const creada = await repo.insertarRecompensa({
+            name, description, iconUrl: icon_url, conditionType: condition_type, umbral, isRepeatable: is_repeatable
+        });
 
         // Alta en el catalogo de recompensas: creacion de un recurso que
         // decide quien gana que (HU de logs, criterio tecnico 1).
-        dataLogs.registrar({
+        seguridad.registrarAccion({
             req,
-            accion: dataLogs.ACCIONES.CREATE,
-            modulo: dataLogs.MODULOS.GAMIFICATION,
+            accion: seguridad.ACCIONES.CREATE,
+            modulo: seguridad.MODULOS.GAMIFICATION,
             recurso: 'reward',
-            recursoId: rows[0].id,
-            despues: rows[0]
+            recursoId: creada.id,
+            despues: creada
         });
 
-        res.status(201).json(rows[0]);
+        res.status(201).json(creada);
     } catch (error) {
         if (error.code === '23514') {
-            return res.status(400).json({ msg: "Tipo de condicion no valido" });
+            return res.status(400).json({ msg: "Tipo de condicion no valido", codigo: 'VALIDACION' });
         }
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -114,7 +111,7 @@ exports.assignBadge = async (req, res) => {
         const recompensaId = reward_id || badge_id;
 
         if (!user_id || !recompensaId) {
-            return res.status(400).json({ msg: "user_id y reward_id son obligatorios" });
+            return res.status(400).json({ msg: "user_id y reward_id son obligatorios", codigo: 'VALIDACION' });
         }
 
         if (!reason || String(reason).trim() === '') {
@@ -127,18 +124,15 @@ exports.assignBadge = async (req, res) => {
             });
         }
 
-        const { rows: catalogo } = await db.query(
-            "SELECT * FROM rewards_catalog WHERE id = $1",
-            [recompensaId]
-        );
-        if (catalogo.length === 0) {
-            return res.status(404).json({ msg: "Recompensa no encontrada en el catalogo" });
+        const recompensa = await repo.buscarRecompensa(recompensaId);
+        if (!recompensa) {
+            return res.status(404).json({ msg: "Recompensa no encontrada en el catalogo", codigo: 'NO_ENCONTRADO' });
         }
 
         // Se otorga por el mismo camino que el motor automatico, para que la
         // asignacion manual tambien quede con snapshot y sin duplicados.
         const otorgada = await rewardsService.otorgarRecompensa({
-            recompensa: catalogo[0],
+            recompensa,
             userId: user_id,
             sourceType: 'manual',
             sourceId: req.user.id,
@@ -149,197 +143,36 @@ exports.assignBadge = async (req, res) => {
             return res.status(200).json({ msg: "El usuario ya tiene esta insignia" });
         }
 
-        await auditService.registrar({
+        await seguridad.auditarAjusteManual({
             actorId: req.user.id,
             targetUserId: user_id,
             changeType: 'badge',
             previousValue: null,
-            newValue: { reward_id: catalogo[0].id, reward_name: catalogo[0].name },
+            newValue: { reward_id: recompensa.id, reward_name: recompensa.name },
             reason: String(reason).trim()
         });
 
         // audit_log es el registro del panel de seguridad; data.logs es el
         // registro central. El ajuste manual va a los dos.
-        dataLogs.registrar({
+        seguridad.registrarAccion({
             req,
-            accion: dataLogs.ACCIONES.MANUAL_ADJUSTMENT,
-            modulo: dataLogs.MODULOS.GAMIFICATION,
+            accion: seguridad.ACCIONES.MANUAL_ADJUSTMENT,
+            modulo: seguridad.MODULOS.GAMIFICATION,
             recurso: 'user',
             recursoId: user_id,
             despues: {
                 tipo: 'badge',
-                reward_id: catalogo[0].id,
-                reward_name: catalogo[0].name,
+                reward_id: recompensa.id,
+                reward_name: recompensa.name,
                 motivo: String(reason).trim()
             }
         });
 
         res.status(201).json({ msg: "Insignia asignada exitosamente", data: otorgada });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
-
-/**
- * POST /api/gamification/challenge
- *
- * FALLO CORREGIDO: la version anterior hacia INSERT en user_challenge_results
- * y despues UPDATE users en dos queries sueltas, sin transaccion. Si el UPDATE
- * fallaba, el UNIQUE(user_id, challenge_id) bloqueaba el reintento y el usuario
- * perdia los puntos para siempre.
- *
- * Ahora el desafio se trata como una evaluacion aprobada: se registra el
- * intento y se encola quiz.approved. Los puntos los asigna el servicio de
- * gamificacion de forma asincrona contra el historial inmutable.
- */
-exports.completeChallenge = async (req, res) => {
-    const client = await db.connect();
-
-    try {
-        const { challengeId, passed, score } = req.body;
-        const userId = req.user.id;
-
-        if (!challengeId) return res.status(400).json({ msg: "El ID del desafío es obligatorio" });
-
-        // FALLO CORREGIDO: este endpoint escribia score=100 y passed=true fijos,
-        // sin mirar como le habia ido al usuario. Consecuencias:
-        //   1. Un intento reprobado no se podia registrar de ninguna manera, asi
-        //      que quiz_attempts.passed nunca valia false. Las areas de
-        //      oportunidad y las recomendaciones de refuerzo, que se calculan
-        //      justamente sobre eso, no tenian de donde salir.
-        //   2. Peor: el juego de ingenieria social llamaba a este endpoint
-        //      tambien al perder, y como el resultado venia fijo, caer en la
-        //      estafa otorgaba los mismos puntos que detectarla.
-        //
-        // El resultado ahora viene del cliente. `passed` se acepta como
-        // opcional y por defecto true para no romper a un cliente viejo que no
-        // lo mande, pero las cinco pantallas del portal ya envian el real.
-        const aprobado = passed !== false;
-        const puntaje = Number.isInteger(score)
-            ? Math.max(0, Math.min(100, score))
-            : (aprobado ? 100 : 0);
-
-        const { rows: challengeRows } = await client.query(
-            "SELECT * FROM challenges WHERE id = $1", [challengeId]
-        );
-        if (challengeRows.length === 0) return res.status(404).json({ msg: "Desafío no encontrado" });
-
-        const challenge = challengeRows[0];
-
-        // Todo dentro de una transaccion: el registro del desafio, el intento y
-        // el encolado del evento se confirman juntos o no se confirma ninguno.
-        //
-        // Sin esto, si una de las escrituras falla, la fila de
-        // user_challenge_results queda igual y su UNIQUE bloquea el reintento:
-        // el usuario pierde los puntos de forma definitiva y en silencio.
-        await client.query('BEGIN');
-
-        // Solo un desafio superado se marca como ganado. Un fallo queda
-        // unicamente en el historial de intentos, para que el usuario pueda
-        // volver a intentarlo y ganarlo despues.
-        let yaGanado = false;
-
-        if (aprobado) {
-            const { rows: nuevas } = await client.query(
-                `INSERT INTO user_challenge_results (user_id, challenge_id, won)
-                 VALUES ($1, $2, true)
-                 ON CONFLICT (user_id, challenge_id) DO NOTHING
-                 RETURNING id`,
-                [userId, challengeId]
-            );
-            yaGanado = nuevas.length === 0;
-        }
-
-        // El intento SIEMPRE se registra, se haya ganado o perdido: es la
-        // materia prima del resumen de desempeno y de las recomendaciones.
-        //
-        // Los tipos van explicitos: $1 y $2 se usan en el VALUES y en la
-        // subconsulta, y sin cast Postgres deduce tipos distintos en cada
-        // contexto y rechaza la consulta.
-        // El RETURNING se agrego con la HU de notificacion de resultados: hay
-        // que poder distinguir un fallo de otro del mismo desafio, porque si no
-        // los dos avisos se deduplican en uno solo.
-        //
-        // Vuelven dos columnas y cada una tiene su trabajo:
-        //   - `id` IDENTIFICA el intento. Lo asigna la secuencia de la tabla,
-        //     asi que es unico aunque dos envios entren a la vez.
-        //   - `attempt_no` es para el TEXTO del aviso ("intento 2"). Sale de un
-        //     COUNT(*) + 1 sin lock, asi que dos envios simultaneos pueden
-        //     calcular el mismo numero: sirve para mostrar, no para identificar.
-        const { rows: intentoRows } = await client.query(
-            `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
-             VALUES ($1::int, $2::varchar, 'challenge', $3::int, $4::int, 60, $5::boolean,
-                     (SELECT COUNT(*) + 1 FROM quiz_attempts
-                       WHERE user_id = $1::int AND quiz_ref = $2::varchar))
-             RETURNING id, attempt_no`,
-            [userId, challengeId, challenge.course_id || null, puntaje, aprobado]
-        );
-
-        // Criterio de aceptacion 2 de la HU de puntos: no se asignan puntos si
-        // el intento fue reprobado. El evento solo se emite al aprobar.
-        if (aprobado && !yaGanado) {
-            await eventBus.publish(EVENTOS.QUIZ_APPROVED, {
-                userId,
-                quizRef: challengeId,
-                quizType: 'challenge',
-                score: puntaje,
-                passed: true,
-                basePoints: challenge.points_reward,
-                // El curso viaja en el evento igual que en quiz.failed. Sin el,
-                // RH se enteraba cuando alguien REPROBABA contenido de un curso
-                // critico pero no cuando lo APROBABA, y esa asimetria no tiene
-                // defensa: el curso se marca critico para tener visibilidad de
-                // lo que pasa con el, no solo de lo que sale mal.
-                //
-                // Es un campo mas: points, rewards y recommendations leen
-                // campos puntuales del payload y no se enteran de este.
-                courseId: challenge.course_id || null
-            }, client);
-
-        } else if (!aprobado) {
-            // Criterio tecnico 1 de la HU de notificacion de resultados: quien
-            // notifica consume eventos de dominio, no vuelve a evaluar nada.
-            // Para eso el hecho tiene que publicarse, y un intento reprobado no
-            // publicaba ninguno.
-            //
-            // Va dentro de la misma transaccion que el intento, igual que el
-            // evento de aprobacion: el aviso existe si y solo si el intento
-            // quedo registrado.
-            //
-            // No otorga puntos ni cambia nada de lo que ya funcionaba: el
-            // unico suscriptor es el servicio de notificaciones de resultado.
-            await eventBus.publish(EVENTOS.QUIZ_FAILED, {
-                userId,
-                quizRef: challengeId,
-                quizType: 'challenge',
-                score: puntaje,
-                passed: false,
-                attemptId: intentoRows[0].id,
-                attemptNo: intentoRows[0].attempt_no,
-                courseId: challenge.course_id || null
-            }, client);
-        }
-
-        await client.query('COMMIT');
-
-        res.status(200).json({
-            msg: !aprobado
-                ? "Intento registrado: esta vez no lo superaste"
-                : yaGanado ? "Ya habías superado este desafío" : "Desafío superado con éxito",
-            aprobado,
-            score: puntaje,
-            ya_completado: yaGanado,
-            puntos_estimados: (aprobado && !yaGanado) ? challenge.points_reward : 0
-        });
-
-    } catch (error) {
-        await client.query('ROLLBACK').catch(() => {});
-        res.status(500).json({ msg: error.message });
-    } finally {
-        client.release();
-    }
-};
-
 
 /**
  * GET /api/gamification/points/:userId
@@ -357,13 +190,12 @@ exports.getUserPoints = async (req, res) => {
         const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
         const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
 
-        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
-        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+        await exigirUsuario(userId);
 
         const resultado = await pointsService.obtenerHistorial(userId, { page, limit });
         res.status(200).json(resultado);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -374,13 +206,9 @@ exports.getUserPoints = async (req, res) => {
  */
 exports.getPointsRules = async (req, res) => {
     try {
-        const { rows } = await db.query(
-            `SELECT code, source_type, points_mode, points, allow_repeat, description
-               FROM points_rules WHERE is_active = true ORDER BY source_type`
-        );
-        res.status(200).json(rows);
+        res.status(200).json(await repo.reglasActivas());
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -398,13 +226,12 @@ exports.getUserRewards = async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10);
 
-        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
-        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+        await exigirUsuario(userId);
 
         const resultado = await rewardsService.obtenerRecompensasDeUsuario(userId);
         res.status(200).json(resultado);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -423,13 +250,12 @@ exports.getUserLevel = async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10);
 
-        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
-        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+        await exigirUsuario(userId);
 
         const resultado = await levelsService.obtenerNivelDeUsuario(userId);
         res.status(200).json(resultado);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -449,13 +275,12 @@ exports.getUserPerformance = async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10);
 
-        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
-        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+        await exigirUsuario(userId);
 
         const resultado = await recommendationsService.obtenerResumenDesempeno(userId);
         res.status(200).json(resultado);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -480,13 +305,12 @@ exports.getUserRecommendations = async (req, res) => {
     try {
         const userId = Number.parseInt(req.params.userId, 10);
 
-        const { rowCount } = await db.query("SELECT 1 FROM users WHERE id = $1", [userId]);
-        if (rowCount === 0) return res.status(404).json({ msg: "Usuario no encontrado" });
+        await exigirUsuario(userId);
 
         const proyeccion = await recommendationsService.obtenerRecomendacionesPrecalculadas(userId);
         res.status(200).json(proyeccion);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -500,7 +324,7 @@ exports.getLevelsConfig = async (req, res) => {
         const escalera = await levelsService.obtenerEscalera();
         res.status(200).json(escalera);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -510,15 +334,8 @@ exports.getLevelsConfig = async (req, res) => {
  */
 exports.getRewardsCatalog = async (req, res) => {
     try {
-        const { rows } = await db.query(
-            `SELECT id, name, description, icon_url, condition_type,
-                    condition_params, is_repeatable
-               FROM rewards_catalog
-              WHERE is_active = true
-              ORDER BY condition_type, id`
-        );
-        res.status(200).json(rows);
+        res.status(200).json(await repo.catalogoPublico());
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

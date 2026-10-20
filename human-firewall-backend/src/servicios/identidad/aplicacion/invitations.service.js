@@ -36,9 +36,12 @@ const crypto = require('crypto');
 const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
-const dataLogs = require('../../seguridad/aplicacion/dataLogs.service');
-const notificationsService = require('../../notificaciones/aplicacion/notifications.service');
-const { esCorreoValido } = require('../../notificaciones/aplicacion/emailNotifications.service');
+const { esCorreoValido } = require('../../../compartido/utils/correo');
+const usuarios = require('../infraestructura/usuarios.repositorio');
+// data.logs es de seguridad y la bandeja de avisos de notificaciones: se
+// llega a los dos por su contrato, no importando sus archivos internos.
+const dataLogs = require('../infraestructura/clientes/seguridad.cliente');
+const notificaciones = require('../infraestructura/clientes/notificaciones.cliente');
 const { hashPassword } = require('../../../compartido/utils/hash');
 const { generateToken } = require('../../../compartido/utils/token');
 
@@ -130,7 +133,7 @@ async function registrarEvento(cliente, inv, accion, actorId = null, ocurrio = n
  *                            request (al aceptar, la cuenta recien creada)
  */
 function auditar(req, accion, inv, extra = {}, actorId = undefined) {
-    dataLogs.registrar({
+    dataLogs.registrarAccion({
         req,
         accion,
         modulo: dataLogs.MODULOS.USERS,
@@ -641,16 +644,12 @@ async function solicitarReenvio(token) {
 
     // Aviso en la bandeja de quien la genero; si esa cuenta ya no esta
     // activa, a todos los admins activos, para que el pedido no se pierda.
-    let { rows: destinatarios } = await db.query(
-        'SELECT id FROM users WHERE id = $1 AND is_active = true', [inv.invited_by]
-    );
-    if (destinatarios.length === 0) {
-        ({ rows: destinatarios } = await db.query(
-            "SELECT id FROM users WHERE role = 'admin' AND is_active = true"
-        ));
-    }
-    for (const { id } of destinatarios) {
-        await notificationsService.crearSinEnviar('user.invitation_resend_requested', {
+    const destinatarios = await usuarios.estaActivo(inv.invited_by)
+        ? [inv.invited_by]
+        : await usuarios.activosConRol('admin');
+
+    for (const id of destinatarios) {
+        await notificaciones.avisarEnBandeja('user.invitation_resend_requested', {
             title: `Pedido de reenvio de invitacion: ${inv.email}`,
             body: `La invitacion de ${inv.email} (${inv.role}) vencio y la persona pidio una nueva.\n` +
                   `Podes reenviarla desde el panel de administracion: /admin`,

@@ -269,7 +269,7 @@ check('generar el resumen no toca lesson_progress', antesL.n === despuesL.n);
 // areas de oportunidad y por lo tanto no hay nada que recomendar.
 console.log('\n--- REGISTRO DE INTENTOS FALLIDOS ---');
 
-const controller = require_('./servicios/gamificacion/api/gamification.controller');
+const controller = require_('./servicios/evaluaciones/api/desafios.controller');
 const eventBus2 = require_('./compartido/eventos/eventBus');
 
 // Stubs minimos de req/res para ejercitar el controlador real.

@@ -1,9 +1,17 @@
-const db = require('../../../compartido/config/db');
-const userService = require('../aplicacion/user.service');
-const dataLogs = require('../../seguridad/aplicacion/dataLogs.service');
+/**
+ * Controlador HTTP de usuarios (/api/users).
+ *
+ * Capa de presentacion: el SQL que tenia paso a
+ * infraestructura/usuarios.repositorio.js y los roles e idiomas validos a
+ * dominio/usuario.js.
+ */
 
-// Mismos valores que el CHECK de users.role (migracion 032).
-const ROLES_VALIDOS = ['employee', 'instructor', 'admin', 'rh', 'security', 'manager'];
+const userService = require('../aplicacion/user.service');
+const usuarios = require('../infraestructura/usuarios.repositorio');
+const { ROLES: ROLES_VALIDOS, IDIOMAS: IDIOMAS_VALIDOS } = require('../dominio/usuario');
+const { responderError } = require('../../../compartido/http/errores');
+// data.logs es de seguridad: se llega por su contrato.
+const dataLogs = require('../infraestructura/clientes/seguridad.cliente');
 
 exports.create = async (req, res) => {
     try {
@@ -20,7 +28,7 @@ exports.create = async (req, res) => {
         // Creacion de un recurso sensible (criterio tecnico 1 de la HU de
         // logs). Se pasa el body tal cual a proposito: trae la contrasena, y
         // el enmascarado del servicio la deja en "[REDACTED]" (criterio 5).
-        dataLogs.registrar({
+        dataLogs.registrarAccion({
             req,
             accion: dataLogs.ACCIONES.CREATE,
             modulo: dataLogs.MODULOS.USERS,
@@ -31,7 +39,7 @@ exports.create = async (req, res) => {
 
         res.status(201).json({ msg: "Usuario creado" });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -40,7 +48,7 @@ exports.getAll = async (req, res) => {
         const users = await userService.getUsers();
         res.json(users);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -74,41 +82,26 @@ exports.updateUser = async (req, res) => {
             return res.status(400).json({ msg: 'Parametros invalidos', errores });
         }
 
-        const { rows: actuales } = await db.query(
-            'SELECT id, role, is_active FROM users WHERE id = $1', [id]
-        );
-        if (actuales.length === 0) return res.status(404).json({ msg: 'Usuario no encontrado' });
-        const antes = actuales[0];
+        const antes = await usuarios.estadoActual(id);
+        if (!antes) return res.status(404).json({ msg: 'Usuario no encontrado', codigo: 'NO_ENCONTRADO' });
 
-        const campos = [];
-        const params = [];
-        if (role !== undefined && role !== antes.role) {
-            params.push(role);
-            campos.push(`role = $${params.length}`);
-        }
-        if (is_active !== undefined && is_active !== antes.is_active) {
-            params.push(is_active);
-            campos.push(`is_active = $${params.length}`);
-        }
+        const cambios = {};
+        if (role !== undefined && role !== antes.role) cambios.role = role;
+        if (is_active !== undefined && is_active !== antes.is_active) cambios.is_active = is_active;
 
         // Nada que cambiar: no se escribe ni se registra un "cambio" vacio.
-        if (campos.length === 0) {
+        if (Object.keys(cambios).length === 0) {
             return res.status(200).json({ msg: "Usuario actualizado" });
         }
 
-        params.push(id);
-        const { rows: [despues] } = await db.query(
-            `UPDATE users SET ${campos.join(', ')} WHERE id = $${params.length}
-             RETURNING id, role, is_active`,
-            params
-        );
+        const despues = await usuarios.actualizar(id, cambios);
 
         // Un cambio de rol es su propio tipo de accion (criterio tecnico 1
         // lo nombra aparte): es lo primero que se busca ante una escalada de
         // privilegios. Si en la misma llamada tambien cambio is_active, va en
         // la misma fila.
         const cambioDeRol = despues.role !== antes.role;
-        dataLogs.registrar({
+        dataLogs.registrarAccion({
             req,
             accion: cambioDeRol ? dataLogs.ACCIONES.ROLE_CHANGE : dataLogs.ACCIONES.UPDATE,
             modulo: dataLogs.MODULOS.USERS,
@@ -120,7 +113,7 @@ exports.updateUser = async (req, res) => {
 
         res.status(200).json({ msg: "Usuario actualizado" });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -136,33 +129,25 @@ exports.deactivateUser = async (req, res) => {
             return res.status(400).json({ msg: 'Id de usuario invalido' });
         }
 
-        const { rows } = await db.query(
-            `UPDATE users u SET is_active = false
-               FROM (SELECT id, is_active FROM users WHERE id = $1) previo
-              WHERE u.id = previo.id
-          RETURNING previo.is_active AS estaba_activo`,
-            [id]
-        );
-        if (rows.length === 0) return res.status(404).json({ msg: 'Usuario no encontrado' });
+        const previo = await usuarios.desactivar(id);
+        if (!previo) return res.status(404).json({ msg: 'Usuario no encontrado', codigo: 'NO_ENCONTRADO' });
 
-        dataLogs.registrar({
+        dataLogs.registrarAccion({
             req,
             accion: dataLogs.ACCIONES.DEACTIVATE,
             modulo: dataLogs.MODULOS.USERS,
             recurso: 'user',
             recursoId: id,
-            antes: { is_active: rows[0].estaba_activo },
+            antes: { is_active: previo.estaba_activo },
             despues: { is_active: false }
         });
 
         res.status(200).json({ msg: "Usuario desactivado" });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
-// Mismos valores que el CHECK de users.language (migracion 034).
-const IDIOMAS_VALIDOS = ['es', 'en'];
 
 /**
  * GET /api/users/me
@@ -176,7 +161,7 @@ exports.getMe = async (req, res) => {
         if (!perfil) return res.status(404).json({ msg: 'Usuario no encontrado' });
         res.status(200).json(perfil);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -204,6 +189,6 @@ exports.updateMe = async (req, res) => {
         if (!perfil) return res.status(404).json({ msg: 'Usuario no encontrado' });
         res.status(200).json(perfil);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

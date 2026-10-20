@@ -3,6 +3,11 @@ const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { comparePassword } = require('../../../compartido/utils/hash');
 const { generateToken } = require('../../../compartido/utils/token');
+const { ErrorHttp } = require('../../../compartido/http/errores');
+
+// Los errores de negocio se lanzan como ErrorHttp: el controlador responde
+// con su status y su mensaje. Cualquier otro error (la base caida, por
+// ejemplo) sale como 500 generico, sin el texto interno.
 
 exports.login = async (email, password) => {
 
@@ -12,14 +17,14 @@ exports.login = async (email, password) => {
     );
 
     if (rows.length === 0) {
-        throw new Error("Credenciales inválidas");
+        throw new ErrorHttp(401, "Credenciales inválidas", { codigo: 'NO_AUTENTICADO' });
     }
 
     const user = rows[0];
 
 
     if (user.lock_until && new Date() < user.lock_until) {
-        throw new Error("Cuenta bloqueada temporalmente");
+        throw new ErrorHttp(401, "Cuenta bloqueada temporalmente", { codigo: 'NO_AUTENTICADO' });
     }
 
     const valid = await comparePassword(password, user.password);
@@ -30,7 +35,7 @@ exports.login = async (email, password) => {
             [user.id]
         );
 
-        throw new Error("Credenciales inválidas");
+        throw new ErrorHttp(401, "Credenciales inválidas", { codigo: 'NO_AUTENTICADO' });
     }
 
     // reset intentos
@@ -55,7 +60,9 @@ exports.register = async (email, password) => {
     );
 
     if (existingUser.length > 0) {
-        throw new Error("El correo ya está en uso");
+        // 400 y no 409 a proposito: el frontend ya interpreta este 400. Pasar a 409
+        // seria un cambio de contrato incompatible (ver docs/contratos/POLITICA.md).
+        throw new ErrorHttp(400, "El correo ya está en uso", { codigo: 'CONFLICTO' });
     }
 
     // 2. Hash de contraseña

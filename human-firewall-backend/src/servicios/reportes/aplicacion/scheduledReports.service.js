@@ -42,7 +42,8 @@ const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const reportsService = require('./reports.service');
 const exportsService = require('./reportExports.service');
 const orgReportsService = require('./orgReports.service');
-const notificationsService = require('../../notificaciones/aplicacion/notifications.service');
+// Los avisos (bandeja y correo) los entrega notificaciones por su contrato.
+const notificaciones = require('../infraestructura/clientes/notificaciones.cliente');
 
 /** Cada cuanto revisa el scheduler si vencio alguna programacion. */
 const INTERVALO_SCHEDULER_MS =
@@ -558,9 +559,9 @@ async function entregarAviso(fila) {
 
     // Crea la notificacion si no existia. En un reintento devuelve null porque
     // el hecho ya estaba notificado, y ahi lo unico pendiente es el correo.
-    await notificationsService.notificar(evento, aviso, fila.user_id);
+    await notificaciones.notificar(evento, aviso, fila.user_id);
 
-    const estado = await notificationsService.reenviarCorreo({ dedupeKey: aviso.dedupeKey });
+    const estado = await notificaciones.reenviarCorreo({ dedupeKey: aviso.dedupeKey });
 
     if (estado === 'failed') {
         throw new Error(`no se pudo entregar el correo del aviso ${aviso.dedupeKey}`);

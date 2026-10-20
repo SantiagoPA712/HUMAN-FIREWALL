@@ -1,19 +1,27 @@
+/**
+ * Rutas de simulaciones, montadas en /api/simulations.
+ * Orden: autenticacion -> rol -> validacion del DTO -> controlador.
+ */
+
 const express = require('express');
 const router = express.Router();
-const simulationController = require('./simulation.controller');
+const controller = require('./simulation.controller');
+const esquemas = require('./esquemas');
 const { verifyToken } = require('../../../compartido/middlewares/auth.middleware');
+const { validar } = require('../../../compartido/http/validacion');
 
-// Rutas genéricas.
+const gestores = verifyToken(['admin', 'instructor']);
+
 // El listado y submit-decision van ANTES que /:simulationId: si no, Express
-// leería "submit-decision" como un id de simulación y nunca llegarían acá.
-router.get('/', verifyToken(), simulationController.listSimulations);
-router.post('/submit-decision', verifyToken(), simulationController.submitDecision);
-router.post('/:simulationId/complete', verifyToken(), simulationController.completeSimulation);
-router.get('/:simulationId', verifyToken(), simulationController.getSimulationDetails);
+// leeria "submit-decision" como un id de simulacion.
+router.get('/', verifyToken(), controller.listSimulations);
+router.post('/submit-decision', verifyToken(), validar(esquemas.registrarDecision), controller.submitDecision);
+router.post('/:simulationId/complete', verifyToken(), validar(esquemas.completarSimulacion), controller.completeSimulation);
+router.get('/:simulationId', verifyToken(), validar(esquemas.porSimulacion), controller.getSimulationDetails);
 
-// Creación por Administradores / Instructores
-router.post('/', verifyToken(['admin', 'instructor']), simulationController.createSimulation);
-router.post('/:simulationId/steps', verifyToken(['admin', 'instructor']), simulationController.addStep);
-router.post('/steps/:stepId/options', verifyToken(['admin', 'instructor']), simulationController.addOption);
+// Creacion: administradores e instructores.
+router.post('/', gestores, validar(esquemas.crearSimulacion), controller.createSimulation);
+router.post('/:simulationId/steps', gestores, validar(esquemas.agregarPaso), controller.addStep);
+router.post('/steps/:stepId/options', gestores, validar(esquemas.agregarOpcion), controller.addOption);
 
 module.exports = router;

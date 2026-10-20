@@ -31,6 +31,11 @@
  */
 
 const db = require('../../../compartido/config/db');
+// Desafios y simulaciones son de evaluaciones, cursos de cursos y cuentas de
+// identidad: las etiquetas y los destinatarios se piden por sus contratos.
+const identidad = require('../infraestructura/clientes/identidad.cliente');
+const cursos = require('../infraestructura/clientes/cursos.cliente');
+const evaluaciones = require('../infraestructura/clientes/evaluaciones.cliente');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const notificationsService = require('./notifications.service');
@@ -83,19 +88,17 @@ function claveDeIntento(p) {
 
 /** Nombre legible de un desafio, por su id de texto. */
 async function nombreDeDesafio(quizRef) {
-    const { rows } = await db.query('SELECT name FROM challenges WHERE id = $1', [String(quizRef)]);
-    return rows[0]?.name || `evaluacion ${quizRef}`;
+    return (await evaluaciones.nombreDeDesafio(quizRef)) || `evaluacion ${quizRef}`;
 }
 
 async function tituloDeCurso(courseId) {
     if (!courseId) return null;
-    const { rows } = await db.query('SELECT title, is_critical FROM courses WHERE id = $1', [courseId]);
-    return rows[0] || null;
+    const curso = await cursos.obtenerTitulo(courseId);
+    return curso ? { title: curso.title, is_critical: curso.is_critical } : null;
 }
 
 async function tituloDeSimulacion(simulationId) {
-    const { rows } = await db.query('SELECT title FROM simulations WHERE id = $1', [simulationId]);
-    return rows[0]?.title || `simulacion ${simulationId}`;
+    return (await evaluaciones.tituloDeSimulacion(simulationId)) || `simulacion ${simulationId}`;
 }
 
 // ---------------------------------------------------------------------
@@ -118,25 +121,7 @@ async function tituloDeSimulacion(simulationId) {
  * la lista de destinatarios (criterio tecnico 2).
  */
 async function destinatariosRh(userId) {
-    const { rows: delEquipo } = await db.query(
-        `SELECT rh.id
-           FROM users empleado
-           JOIN users rh ON rh.team_id = empleado.team_id
-          WHERE empleado.id = $1
-            AND empleado.team_id IS NOT NULL
-            AND rh.role = 'rh'
-            AND rh.is_active = true
-            AND rh.id <> empleado.id`,
-        [userId]
-    );
-
-    if (delEquipo.length > 0) return delEquipo.map(r => r.id);
-
-    const { rows: todos } = await db.query(
-        `SELECT id FROM users WHERE role = 'rh' AND is_active = true AND id <> $1`,
-        [userId]
-    );
-    return todos.map(r => r.id);
+    return identidad.responsablesRhDe(userId);
 }
 
 // ---------------------------------------------------------------------
@@ -210,19 +195,15 @@ async function actualizarPreferencias(userId, cambios = {}) {
 // Cursos criticos (criterio de aceptacion 2)
 // ---------------------------------------------------------------------
 
+// La marca is_critical vive en courses, que es del servicio de cursos. La
+// pantalla de configuracion sigue en /api/notifications/cursos-criticos,
+// pero la escritura la hace cursos por su contrato.
 async function listarCursos() {
-    const { rows } = await db.query(
-        'SELECT id, title, is_critical FROM courses ORDER BY title'
-    );
-    return rows;
+    return cursos.listarConCriticidad();
 }
 
 async function marcarCursoCritico(courseId, critico) {
-    const { rows } = await db.query(
-        'UPDATE courses SET is_critical = $2 WHERE id = $1 RETURNING id, title, is_critical',
-        [courseId, critico]
-    );
-    return rows[0] || null;
+    return cursos.marcarCritico(courseId, critico);
 }
 
 // ---------------------------------------------------------------------
@@ -532,10 +513,8 @@ async function manejar(evento, payload) {
     const curso = await tituloDeCurso(aviso.courseId);
     if (!curso || !curso.is_critical) return { dueno, rh: 0 };
 
-    const { rows: empleados } = await db.query(
-        'SELECT id, email FROM users WHERE id = $1', [payload.userId]
-    );
-    const empleado = empleados[0];
+    const contacto = await identidad.obtenerContacto(payload.userId);
+    const empleado = contacto ? { id: contacto.id, email: contacto.email } : null;
     if (!empleado) return { dueno, rh: 0 };
 
     const rhs = await destinatariosRh(payload.userId);

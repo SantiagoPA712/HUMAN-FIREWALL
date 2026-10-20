@@ -33,6 +33,9 @@
  */
 
 const db = require('../../../compartido/config/db');
+const identidad = require('../infraestructura/clientes/identidad.cliente');
+const cursos = require('../infraestructura/clientes/cursos.cliente');
+const { esCorreoValido } = require('../../../compartido/utils/correo');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const plantillas = require('./emailTemplates.service');
@@ -87,11 +90,10 @@ const BACKOFF_BASE_SEGUNDOS = numeroDeEntorno('EMAIL_RETRY_BASE_SECONDS', 30);
 /** Cada cuanto mira la cola el worker. Es la red de seguridad del despertar inmediato. */
 const INTERVALO_WORKER_MS = numeroDeEntorno('EMAIL_WORKER_INTERVAL_SECONDS', 15) * 1000;
 
-/** Con cuanta anticipacion se avisa que vence un curso. */
-const VENTANA_VENCIMIENTO_HORAS = numeroDeEntorno('EMAIL_DEADLINE_WINDOW_HOURS', 48);
-
-/** Cada cuanto se buscan fechas limite proximas. */
-const INTERVALO_VENCIMIENTOS_MS = numeroDeEntorno('EMAIL_DEADLINE_SCAN_MINUTES', 15) * 60 * 1000;
+// La ventana y la frecuencia de las fechas limite proximas
+// (EMAIL_DEADLINE_WINDOW_HOURS, EMAIL_DEADLINE_SCAN_MINUTES) ahora las usa el
+// servicio de cursos, que es el dueno de las asignaciones y publica
+// course.deadline_approaching. Este servicio solo consume ese evento.
 
 /** Un job en 'processing' por mas de esto quedo huerfano de un proceso caido. */
 const MINUTOS_JOB_HUERFANO = 10;
@@ -155,18 +157,7 @@ function usarTransporte(nuevo) {
 // Validaciones
 // ---------------------------------------------------------------------
 
-/**
- * Criterio tecnico 4: la direccion se valida ANTES de intentar el envio.
- *
- * No pretende ser RFC 5322: descarta lo que seguro no es un correo (vacio,
- * sin arroba, sin dominio, con espacios). Lo que pase este filtro y el
- * proveedor rechace cae como error permanente en el worker.
- */
-function esCorreoValido(email) {
-    if (typeof email !== 'string') return false;
-    const valor = email.trim();
-    return valor.length > 0 && valor.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor);
-}
+// esCorreoValido se movio a compartido/utils/correo.js (tambien la usa identidad).
 
 /**
  * Un error es transitorio si reintentar puede servir.
@@ -247,13 +238,15 @@ async function obtenerPreferencias(userId) {
         [userId]
     );
 
-    const { rows: [usuario] } = await db.query(
-        `SELECT u.language,
-                COALESCE((SELECT enabled FROM notification_preferences
-                           WHERE user_id = u.id AND channel = 'email'), true) AS canal_email
-           FROM users u WHERE u.id = $1`,
+    // El idioma es un dato de la cuenta (identidad); el canal es de este servicio.
+    const contacto = await identidad.obtenerContacto(userId);
+    const { rows: [canal] } = await db.query(
+        `SELECT enabled FROM notification_preferences WHERE user_id = $1 AND channel = 'email'`,
         [userId]
     );
+    const usuario = contacto
+        ? { language: contacto.language, canal_email: canal ? canal.enabled : true }
+        : null;
 
     return {
         user_id: userId,
@@ -435,10 +428,7 @@ async function encolar({ userId = null, destinatario = null, tipo, datos = {}, d
 
     let usuario;
     if (userId) {
-        ({ rows: [usuario] } = await db.query(
-            'SELECT id, email, language, full_name FROM users WHERE id = $1',
-            [userId]
-        ));
+        usuario = await identidad.obtenerContacto(userId);
         if (!usuario) {
             console.warn(`[email] ${tipo}: el usuario ${userId} no existe, no hay a quien escribirle`);
             return { estado: 'sin_usuario' };
@@ -704,72 +694,11 @@ async function procesarPendientes(maxPorTanda = 50) {
 }
 
 // ---------------------------------------------------------------------
-// Fecha limite proxima
-// ---------------------------------------------------------------------
-
-/**
- * Busca asignaciones que vencen dentro de la ventana y publica un evento por
- * cada una.
- *
- * Nadie "hace" que se acerque una fecha: es el paso del tiempo. Por eso este
- * evento no lo publica un controlador sino este reloj. La marca
- * deadline_notified_at se escribe en la MISMA transaccion que el evento, asi
- * que una asignacion avisa una sola vez aunque haya varias instancias.
- *
- * @returns {Promise<number>} cuantos avisos se publicaron
- */
-async function buscarVencimientosProximos(ahora = new Date(), maxPorTanda = 100) {
-    const client = await db.connect();
-    try {
-        await client.query('BEGIN');
-
-        const { rows } = await client.query(
-            `SELECT id, user_id, course_id, due_date
-               FROM course_assignments
-              WHERE due_date IS NOT NULL
-                AND deadline_notified_at IS NULL
-                AND COALESCE(status, 'assigned') <> 'completed'
-                AND due_date > $1::timestamptz
-                AND due_date <= $1::timestamptz + ($2 || ' hours')::interval
-              ORDER BY due_date
-              FOR UPDATE SKIP LOCKED
-              LIMIT $3`,
-            [ahora.toISOString(), String(VENTANA_VENCIMIENTO_HORAS), maxPorTanda]
-        );
-
-        for (const a of rows) {
-            await eventBus.publish(EVENTOS.COURSE_DEADLINE_APPROACHING, {
-                userId: a.user_id,
-                courseId: a.course_id,
-                assignmentId: a.id,
-                dueDate: new Date(a.due_date).toISOString()
-            }, client);
-        }
-
-        if (rows.length > 0) {
-            await client.query(
-                `UPDATE course_assignments SET deadline_notified_at = now() WHERE id = ANY($1::int[])`,
-                [rows.map(a => a.id)]
-            );
-        }
-
-        await client.query('COMMIT');
-        return rows.length;
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
-    }
-}
-
-// ---------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------
 
 async function tituloDeCurso(courseId) {
-    const { rows } = await db.query('SELECT title FROM courses WHERE id = $1', [courseId]);
-    return rows[0]?.title || `curso ${courseId}`;
+    return (await cursos.obtenerTitulo(courseId))?.title || `curso ${courseId}`;
 }
 
 async function alAsignarCurso({ userId, courseId, assignmentId, dueDate }) {
@@ -870,9 +799,8 @@ async function estadoDeLaCola() {
 // ---------------------------------------------------------------------
 
 let timerWorker = null;
-let timerVencimientos = null;
 
-/** Arranca el worker de la cola y el reloj de fechas limite. Se llama desde conectarTodo(). */
+/** Arranca el worker de la cola. Se llama desde conectarTodo(). */
 function iniciarWorker() {
     if (timerWorker) return;
     workerActivo = true;
@@ -881,17 +809,10 @@ function iniciarWorker() {
         () => procesarPendientes().catch(e => console.error('[email] worker:', e.message)),
         INTERVALO_WORKER_MS
     );
-    timerVencimientos = setInterval(
-        () => buscarVencimientosProximos().catch(e => console.error('[email] vencimientos:', e.message)),
-        INTERVALO_VENCIMIENTOS_MS
-    );
     if (timerWorker.unref) timerWorker.unref();
-    if (timerVencimientos.unref) timerVencimientos.unref();
 
     console.log(
-        `[email] worker cada ${INTERVALO_WORKER_MS / 1000} s, ` +
-        `vencimientos cada ${INTERVALO_VENCIMIENTOS_MS / 60000} min ` +
-        `(ventana ${VENTANA_VENCIMIENTO_HORAS} h)` +
+        `[email] worker cada ${INTERVALO_WORKER_MS / 1000} s` +
         (process.env.SMTP_HOST ? '' : ' -- sin SMTP_HOST: los correos quedan en skipped')
     );
 }
@@ -899,7 +820,6 @@ function iniciarWorker() {
 function detenerWorker() {
     workerActivo = false;
     if (timerWorker) { clearInterval(timerWorker); timerWorker = null; }
-    if (timerVencimientos) { clearInterval(timerVencimientos); timerVencimientos = null; }
 }
 
 function registrarHandlers() {
@@ -915,7 +835,6 @@ module.exports = {
     MAX_REINTENTOS,
     MAX_INTENTOS,
     BACKOFF_BASE_SEGUNDOS,
-    VENTANA_VENCIMIENTO_HORAS,
     esCorreoValido,
     esErrorTransitorio,
     usarTransporte,
@@ -924,7 +843,6 @@ module.exports = {
     actualizarPreferencias,
     encolar,
     procesarPendientes,
-    buscarVencimientosProximos,
     alAsignarCurso,
     alAcercarseLaFechaLimite,
     alCambiarContrasena,

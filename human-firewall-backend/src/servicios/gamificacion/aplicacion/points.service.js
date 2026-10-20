@@ -12,6 +12,7 @@
 const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
+const cursos = require('../infraestructura/clientes/cursos.cliente');
 
 /** Lee una regla activa del catalogo. */
 async function obtenerRegla(code) {
@@ -103,15 +104,14 @@ async function asignarPuntosPorLeccion({ userId, contentId }) {
     const regla = await obtenerRegla('lesson.completed');
     if (!regla) return null;
 
-    const { rows } = await db.query(
-        `SELECT points_reward FROM course_contents WHERE id = $1`,
-        [contentId]
-    );
-    if (rows.length === 0) {
+    // La leccion es del servicio de cursos: se le pregunta por su contrato
+    // en lugar de leer course_contents directamente.
+    const leccion = await cursos.obtenerLeccion(contentId);
+    if (!leccion) {
         throw new Error(`La leccion ${contentId} no existe`);
     }
 
-    const puntos = rows[0].points_reward != null ? rows[0].points_reward : regla.points;
+    const puntos = leccion.points_reward != null ? leccion.points_reward : regla.points;
 
     return registrarMovimiento({
         userId,

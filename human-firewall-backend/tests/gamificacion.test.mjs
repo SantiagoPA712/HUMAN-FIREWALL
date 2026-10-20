@@ -153,7 +153,7 @@ check('drenar la cola vacia no filtra conexiones', conexionesAbiertas === antes,
 // el desafio se guardaba pero el evento nunca se encolaba, asi que el usuario
 // jugaba y no recibia puntos, sin ningun error visible en pantalla.
 console.log('\n--- CONTROLADOR completeChallenge ---');
-const gamificacion = require_('./servicios/gamificacion/api/gamification.controller');
+const gamificacion = require_('./servicios/evaluaciones/api/desafios.controller');
 
 async function llamar(controlador, req) {
   let estado = 200, cuerpo = null;

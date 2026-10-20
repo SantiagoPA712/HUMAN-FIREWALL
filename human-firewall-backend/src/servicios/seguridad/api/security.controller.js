@@ -14,6 +14,7 @@
 const anomaliesService = require('../aplicacion/anomalies.service');
 const auditService = require('../aplicacion/audit.service');
 const dataLogs = require('../aplicacion/dataLogs.service');
+const { responderError } = require('../../../compartido/http/errores');
 
 /** Convierte a entero positivo, o null. */
 const entero = (v) => {
@@ -53,7 +54,7 @@ exports.listAnomalies = async (req, res) => {
 
         res.status(200).json(resultado);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -71,7 +72,7 @@ exports.getAnomaly = async (req, res) => {
 
         res.status(200).json(anomalia);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -125,7 +126,7 @@ exports.updateAnomalyStatus = async (req, res) => {
                 errores: [{ campo: error.campo, detalle: error.message }]
             });
         }
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -143,7 +144,7 @@ exports.listAuditLog = async (req, res) => {
         });
         res.status(200).json(resultado);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -152,7 +153,7 @@ exports.getAnomalyRules = async (req, res) => {
     try {
         res.status(200).json(await anomaliesService.obtenerReglas());
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -230,6 +231,6 @@ exports.adjustUser = async (req, res) => {
         if (error.code === '23503') {
             return res.status(404).json({ msg: 'Usuario no encontrado' });
         }
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

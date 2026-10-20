@@ -13,6 +13,7 @@
  */
 
 const orgReports = require('../aplicacion/orgReports.service');
+const { responderError } = require('../../../compartido/http/errores');
 
 /**
  * GET /api/gamification/reports/organizational
@@ -50,6 +51,6 @@ exports.getOrganizationalReport = async (req, res) => {
             });
         }
 
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

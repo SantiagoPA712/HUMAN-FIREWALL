@@ -27,9 +27,8 @@
  */
 
 const db = require('../../../compartido/config/db');
-const pointsService = require('../../gamificacion/aplicacion/points.service');
-const levelsService = require('../../gamificacion/aplicacion/levels.service');
-const rewardsService = require('../../gamificacion/aplicacion/rewards.service');
+// Puntos, niveles y recompensas se piden a gamificacion por su contrato.
+const gamificacion = require('../infraestructura/clientes/gamificacion.cliente');
 
 /** Tamano de pagina por defecto (criterio tecnico 4). */
 const PAGE_SIZE_POR_DEFECTO = 50;
@@ -278,10 +277,10 @@ async function obtenerFilas(filtros, { page, pageSize }) {
     // Cuatro consultas para toda la pagina, no cuatro por usuario.
     // La escalera se pide una sola vez y se aplica en memoria.
     const [puntosPorUsuario, insigniasPorUsuario, actividadPorUsuario, escalera] = await Promise.all([
-        pointsService.obtenerTotalesPorUsuarios(ids, rango),
-        rewardsService.obtenerResumenPorUsuarios(ids, rango),
+        gamificacion.obtenerTotalesPorUsuarios(ids, rango),
+        gamificacion.obtenerResumenPorUsuarios(ids, rango),
         obtenerUltimaActividad(ids),
-        levelsService.obtenerEscalera()
+        gamificacion.obtenerEscalera()
     ]);
 
     return usuarios.map(u => {
@@ -295,7 +294,7 @@ async function obtenerFilas(filtros, { page, pageSize }) {
         // es el de ese mes y el nivel resultante es "el nivel que darian esos
         // puntos", no el nivel real del usuario. Por eso se devuelven los dos:
         // nivel (segun el filtro) y nivel_actual (historico completo).
-        const nivelFiltrado = levelsService.calcularProgreso(puntos.total, escalera);
+        const nivelFiltrado = gamificacion.calcularProgreso(puntos.total, escalera);
 
         return {
             user_id: u.id,

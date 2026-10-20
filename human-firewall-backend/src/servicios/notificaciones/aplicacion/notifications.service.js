@@ -17,6 +17,7 @@
  */
 
 const db = require('../../../compartido/config/db');
+const identidad = require('../infraestructura/clientes/identidad.cliente');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 
@@ -61,8 +62,7 @@ function obtenerTransporte() {
 
 /** Correo del destinatario. */
 async function obtenerCorreo(userId) {
-    const { rows } = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
-    return rows[0] ? rows[0].email : null;
+    return identidad.correoDe(userId);
 }
 
 /**

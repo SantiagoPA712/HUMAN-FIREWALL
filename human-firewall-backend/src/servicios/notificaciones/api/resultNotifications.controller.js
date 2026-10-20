@@ -8,6 +8,7 @@
  */
 
 const resultNotifications = require('../aplicacion/resultNotifications.service');
+const { responderError } = require('../../../compartido/http/errores');
 
 /**
  * GET /api/notifications/resultados
@@ -24,7 +25,7 @@ exports.getCentro = async (req, res) => {
             await resultNotifications.obtenerCentro(req.user.id, { soloNoLeidas, limit })
         );
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -36,7 +37,7 @@ exports.marcarTodasLeidas = async (req, res) => {
     try {
         res.status(200).json(await resultNotifications.marcarTodasLeidas(req.user.id));
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -48,7 +49,7 @@ exports.getPreferencias = async (req, res) => {
     try {
         res.status(200).json(await resultNotifications.obtenerPreferencias(req.user.id));
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -62,7 +63,7 @@ exports.patchPreferencias = async (req, res) => {
         if (error.codigo === 400) {
             return res.status(400).json({ msg: error.message, errores: error.errores });
         }
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -81,7 +82,7 @@ exports.getCursosCriticos = async (req, res) => {
             cursos
         });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -105,6 +106,6 @@ exports.patchCursoCritico = async (req, res) => {
 
         res.status(200).json(curso);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

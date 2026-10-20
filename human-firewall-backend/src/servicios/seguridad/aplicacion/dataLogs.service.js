@@ -45,7 +45,8 @@ const crypto = require('crypto');
 const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
-const { escaparCSV } = require('../../reportes/aplicacion/reportExports.service');
+const { escaparCSV } = require('../../../compartido/utils/csv');
+const identidad = require('../infraestructura/clientes/identidad.cliente');
 
 // ---------------------------------------------------------------------
 // Catalogos
@@ -297,12 +298,11 @@ async function persistir(p) {
     let actorEmail = p.actorEmail ?? null;
 
     if (p.actorType !== 'system') {
+        // Las cuentas son de identidad: se resuelven por su contrato.
         if (userId && !actorEmail) {
-            const { rows } = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
-            actorEmail = rows[0]?.email || null;
+            actorEmail = await identidad.correoDe(userId);
         } else if (!userId && actorEmail) {
-            const { rows } = await db.query('SELECT id FROM users WHERE email = $1', [actorEmail]);
-            userId = rows[0]?.id || null;
+            userId = await identidad.idPorCorreo(actorEmail);
         }
     }
 

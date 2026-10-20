@@ -31,9 +31,10 @@
  */
 
 const db = require('../../../compartido/config/db');
-const pointsService = require('../../gamificacion/aplicacion/points.service');
-const levelsService = require('../../gamificacion/aplicacion/levels.service');
-const rewardsService = require('../../gamificacion/aplicacion/rewards.service');
+// Los puntos, niveles e insignias son de gamificacion: este servicio los
+// AUDITA y aplica los ajustes manuales por el contrato de gamificacion, sin
+// tocar sus tablas.
+const gamificacion = require('../infraestructura/clientes/gamificacion.cliente');
 
 const TIPOS = ['points', 'level', 'badge'];
 
@@ -67,16 +68,16 @@ async function registrar({ actorId, targetUserId = null, changeType,
 /** Estado actual del usuario, para dejarlo como previous_value. */
 async function fotoActual(userId) {
     const [puntos, nivel, insignias] = await Promise.all([
-        levelsService.obtenerPuntos(userId),
-        levelsService.obtenerNivelDeUsuario(userId),
-        db.query('SELECT COUNT(*)::int AS n FROM user_rewards WHERE user_id = $1', [userId])
+        gamificacion.obtenerPuntos(userId),
+        gamificacion.obtenerNivelDeUsuario(userId),
+        gamificacion.contarRecompensasDe(userId)
     ]);
 
     return {
         puntos,
         nivel: nivel.nivel_actual,
         nivel_nombre: nivel.nombre,
-        insignias: insignias.rows[0].n
+        insignias
     };
 }
 
@@ -108,7 +109,7 @@ async function aplicarAjuste({ actorId, targetUserId, changeType, valor, reason 
         // idempotencyKey unica por ajuste: dos ajustes manuales identicos son
         // dos hechos distintos, no un reintento. Se usa el reloj para
         // diferenciarlos.
-        aplicado = await pointsService.registrarMovimiento({
+        aplicado = await gamificacion.registrarMovimiento({
             userId: targetUserId,
             sourceType: 'manual',
             sourceId: `ajuste:${actorId}`,
@@ -119,7 +120,7 @@ async function aplicarAjuste({ actorId, targetUserId, changeType, valor, reason 
 
     } else if (changeType === 'level') {
         const nivelObjetivo = Number(valor);
-        const escalera = await levelsService.obtenerEscalera();
+        const escalera = await gamificacion.obtenerEscalera();
         const destino = escalera.find(n => n.level === nivelObjetivo);
 
         if (!destino) {
@@ -142,7 +143,7 @@ async function aplicarAjuste({ actorId, targetUserId, changeType, valor, reason 
             throw error;
         }
 
-        aplicado = await pointsService.registrarMovimiento({
+        aplicado = await gamificacion.registrarMovimiento({
             userId: targetUserId,
             sourceType: 'manual',
             sourceId: `nivel:${nivelObjetivo}`,
@@ -153,15 +154,15 @@ async function aplicarAjuste({ actorId, targetUserId, changeType, valor, reason 
 
     } else if (changeType === 'badge') {
         const rewardId = Number(valor);
-        const { rows } = await db.query('SELECT * FROM rewards_catalog WHERE id = $1', [rewardId]);
-        if (rows.length === 0) {
+        const recompensa = await gamificacion.buscarRecompensa(rewardId);
+        if (!recompensa) {
             const error = new Error(`No existe ninguna recompensa con id ${valor}.`);
             error.campo = 'value';
             throw error;
         }
 
-        aplicado = await rewardsService.otorgarRecompensa({
-            recompensa: rows[0],
+        aplicado = await gamificacion.otorgarRecompensa({
+            recompensa,
             userId: targetUserId,
             sourceType: 'manual',
             sourceId: actorId,

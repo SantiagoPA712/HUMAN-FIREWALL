@@ -11,11 +11,14 @@
 
 const invitations = require('../aplicacion/invitations.service');
 
-/** Responde un error del servicio con su codigo, o 500 si fue inesperado. */
+const errores = require('../../../compartido/http/errores');
+
+/**
+ * Responde un error del servicio con su codigo, o 500 generico si fue
+ * inesperado. Delega en el formato comun de la API (compartido/http/errores).
+ */
 function responderError(res, error) {
-    if (error.codigo && error.cuerpo) return res.status(error.codigo).json(error.cuerpo);
-    console.error('[invitaciones]', error);
-    return res.status(500).json({ msg: 'Error interno al procesar la invitacion' });
+    return errores.responderError(res.req, res, error);
 }
 
 function idDeRuta(req) {

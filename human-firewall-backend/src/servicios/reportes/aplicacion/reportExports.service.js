@@ -76,25 +76,8 @@ function aplanar(fila) {
 // CSV
 // ---------------------------------------------------------------------
 
-/**
- * Escapa un valor para CSV.
- *
- * Ademas de las comillas y los separadores, se neutraliza la inyeccion de
- * formulas: si un campo empieza con =, +, - o @, Excel lo interpreta como
- * formula al abrir el archivo. Con un correo tipo "=cmd|..." eso se convierte
- * en ejecucion de comandos en la maquina de quien abre el reporte. Anteponer
- * un apostrofo lo fuerza a texto.
- */
-function escaparCSV(valor) {
-    let texto = valor == null ? '' : String(valor);
-
-    if (/^[=+\-@\t\r]/.test(texto)) texto = `'${texto}`;
-
-    if (/[",\n\r]/.test(texto)) {
-        texto = `"${texto.replace(/"/g, '""')}"`;
-    }
-    return texto;
-}
+// escaparCSV se movio a compartido/utils/csv.js (tambien la usa seguridad).
+const { escaparCSV } = require('../../../compartido/utils/csv');
 
 function generarCSV(filas) {
     const lineas = [COLUMNAS.map(c => escaparCSV(c.titulo)).join(',')];

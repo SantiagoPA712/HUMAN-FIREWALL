@@ -48,7 +48,7 @@ const controller = require_('./servicios/notificaciones/api/resultNotifications.
 const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 const eventBus = require_('./compartido/eventos/eventBus');
 const catalogo = require_('./compartido/eventos/catalogo');
-const suscriptores = require_('./compartido/eventos/suscriptores');
+const suscriptores = require_('./servicios/suscriptores');
 
 const { EVENTOS } = catalogo;
 const suscritos = suscriptores.conectarTodo({ iniciarWorker: false });
@@ -88,7 +88,7 @@ const beto = await idDe('beto@hf.com');
 const rhDelEquipo = await idDe('rh1@hf.com');
 const rhDeOtroEquipo = await idDe('rhotro@hf.com');
 
-const gamification = require_('./servicios/gamificacion/api/gamification.controller');
+const gamification = require_('./servicios/evaluaciones/api/desafios.controller');
 
 await llamar(gamification.completeChallenge, {
     user: { id: ana, role: 'employee' },

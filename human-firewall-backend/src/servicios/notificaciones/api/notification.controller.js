@@ -1,5 +1,6 @@
 const notificationsService = require('../aplicacion/notifications.service');
 const eventBus = require('../../../compartido/eventos/eventBus');
+const { responderError } = require('../../../compartido/http/errores');
 
 /**
  * GET /api/notifications
@@ -21,7 +22,7 @@ exports.getMisNotificaciones = async (req, res) => {
 
         res.status(200).json(bandeja);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -42,7 +43,7 @@ exports.marcarLeida = async (req, res) => {
 
         res.status(200).json(actualizada);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };
 
@@ -61,6 +62,6 @@ exports.getEstadoDeEventos = async (req, res) => {
     try {
         res.status(200).json(await eventBus.estadoDeLaCola());
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        responderError(req, res, error);
     }
 };

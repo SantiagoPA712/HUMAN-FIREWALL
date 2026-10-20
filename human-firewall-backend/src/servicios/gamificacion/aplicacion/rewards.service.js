@@ -13,6 +13,8 @@
 const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
+const cursos = require('../infraestructura/clientes/cursos.cliente');
+const evaluaciones = require('../infraestructura/clientes/evaluaciones.cliente');
 
 /**
  * Calculadores de condicion. Cada uno devuelve el progreso actual del usuario
@@ -30,32 +32,20 @@ const CALCULADORES = {
         return rows[0]?.valor || 0;
     },
 
+    // Las cuatro condiciones siguientes miden datos de otros servicios
+    // (lecciones y cursos son de cursos; intentos, de evaluaciones), asi que
+    // se piden por su contrato en lugar de contar filas de tablas ajenas.
+
     async lessons_completed(userId) {
-        const { rows } = await db.query(
-            `SELECT COUNT(*)::int AS valor FROM lesson_progress WHERE user_id = $1`,
-            [userId]
-        );
-        return rows[0].valor;
+        return cursos.contarLeccionesCompletadas(userId);
     },
 
     async courses_completed(userId) {
-        const { rows } = await db.query(
-            `SELECT COUNT(*)::int AS valor
-               FROM course_assignments
-              WHERE user_id = $1 AND status = 'completed'`,
-            [userId]
-        );
-        return rows[0].valor;
+        return cursos.contarCursosCompletados(userId);
     },
 
     async quizzes_approved(userId) {
-        const { rows } = await db.query(
-            `SELECT COUNT(DISTINCT quiz_ref)::int AS valor
-               FROM quiz_attempts
-              WHERE user_id = $1 AND passed = true`,
-            [userId]
-        );
-        return rows[0].valor;
+        return evaluaciones.contarEvaluacionesAprobadas(userId);
     },
 
     /**
@@ -63,17 +53,11 @@ const CALCULADORES = {
      * reciente hacia atras. Un intento reprobado corta la racha.
      */
     async quiz_streak(userId) {
-        const { rows } = await db.query(
-            `SELECT passed FROM quiz_attempts
-              WHERE user_id = $1
-              ORDER BY created_at DESC, id DESC
-              LIMIT 100`,
-            [userId]
-        );
+        const resultados = await evaluaciones.ultimosResultados(userId, 100);
 
         let racha = 0;
-        for (const intento of rows) {
-            if (!intento.passed) break;
+        for (const aprobado of resultados) {
+            if (!aprobado) break;
             racha++;
         }
         return racha;

@@ -53,7 +53,7 @@ const notifications = require_('./servicios/notificaciones/aplicacion/notificati
 const controller = require_('./servicios/reportes/api/scheduledReports.controller');
 const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 const eventBus = require_('./compartido/eventos/eventBus');
-const suscriptores = require_('./compartido/eventos/suscriptores');
+const suscriptores = require_('./servicios/suscriptores');
 
 // Igual que server.js pero sin temporizadores: la cola se drena a mano.
 suscriptores.conectarTodo({ iniciarWorker: false });

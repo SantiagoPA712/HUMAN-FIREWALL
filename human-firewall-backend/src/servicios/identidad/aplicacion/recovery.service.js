@@ -3,12 +3,16 @@ const crypto = require('crypto');
 const { hashPassword } = require('../../../compartido/utils/hash');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
+const { ErrorHttp } = require('../../../compartido/http/errores');
+const { cumplePolitica, MENSAJE_POLITICA } = require('../dominio/usuario');
 
 exports.generateResetToken = async (email) => {
     // Verificar si el usuario existe
     const { rows } = await db.query("SELECT id FROM users WHERE email = $1", [email]);
     if (rows.length === 0) {
-        throw new Error("El correo no está registrado");
+        // El controlador NO le muestra este error al cliente (enumeracion de
+        // cuentas): responde siempre el mismo mensaje generico.
+        throw ErrorHttp.noEncontrado("El correo no está registrado");
     }
 
     const userId = rows[0].id;
@@ -30,19 +34,18 @@ exports.resetPassword = async (token, newPassword) => {
     );
 
     if (rows.length === 0) {
-        throw new Error("Token inválido");
+        throw new ErrorHttp(400, "Token inválido", { codigo: 'VALIDACION' });
     }
 
     const { user_id, expires_at } = rows[0];
 
     if (new Date() > new Date(expires_at)) {
-        throw new Error("El token ha expirado");
+        throw new ErrorHttp(400, "El token ha expirado", { codigo: 'VALIDACION' });
     }
 
     // Validar contraseña
-    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
-    if (!passwordRegex.test(newPassword)) {
-        throw new Error("La contraseña debe tener mínimo 8 caracteres, al menos una mayúscula y un número");
+    if (!cumplePolitica(newPassword)) {
+        throw new ErrorHttp(400, MENSAJE_POLITICA, { codigo: 'VALIDACION' });
     }
 
     const hashed = await hashPassword(newPassword);
