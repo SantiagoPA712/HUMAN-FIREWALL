@@ -49,7 +49,7 @@ const adapter = {
         };
     }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -59,9 +59,9 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const eventBus = require_('./services/eventBus');
-const dataLogs = require_('./services/dataLogs.service');
-const userController = require_('./controllers/user.controller');
+const eventBus = require_('./compartido/eventos/eventBus');
+const dataLogs = require_('./servicios/seguridad/aplicacion/dataLogs.service');
+const userController = require_('./servicios/identidad/api/user.controller');
 const jwt = require_('jsonwebtoken');
 const app = require_('./app');
 

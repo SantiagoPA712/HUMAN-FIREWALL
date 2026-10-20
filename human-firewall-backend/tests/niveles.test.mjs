@@ -25,7 +25,7 @@ const adapter = {
     };
   }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -39,9 +39,9 @@ for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_trackin
 }
 console.log('Migraciones aplicadas\n');
 
-const eventBus = require_('./services/eventBus');
-const points   = require_('./services/points.service');
-const levels   = require_('./services/levels.service');
+const eventBus = require_('./compartido/eventos/eventBus');
+const points   = require_('./servicios/gamificacion/aplicacion/points.service');
+const levels   = require_('./servicios/gamificacion/aplicacion/levels.service');
 points.registrarHandlers();
 levels.registrarHandlers();
 

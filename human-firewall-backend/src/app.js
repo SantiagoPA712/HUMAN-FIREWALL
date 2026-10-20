@@ -22,10 +22,10 @@ app.use(express.json());
 // ID de correlacion (trace_id) para cada request. Va antes de las rutas para
 // que cualquier log de auditoria que se registre dentro del request lo lleve.
 // Ver middlewares/traceId.middleware.js.
-const { asignarTraceId } = require('./middlewares/traceId.middleware');
+const { asignarTraceId } = require('./compartido/middlewares/traceId.middleware');
 app.use(asignarTraceId);
 
-require('./config/passport');
+require('./servicios/identidad/infraestructura/passport');
 const passport = require('passport');
 
 app.use(passport.initialize());
@@ -33,21 +33,21 @@ app.use(passport.initialize());
 // --- API ---
 // Todo lo que cuelga de /api lo resuelve el servidor. Va ANTES que los
 // archivos estaticos y que el fallback de la SPA.
-app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/users', require('./routes/user.routes'));
-app.use('/api/sso', require('./routes/sso.routes'));
-app.use('/api/courses', require('./routes/course.routes'));
-app.use('/api/simulations', require('./routes/simulation.routes'));
-app.use('/api/gamification', require('./routes/gamification.routes'));
-app.use('/api/notifications', require('./routes/notification.routes'));
+app.use('/api/auth', require('./servicios/identidad/api/auth.routes'));
+app.use('/api/users', require('./servicios/identidad/api/user.routes'));
+app.use('/api/sso', require('./servicios/identidad/api/sso.routes'));
+app.use('/api/courses', require('./servicios/cursos/api/course.routes'));
+app.use('/api/simulations', require('./servicios/evaluaciones/api/simulation.routes'));
+app.use('/api/gamification', require('./servicios/gamificacion/api/gamification.routes'));
+app.use('/api/notifications', require('./servicios/notificaciones/api/notification.routes'));
 
 // Invitaciones de usuarios. Mezcla rutas de admin (con token) y rutas del
 // invitado (sin sesion, con el token de invitacion en el cuerpo).
-app.use('/api/invitations', require('./routes/invitations.routes'));
+app.use('/api/invitations', require('./servicios/identidad/api/invitations.routes'));
 
 // Logs de auditoria (data.logs). Solo admin: la verificacion vive en el
 // propio archivo de rutas, antes de cualquier controlador.
-app.use('/api/logs', require('./routes/logs.routes'));
+app.use('/api/logs', require('./servicios/seguridad/api/logs.routes'));
 
 // 404 de la API en JSON.
 //
@@ -69,7 +69,7 @@ app.use('/api', (req, res) => {
 // El build de React se sirve desde este mismo proceso. Eso es lo que hace al
 // sistema un monolito de despliegue: un solo artefacto, un solo puerto, un
 // solo origen. Antes hacian falta dos servidores corriendo a la vez.
-const RUTA_FRONTEND = path.join(__dirname, '..', '..', 'human-firewall-frontend', 'dist');
+const { DIR_FRONTEND_BUILD: RUTA_FRONTEND } = require('./compartido/config/rutas');
 const hayBuild = fs.existsSync(path.join(RUTA_FRONTEND, 'index.html'));
 
 if (hayBuild) {

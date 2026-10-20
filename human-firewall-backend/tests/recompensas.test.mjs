@@ -30,7 +30,7 @@ const adapter = {
     };
   }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 // Base previa CON datos, para verificar que la migracion no destruye nada
@@ -49,9 +49,9 @@ for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_trackin
 }
 console.log('Migraciones aplicadas sobre una base con datos previos\n');
 
-const eventBus = require_('./services/eventBus');
-const points   = require_('./services/points.service');
-const rewards  = require_('./services/rewards.service');
+const eventBus = require_('./compartido/eventos/eventBus');
+const points   = require_('./servicios/gamificacion/aplicacion/points.service');
+const rewards  = require_('./servicios/gamificacion/aplicacion/rewards.service');
 points.registrarHandlers();
 rewards.registrarHandlers();
 

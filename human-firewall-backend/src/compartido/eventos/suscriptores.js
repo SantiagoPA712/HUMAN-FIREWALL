@@ -1,0 +1,103 @@
+/**
+ * Cableado del bus de eventos.
+ *
+ * Un solo lugar donde se ve, de un vistazo, quien escucha que. Antes esto
+ * estaba desperdigado en server.js entre los requires del arranque, y agregar
+ * un servicio nuevo obligaba a acordarse de registrarlo ahi en medio.
+ *
+ * Cada servicio sigue siendo dueno de SUS suscripciones (su propio
+ * registrarHandlers dice a que eventos se engancha y con que funcion). Este
+ * archivo solo decide QUE servicios participan. Esa division importa: si el
+ * cableado concreto viviera aca, este archivo tendria que conocer las
+ * funciones internas de los cinco servicios y volveriamos al acoplamiento que
+ * la arquitectura de eventos vino a quitar.
+ *
+ * El orden NO importa: los handlers de un mismo evento corren todos, y
+ * ninguno depende de que otro haya corrido antes. Si alguna vez importara,
+ * seria senal de que esos dos handlers son en realidad un solo paso y
+ * deberian vivir juntos.
+ */
+
+const eventBus = require('./eventBus');
+const pointsService = require('../../servicios/gamificacion/aplicacion/points.service');
+const rewardsService = require('../../servicios/gamificacion/aplicacion/rewards.service');
+const levelsService = require('../../servicios/gamificacion/aplicacion/levels.service');
+const notificationsService = require('../../servicios/notificaciones/aplicacion/notifications.service');
+const recommendationsService = require('../../servicios/gamificacion/aplicacion/recommendations.service');
+const reportExportsService = require('../../servicios/reportes/aplicacion/reportExports.service');
+const anomaliesService = require('../../servicios/seguridad/aplicacion/anomalies.service');
+const scheduledReportsService = require('../../servicios/reportes/aplicacion/scheduledReports.service');
+const orgReportsService = require('../../servicios/reportes/aplicacion/orgReports.service');
+const dataLogsService = require('../../servicios/seguridad/aplicacion/dataLogs.service');
+const resultNotificationsService = require('../../servicios/notificaciones/aplicacion/resultNotifications.service');
+const emailNotificationsService = require('../../servicios/notificaciones/aplicacion/emailNotifications.service');
+
+const SERVICIOS = [
+    pointsService,          // lesson/quiz/course/simulation.decision -> puntos
+    rewardsService,         // puntos/curso/quiz/simulacion           -> recompensas
+    levelsService,          // puntos                                 -> nivel
+    recommendationsService, // quiz/simulacion                        -> refuerzos
+    notificationsService,   // registro/nivel/recompensa              -> avisos
+    reportExportsService,   // exportacion encolada                   -> archivo en disco
+    anomaliesService,       // puntos asignados                       -> alertas de abuso
+    scheduledReportsService,// corrida programada                     -> reporte + aviso
+    orgReportsService,      // (sin suscripciones: trabaja por job periodico)
+    resultNotificationsService,// quiz/curso/simulacion terminados    -> aviso al usuario y a RH
+    dataLogsService,        // accion critica en cualquier modulo    -> fila en data.logs
+    emailNotificationsService // curso asignado/por vencer, contrasena -> job de correo
+];
+
+/**
+ * Registra todos los suscriptores y arranca el worker.
+ *
+ * @param {object}  [opciones]
+ * @param {boolean} [opciones.iniciarWorker=true]  Las pruebas lo desactivan y
+ *        drenan la cola a mano, para no depender de un temporizador.
+ */
+function conectarTodo({ iniciarWorker = true } = {}) {
+    for (const servicio of SERVICIOS) servicio.registrarHandlers();
+
+    if (iniciarWorker) {
+        eventBus.iniciarWorker();
+
+        // Job de respaldo de la deteccion de anomalias (criterio tecnico 6 de
+        // esa HU). Va aca y no dentro de registrarHandlers porque no es una
+        // suscripcion: es un temporizador, y las pruebas registran handlers
+        // sin querer que arranque nada de fondo.
+        anomaliesService.iniciarJob();
+
+        // Mismo caso, para las dos historias de reportes:
+        //
+        //   scheduler   -> mira que programacion vencio y encola su generacion
+        //                  (criterio tecnico 1 de reportes automaticos)
+        //   job de KPIs -> recalcula los snapshots organizacionales
+        //                  (criterio tecnico 3 de resultados organizacionales)
+        //
+        // Ninguno de los dos hace el trabajo: el scheduler encola y el bus
+        // ejecuta. Por eso pueden convivir con varias instancias del servidor
+        // sin generar el mismo reporte dos veces.
+        scheduledReportsService.iniciarScheduler();
+        orgReportsService.iniciarJob();
+
+        // Politica de retencion de data.logs (criterio tecnico 6 de la HU de
+        // logs de auditoria): purga lo que supera LOGS_RETENTION_MONTHS y deja
+        // la evidencia en data.logs_purges. Es un reloj, no una suscripcion.
+        dataLogsService.iniciarJobRetencion();
+
+        // HU de notificaciones por correo: el worker de email_jobs (con sus
+        // reintentos) y el reloj que detecta fechas limite proximas. La cola
+        // de correo es aparte del outbox: tiene otra politica de reintentos.
+        emailNotificationsService.iniciarWorker();
+    }
+
+    const suscritos = eventBus.eventosSuscritos();
+    const total = Object.values(suscritos).reduce((a, b) => a + b, 0);
+    console.log(
+        `[eventos] ${Object.keys(suscritos).length} eventos con suscriptor, ` +
+        `${total} handlers en total`
+    );
+
+    return suscritos;
+}
+
+module.exports = { conectarTodo, SERVICIOS };

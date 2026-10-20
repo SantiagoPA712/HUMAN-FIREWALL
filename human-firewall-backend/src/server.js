@@ -20,7 +20,7 @@ const app = require('./app');
 // todos los endpoints: simplemente nadie asignaria puntos, ni subiria niveles,
 // ni mandaria avisos. Ese es el precio del desacoplamiento y por eso el
 // arranque loguea cuantos handlers quedaron registrados.
-const { conectarTodo } = require('./events/suscriptores');
+const { conectarTodo } = require('./compartido/eventos/suscriptores');
 
 conectarTodo();
 

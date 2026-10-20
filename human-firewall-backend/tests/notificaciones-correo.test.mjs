@@ -42,7 +42,7 @@ const adapter = {
     query: (t, p) => pg.query(t, p),
     connect: async () => ({ query: (t, p) => pg.query(t, p), release: () => {} })
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -52,16 +52,16 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const correo = require_('./services/emailNotifications.service');
-const plantillas = require_('./services/emailTemplates.service');
-const resultados = require_('./services/resultNotifications.service');
-const recovery = require_('./services/recovery.service');
-const eventBus = require_('./services/eventBus');
-const catalogo = require_('./events/catalogo');
-const suscriptores = require_('./events/suscriptores');
-const courseController = require_('./controllers/course.controller');
-const emailController = require_('./controllers/emailNotifications.controller');
-const userController = require_('./controllers/user.controller');
+const correo = require_('./servicios/notificaciones/aplicacion/emailNotifications.service');
+const plantillas = require_('./servicios/notificaciones/aplicacion/emailTemplates.service');
+const resultados = require_('./servicios/notificaciones/aplicacion/resultNotifications.service');
+const recovery = require_('./servicios/identidad/aplicacion/recovery.service');
+const eventBus = require_('./compartido/eventos/eventBus');
+const catalogo = require_('./compartido/eventos/catalogo');
+const suscriptores = require_('./compartido/eventos/suscriptores');
+const courseController = require_('./servicios/cursos/api/course.controller');
+const emailController = require_('./servicios/notificaciones/api/emailNotifications.controller');
+const userController = require_('./servicios/identidad/api/user.controller');
 
 const { EVENTOS } = catalogo;
 const suscritos = suscriptores.conectarTodo({ iniciarWorker: false });

@@ -36,7 +36,7 @@ const adapter = {
         };
     }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 // Esquema + todas las migraciones del directorio: asi una migracion nueva
@@ -48,12 +48,12 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const sched = require_('./services/scheduledReports.service');
-const notifications = require_('./services/notifications.service');
-const controller = require_('./controllers/scheduledReports.controller');
-const { requireRoles } = require_('./middlewares/role.middleware');
-const eventBus = require_('./services/eventBus');
-const suscriptores = require_('./events/suscriptores');
+const sched = require_('./servicios/reportes/aplicacion/scheduledReports.service');
+const notifications = require_('./servicios/notificaciones/aplicacion/notifications.service');
+const controller = require_('./servicios/reportes/api/scheduledReports.controller');
+const { requireRoles } = require_('./compartido/middlewares/role.middleware');
+const eventBus = require_('./compartido/eventos/eventBus');
+const suscriptores = require_('./compartido/eventos/suscriptores');
 
 // Igual que server.js pero sin temporizadores: la cola se drena a mano.
 suscriptores.conectarTodo({ iniciarWorker: false });

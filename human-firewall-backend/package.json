@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "setup": "node scripts/setup-env.js",
-    "migrate": "node src/config/migrate.js",
+    "migrate": "node src/compartido/config/migrate.js",
     "dev": "npm run migrate && nodemon src/server.js",
     "start": "npm run migrate && node src/server.js",
     "test": "node tests/migraciones.test.mjs && node tests/gamificacion.test.mjs && node tests/recompensas.test.mjs && node tests/niveles.test.mjs && node tests/recomendaciones.test.mjs && node tests/simulaciones.test.mjs && node tests/eventos.test.mjs && node tests/reportes.test.mjs && node tests/seguridad.test.mjs && node tests/notificaciones-resultados.test.mjs && node tests/reportes-automaticos.test.mjs && node tests/reportes-organizacionales.test.mjs && node tests/logs.test.mjs && node tests/notificaciones-correo.test.mjs && node tests/invitaciones.test.mjs",

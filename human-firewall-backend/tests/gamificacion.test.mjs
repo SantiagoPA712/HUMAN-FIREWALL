@@ -34,7 +34,7 @@ const adapter = {
 };
 
 // Inyecta el adaptador en lugar del modulo real de conexion.
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 // Esquema + migraciones
@@ -43,9 +43,9 @@ for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_trackin
   await pg.exec(readFileSync(`${DIR}migrations/${f}.sql`, 'utf8'));
 console.log('Esquema y migraciones listos\n');
 
-const eventBus = require_('./services/eventBus');
-const points   = require_('./services/points.service');
-const rewards  = require_('./services/rewards.service');
+const eventBus = require_('./compartido/eventos/eventBus');
+const points   = require_('./servicios/gamificacion/aplicacion/points.service');
+const rewards  = require_('./servicios/gamificacion/aplicacion/rewards.service');
 
 // Igual que en server.js: los dos motores escuchan el bus. Sin registrar
 // recompensas, nada evalua las condiciones y los logros nunca se otorgan.
@@ -153,7 +153,7 @@ check('drenar la cola vacia no filtra conexiones', conexionesAbiertas === antes,
 // el desafio se guardaba pero el evento nunca se encolaba, asi que el usuario
 // jugaba y no recibia puntos, sin ningun error visible en pantalla.
 console.log('\n--- CONTROLADOR completeChallenge ---');
-const gamificacion = require_('./controllers/gamification.controller');
+const gamificacion = require_('./servicios/gamificacion/api/gamification.controller');
 
 async function llamar(controlador, req) {
   let estado = 200, cuerpo = null;

@@ -42,7 +42,7 @@ const adapter = {
     query: (t, p) => pg.query(t, p),
     connect: async () => ({ query: (t, p) => pg.query(t, p), release: () => {} })
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -52,12 +52,12 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const controller = require_('./controllers/invitations.controller');
-const invitaciones = require_('./services/invitations.service');
-const correo = require_('./services/emailNotifications.service');
-const eventBus = require_('./services/eventBus');
-const catalogo = require_('./events/catalogo');
-const suscriptores = require_('./events/suscriptores');
+const controller = require_('./servicios/identidad/api/invitations.controller');
+const invitaciones = require_('./servicios/identidad/aplicacion/invitations.service');
+const correo = require_('./servicios/notificaciones/aplicacion/emailNotifications.service');
+const eventBus = require_('./compartido/eventos/eventBus');
+const catalogo = require_('./compartido/eventos/catalogo');
+const suscriptores = require_('./compartido/eventos/suscriptores');
 const app = require_('./app');
 const jwt = require_('jsonwebtoken');
 const bcrypt = require_('bcrypt');

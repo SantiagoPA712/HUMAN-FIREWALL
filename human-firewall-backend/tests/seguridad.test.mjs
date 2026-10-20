@@ -24,7 +24,7 @@ const adapter = {
     };
   }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -41,12 +41,12 @@ for (const f of ['001_points_ledger', '002_points_rules', '003_lesson_quiz_track
 }
 console.log('Migraciones aplicadas\n');
 
-const eventBus = require_('./services/eventBus');
-const points = require_('./services/points.service');
-const anomalias = require_('./services/anomalies.service');
-const auditoria = require_('./services/audit.service');
-const controller = require_('./controllers/security.controller');
-const { requireRoles } = require_('./middlewares/role.middleware');
+const eventBus = require_('./compartido/eventos/eventBus');
+const points = require_('./servicios/gamificacion/aplicacion/points.service');
+const anomalias = require_('./servicios/seguridad/aplicacion/anomalies.service');
+const auditoria = require_('./servicios/seguridad/aplicacion/audit.service');
+const controller = require_('./servicios/seguridad/api/security.controller');
+const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 
 points.registrarHandlers();
 anomalias.registrarHandlers();
