@@ -3,6 +3,7 @@ import { ShieldCheck, Mail, Lock } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import { ThemeToggle } from '../components/ThemeToggle';
 import api from '../lib/api';
 
 export default function LoginPage() {
@@ -32,7 +33,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-deep text-text-primary flex flex-col items-center justify-center p-6 bg-gradient-to-b from-bg-deep to-brand-dark/20">
+    <div className="min-h-screen bg-bg-deep text-text-primary flex flex-col items-center justify-center p-6 bg-gradient-to-b from-bg-deep to-brand-dark/20 relative">
+      <div className="absolute top-6 right-6">
+        <ThemeToggle />
+      </div>
       <div className="flex flex-col items-center mb-8">
         <ShieldCheck className="w-12 h-12 text-brand-blue mb-4" />
         <h1 className="text-3xl font-bold">Inicia Sesión en Human Firewall</h1>

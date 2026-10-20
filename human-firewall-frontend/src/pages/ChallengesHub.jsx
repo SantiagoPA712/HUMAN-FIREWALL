@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Mail, Lock, Wifi, Target, ShieldCheck, Trophy, ArrowLeft, BookOpen, Award, History, Play, Check } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { ThemeSelector } from '../components/ThemeSelector';
 import { api } from '../lib/api';
 
 export default function ChallengesHub() {
@@ -110,8 +112,15 @@ export default function ChallengesHub() {
           </a>
         </nav>
 
-        <div className="mt-auto">
-          <button className="flex items-center w-full justify-start px-4 py-3 text-text-secondary hover:text-white hover:bg-red-500/10 hover:border-red-500/50 rounded-lg transition" onClick={handleLogout}>
+        <div className="mt-auto flex flex-col gap-3">
+          <div className="rounded-xl border border-border-color bg-bg-card/40 p-3">
+            <span className="text-xs font-semibold text-text-secondary block mb-2">
+              Tema
+            </span>
+            <ThemeSelector variant="segmented" className="w-full justify-center" />
+          </div>
+
+          <button className="flex items-center w-full justify-start px-4 py-3 text-text-secondary hover:text-white hover:bg-red-500/10 hover:border-red-500/50 rounded-lg transition cursor-pointer" onClick={handleLogout}>
             Cerrar Sesión
           </button>
         </div>
@@ -122,9 +131,12 @@ export default function ChallengesHub() {
       
         <div className="w-full max-w-4xl mb-8 flex justify-between items-center">
           <h1 className="text-3xl font-bold">Desafíos Disponibles</h1>
-          <Button variant="outline" className="border-gray-700 hover:bg-gray-800 md:hidden" onClick={() => window.location.href = '/dashboard'}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Menú
-          </Button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Button variant="outline" className="border-border-color hover:bg-nav-hover md:hidden" onClick={() => window.location.href = '/dashboard'}>
+              <ArrowLeft className="w-4 h-4 mr-2" /> Menú
+            </Button>
+          </div>
         </div>
 
         <div className="w-full max-w-4xl space-y-6">

@@ -1,14 +1,60 @@
 @import "tailwindcss";
 
+:root {
+  --color-brand-blue: #2563EB;
+  --color-brand-light: #3B82F6;
+  --color-brand-dark: #1E3A8A;
+
+  /* Tema Claro (Predeterminado - Requisito 5) */
+  --bg-deep: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --card-border: #E2E8F0;
+  --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  --border-color: #E2E8F0;
+  --border-subtle: #E2E8F0;
+  --nav-hover: #F1F5F9;
+  --input-bg: #FFFFFF;
+  --input-border: #CBD5E1;
+  --table-header-bg: #F8FAFC;
+  --table-row-hover: #F1F5F9;
+}
+
+:root[data-theme="dark"],
+.dark {
+  /* Tema Oscuro */
+  --bg-deep: #0B1120;
+  --bg-card: #1E293B;
+  --bg-sidebar: #0B1120;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --card-border: rgba(255, 255, 255, 0.07);
+  --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --border-color: #334155;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --input-bg: rgba(11, 17, 32, 0.6);
+  --input-border: #374151;
+  --table-header-bg: rgba(15, 23, 42, 0.6);
+  --table-row-hover: rgba(30, 41, 59, 0.4);
+}
+
 @theme {
   --color-brand-blue: #2563EB;
   --color-brand-light: #3B82F6;
   --color-brand-dark: #1E3A8A;
   
-  --color-bg-deep: #0B1120;
-  --color-bg-card: #1E293B;
-  --color-text-primary: #F8FAFC;
-  --color-text-secondary: #94A3B8;
+  --color-bg-deep: var(--bg-deep);
+  --color-bg-card: var(--bg-card);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-color: var(--border-color);
+  --color-card-border: var(--card-border);
+  --color-nav-hover: var(--nav-hover);
 
   --font-sans: 'Inter', system-ui, sans-serif;
 }
@@ -19,10 +65,84 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-sans);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .glass-card {
   background: var(--color-bg-card);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--card-border);
+}
+
+/* Transiciones suaves al cambiar tema */
+body, aside, main, header, nav, .glass-card, input, select, textarea, button, tr {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Reglas temáticas automáticas para componentes existentes (Requisito 2) */
+:root:not(.dark),
+[data-theme="light"] {
+  /* Sidebars y menús */
+  aside {
+    background-color: var(--bg-sidebar);
+    border-color: var(--border-color);
+  }
+
+  /* Bordes de tablas, tarjetas y contenedores en tema claro */
+  .border-gray-800,
+  .border-gray-700,
+  .border-gray-600 {
+    border-color: var(--border-color);
+  }
+
+  /* Estados hover de navegación y listas en tema claro */
+  .hover\:bg-gray-800:hover,
+  .hover\:bg-gray-800\/50:hover,
+  .hover\:bg-gray-800\/40:hover {
+    background-color: var(--nav-hover);
+  }
+
+  .hover\:text-white:hover {
+    color: var(--text-primary);
+  }
+
+  /* Tablas: encabezados y filas */
+  table thead tr {
+    border-color: var(--border-color);
+    background-color: var(--table-header-bg);
+  }
+
+  table tbody tr {
+    border-color: var(--border-color);
+  }
+
+  table tbody tr:hover {
+    background-color: var(--table-row-hover);
+  }
+
+  /* Inputs, selects y formularios */
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+  select,
+  textarea {
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    border-color: var(--input-border);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* Suavizar fondos oscuros hardcodeados en tema claro */
+  .bg-bg-deep\/50,
+  .bg-bg-deep\/60,
+  .bg-bg-deep\/80 {
+    background-color: var(--bg-card);
+  }
+
+  /* Ajustar textos secundarios de bajo contraste */
+  .text-gray-400 {
+    color: var(--text-secondary);
+  }
 }

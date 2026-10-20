@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, ArrowLeft, Award, Lock, Trophy } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
 
 const TEXTO_CONDICION = {
@@ -38,9 +39,12 @@ export default function RewardsGallery() {
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-5xl">
-                <a href="/dashboard" className="mb-6 inline-flex items-center gap-2 text-text-secondary hover:text-white">
-                    <ArrowLeft className="h-4 w-4" /> Volver al panel
-                </a>
+                <div className="mb-6 flex items-center justify-between">
+                    <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
+                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                    </a>
+                    <ThemeToggle />
+                </div>
 
                 <header className="mb-8 flex items-end justify-between">
                     <div>

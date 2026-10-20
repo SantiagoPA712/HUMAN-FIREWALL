@@ -1,20 +1,31 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText, User, Palette } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
 import { LevelBadge } from '../components/LevelBadge';
+import { ThemeToggle } from '../components/ThemeToggle';
+import { ThemeSelector } from '../components/ThemeSelector';
+import { UserProfileModal } from '../components/UserProfileModal';
 import { usePuntos } from '../context/PuntosContext';
 import { getUsuarioActual } from '../lib/api';
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState("Admin");
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { recompensas, nivel } = usePuntos();
 
   // El enlace a reportes solo tiene sentido para quien puede abrirlos: el
   // backend responde 403 al resto, y un menu que lleva a un error es peor que
   // no tener el menu.
   const usuario = getUsuarioActual();
+
+  useEffect(() => {
+    if (usuario?.id) {
+      setUserName(usuario.role === 'admin' ? 'Admin' : `Empleado #${usuario.id}`);
+    }
+  }, [usuario?.id, usuario?.role]);
+
   const puedeVerReportes = usuario?.role === 'rh' || usuario?.role === 'admin';
   const puedeVerSeguridad = usuario?.role === 'security' || usuario?.role === 'admin';
 
@@ -112,8 +123,27 @@ export default function DashboardPage() {
           )}
         </nav>
 
-        <div className="mt-auto">
-          <Button variant="outline" className="w-full justify-start text-text-secondary border-gray-700 hover:text-white hover:bg-red-500/10 hover:border-red-500/50" onClick={handleLogout}>
+        <div className="mt-auto flex flex-col gap-3">
+          {/* Configuración de Apariencia y Tema */}
+          <div className="rounded-xl border border-border-color bg-bg-card/40 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-text-secondary flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5 text-brand-blue" />
+                Tema
+              </span>
+            </div>
+            <ThemeSelector variant="segmented" className="w-full justify-center" />
+            <button
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className="mt-2.5 flex items-center justify-center gap-1.5 w-full text-xs text-brand-light hover:underline font-medium cursor-pointer"
+            >
+              <User className="w-3.5 h-3.5" />
+              Perfil y configuración
+            </button>
+          </div>
+
+          <Button variant="outline" className="w-full justify-start text-text-secondary border-border-color hover:text-white hover:bg-red-500/10 hover:border-red-500/50" onClick={handleLogout}>
             <LogOut className="w-5 h-5 mr-2" />
             Cerrar Sesión
           </Button>
@@ -122,12 +152,22 @@ export default function DashboardPage() {
 
       {/* Contenido Principal */}
       <main className="flex-1 p-10 overflow-y-auto">
-        <header className="mb-10 flex justify-between items-end">
+        <header className="mb-10 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Bienvenido, {userName}</h1>
             <p className="text-text-secondary mt-1">Aquí está el resumen de tu ciber-entrenamiento.</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center flex-wrap gap-3">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-border-color bg-bg-card/40 px-3 py-2 text-text-secondary hover:text-text-primary hover:border-brand-blue/60 transition-colors cursor-pointer"
+              title="Configuración del perfil y tema"
+            >
+              <User className="h-4 w-4 text-brand-blue" />
+              <span className="text-sm font-medium">Perfil & Tema</span>
+            </button>
             <PointsWidget compacto />
             {/* El nivel salia fijo en "Cinturón Blanco" / 1 para todo el mundo
                 porque users.level nunca se calculaba (deuda tecnica 9).
@@ -205,6 +245,13 @@ export default function DashboardPage() {
         </div>
 
       </main>
+
+      {/* Modal de Configuración y Perfil del Usuario */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        userName={userName}
+      />
     </div>
   );
 }

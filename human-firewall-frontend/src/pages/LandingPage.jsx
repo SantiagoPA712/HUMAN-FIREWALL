@@ -2,6 +2,7 @@ import React from 'react';
 import { Globe, Award, TrendingUp, ShieldCheck } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 export default function LandingPage() {
   return (
@@ -13,7 +14,8 @@ export default function LandingPage() {
           <ShieldCheck className="w-8 h-8 text-brand-blue" />
           <span className="text-xl font-bold">Human Firewall</span>
         </div>
-        <div className="flex gap-4">
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
           <Button variant="outline" className="text-sm py-2" onClick={() => window.location.href = '/login'}>Iniciar Sesión</Button>
           <Button variant="secondary" className="text-sm py-2" onClick={() => window.location.href = '/register'}>Registrarse Gratis</Button>
         </div>

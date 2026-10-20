@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ShieldCheck, ArrowLeft, Shield, Check, Lock } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { LevelBadge } from '../components/LevelBadge';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
 
 /**
@@ -48,9 +49,12 @@ export default function MyLevel() {
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-4xl">
-                <a href="/dashboard" className="mb-6 inline-flex items-center gap-2 text-text-secondary hover:text-white">
-                    <ArrowLeft className="h-4 w-4" /> Volver al panel
-                </a>
+                <div className="mb-6 flex items-center justify-between">
+                    <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
+                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                    </a>
+                    <ThemeToggle />
+                </div>
 
                 <header className="mb-8">
                     <h1 className="flex items-center gap-3 text-3xl font-bold">

@@ -13,7 +13,7 @@ export function PointsWidget({ compacto = false }) {
         return (
             <a
                 href="/points"
-                className="flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-2 transition-colors hover:border-brand-blue/60"
+                className="flex items-center gap-2 rounded-lg border border-border-color bg-bg-card/40 px-3 py-2 transition-colors hover:border-brand-blue/60"
                 title="Ver historial de puntos"
             >
                 <Trophy className="h-4 w-4 text-brand-blue" />
