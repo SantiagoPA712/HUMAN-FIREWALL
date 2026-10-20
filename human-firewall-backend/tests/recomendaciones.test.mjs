@@ -23,7 +23,7 @@ const adapter = {
     };
   }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -41,7 +41,7 @@ for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_trackin
 }
 console.log('Migraciones aplicadas\n');
 
-const reco = require_('./services/recommendations.service');
+const reco = require_('./servicios/gamificacion/aplicacion/recommendations.service');
 
 const { rows:[a] } = await pg.query(`SELECT id FROM users WHERE email='ana@hf.com'`);
 const { rows:[b] } = await pg.query(`SELECT id FROM users WHERE email='beto@hf.com'`);
@@ -269,8 +269,8 @@ check('generar el resumen no toca lesson_progress', antesL.n === despuesL.n);
 // areas de oportunidad y por lo tanto no hay nada que recomendar.
 console.log('\n--- REGISTRO DE INTENTOS FALLIDOS ---');
 
-const controller = require_('./controllers/gamification.controller');
-const eventBus2 = require_('./services/eventBus');
+const controller = require_('./servicios/evaluaciones/api/desafios.controller');
+const eventBus2 = require_('./compartido/eventos/eventBus');
 
 // Stubs minimos de req/res para ejercitar el controlador real.
 const llamar = async (userId, body) => {

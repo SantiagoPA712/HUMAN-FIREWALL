@@ -17,37 +17,38 @@ if (process.env.NODE_ENV !== 'production') {
     app.use(cors());
 }
 
-app.use(express.json());
-
-// ID de correlacion (trace_id) para cada request. Va antes de las rutas para
-// que cualquier log de auditoria que se registre dentro del request lo lleve.
-// Ver middlewares/traceId.middleware.js.
-const { asignarTraceId } = require('./middlewares/traceId.middleware');
+// ID de correlacion (trace_id) para cada request. Va primero: cualquier log
+// de auditoria y cualquier respuesta de error 500 lo llevan, incluso las de
+// un cuerpo JSON mal formado. Ver compartido/middlewares/traceId.middleware.js.
+const { asignarTraceId } = require('./compartido/middlewares/traceId.middleware');
 app.use(asignarTraceId);
 
-require('./config/passport');
-const passport = require('passport');
+app.use(express.json());
 
+const passport = require('passport');
+const servicios = require('./servicios');
+
+// Estrategia de Google (la usa /api/sso, que es del servicio de identidad).
+servicios.servicio('identidad').configurarAutenticacion();
 app.use(passport.initialize());
 
 // --- API ---
-// Todo lo que cuelga de /api lo resuelve el servidor. Va ANTES que los
-// archivos estaticos y que el fallback de la SPA.
-app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/users', require('./routes/user.routes'));
-app.use('/api/sso', require('./routes/sso.routes'));
-app.use('/api/courses', require('./routes/course.routes'));
-app.use('/api/simulations', require('./routes/simulation.routes'));
-app.use('/api/gamification', require('./routes/gamification.routes'));
-app.use('/api/notifications', require('./routes/notification.routes'));
+//
+// Cada servicio declara sus routers y el prefijo donde se montan (ver
+// servicios/<servicio>/index.js). La lista completa, con el servicio dueno
+// de cada prefijo, esta en servicios/index.js y en /api/docs.
+//
+// Todo lo que cuelga de /api va ANTES que los archivos estaticos y que el
+// fallback de la SPA.
+for (const { prefijo, router } of servicios.rutas()) {
+    app.use(prefijo, router);
+}
 
-// Invitaciones de usuarios. Mezcla rutas de admin (con token) y rutas del
-// invitado (sin sesion, con el token de invitacion en el cuerpo).
-app.use('/api/invitations', require('./routes/invitations.routes'));
-
-// Logs de auditoria (data.logs). Solo admin: la verificacion vive en el
-// propio archivo de rutas, antes de cualquier controlador.
-app.use('/api/logs', require('./routes/logs.routes'));
+// Contratos de la API (OpenAPI 3.1) y su documentacion navegable.
+//   GET /api/docs               interfaz Swagger UI
+//   GET /api/docs/openapi.json  el contrato en JSON (importable en Postman)
+// Ver compartido/contratos/openapi.js.
+require('./compartido/contratos/openapi').montar(app, servicios.SERVICIOS);
 
 // 404 de la API en JSON.
 //
@@ -60,16 +61,23 @@ app.use('/api/logs', require('./routes/logs.routes'));
 // inexistente nunca termine sirviendo el HTML de la SPA.
 app.use('/api', (req, res) => {
     res.status(404).json({
-        msg: `Endpoint no encontrado: ${req.method} ${req.originalUrl}`
+        msg: `Endpoint no encontrado: ${req.method} ${req.originalUrl}`,
+        codigo: 'NO_ENCONTRADO'
     });
 });
+
+// Manejador de errores de la API: lo que ningun controlador atrapo (JSON mal
+// formado, validaciones de DTO, excepciones de middlewares) sale con el
+// formato comun y sin detalles internos. Ver compartido/http/errores.js.
+const { manejadorDeErrores } = require('./compartido/http/errores');
+app.use('/api', manejadorDeErrores);
 
 // --- Interfaz ---
 //
 // El build de React se sirve desde este mismo proceso. Eso es lo que hace al
 // sistema un monolito de despliegue: un solo artefacto, un solo puerto, un
 // solo origen. Antes hacian falta dos servidores corriendo a la vez.
-const RUTA_FRONTEND = path.join(__dirname, '..', '..', 'human-firewall-frontend', 'dist');
+const { DIR_FRONTEND_BUILD: RUTA_FRONTEND } = require('./compartido/config/rutas');
 const hayBuild = fs.existsSync(path.join(RUTA_FRONTEND, 'index.html'));
 
 if (hayBuild) {

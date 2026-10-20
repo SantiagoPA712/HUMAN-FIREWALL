@@ -68,6 +68,34 @@ Para el volumen de esta plataforma la balanza favorece claramente al monolito.
 Como se comunican esos modulos entre si es una decision aparte, y esta en la
 seccion siguiente: **no se llaman, publican eventos**.
 
+### Microservicios por capas
+
+Dentro de ese unico proceso, el backend esta organizado en **siete
+microservicios logicos**, cada uno con sus capas, sus tablas, sus eventos y
+sus contratos:
+
+| Servicio | Responsabilidad |
+|----------|-----------------|
+| `identidad` | Cuentas, login, roles, perfil, equipos e invitaciones |
+| `cursos` | Cursos, lecciones, asignaciones, progreso y fechas limite |
+| `evaluaciones` | Simulaciones, desafios e intentos (puntaje calculado en el servidor) |
+| `gamificacion` | Puntos, recompensas, niveles, ranking y recomendaciones |
+| `notificaciones` | Bandeja, resultados, preferencias y cola de correo |
+| `reportes` | Reportes para RH, programados y organizacional |
+| `seguridad` | Anomalias, auditoria de ajustes y `data.logs` |
+
+Cada uno vive en `human-firewall-backend/src/servicios/<servicio>/` con la
+misma forma: `api/` (rutas, controladores sin SQL y DTO), `aplicacion/`
+(casos de uso), `dominio/` (reglas puras, cuando hay), `infraestructura/`
+(repositorios y clientes de otros servicios) y `contrato/` (OpenAPI). Un
+servicio solo llega a otro por su `index.js`, y solo es dueno de sus tablas.
+`tests/arquitectura.test.mjs` verifica esas reglas en cada `npm test`.
+
+- Documento de arquitectura: [`docs/arquitectura/README.md`](docs/arquitectura/README.md)
+- Catalogo de servicios (generado): [`docs/arquitectura/SERVICIOS.md`](docs/arquitectura/SERVICIOS.md)
+- Contrato de la API: `http://localhost:3000/api/docs` (Swagger UI) y `/api/docs/openapi.json`
+- Cambios de contrato: [`docs/contratos/POLITICA.md`](docs/contratos/POLITICA.md) y [`CHANGELOG.md`](docs/contratos/CHANGELOG.md)
+
 ---
 
 ## Arquitectura basada en eventos
@@ -105,8 +133,9 @@ POST /api/simulations/submit-decision
                                                   -> reward_granted   -> notifications
 ```
 
-`simulation.controller.js` ya no sabe que existen los puntos, ni los niveles,
-ni las recompensas, ni los correos. Publica lo que paso y se va.
+`simulaciones.service.js` (servicio de evaluaciones) ya no sabe que existen
+los puntos, ni los niveles, ni las recompensas, ni los correos. Publica lo que
+paso y se va.
 
 ### Diagrama
 
@@ -116,9 +145,9 @@ ni las recompensas, ni los correos. Publica lo que paso y se va.
 
   auth.service ---------+                        +---> points.service
   passport.js ----------+                        |     (asigna puntos)
-  course.controller ----+                        |
-  gamification.ctrl ----+--> [ publish() ] --+   +---> rewards.service
-  simulation.ctrl ------+          |         |   |     (otorga logros)
+  cursos.service -------+                        |
+  desafios.service -----+--> [ publish() ] --+   +---> rewards.service
+  simulaciones.service -+          |         |   |     (otorga logros)
                                    v         |   |
                           +-----------------+|   +---> levels.service
                           |  event_outbox   ||   |     (recalcula nivel)
@@ -134,19 +163,21 @@ ni las recompensas, ni los correos. Publica lo que paso y se va.
 
 Un publicador **no conoce a ningun suscriptor**. Lo unico que comparten es el
 nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
-`src/events/catalogo.js`.
+`src/compartido/eventos/catalogo.js`. Cada evento lo publica un solo servicio
+(su dueno) y el `manifiesto.js` de cada servicio declara que publica y que
+consume; las pruebas de arquitectura comparan eso con el codigo.
 
 ### Catalogo de eventos
 
 | Evento | Lo publica | Reaccionan | Payload |
 |--------|-----------|------------|---------|
 | `user.registered` | `auth.service`, `passport.js` | notifications | `{ userId, email, role, provider }` |
-| `lesson.completed` | `course.controller` | points | `{ userId, contentId }` |
-| `course.completed` | `course.controller` | points, rewards, resultNotifications | `{ userId, courseId }` |
-| `quiz.approved` | `gamification.controller` | points, rewards, recommendations, resultNotifications | `{ userId, quizRef, quizType, score, passed, basePoints?, courseId? }` |
-| `quiz.failed` | `gamification.controller` | resultNotifications | `{ userId, quizRef, quizType, score, passed: false, attemptId, attemptNo, courseId }` |
-| `simulation.decision_made` | `simulation.controller` | points | `{ userId, optionId, simulationId, stepId, isCorrect, points }` |
-| `simulation.completed` | `simulation.controller` | rewards, recommendations, resultNotifications | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptId, attemptNo }` |
+| `lesson.completed` | cursos (`cursos.service`) | points | `{ userId, contentId }` |
+| `course.completed` | cursos (`cursos.service`) | points, rewards, resultNotifications | `{ userId, courseId }` |
+| `quiz.approved` | evaluaciones (`desafios.service`) | points, rewards, recommendations, resultNotifications | `{ userId, quizRef, quizType, score, passed, basePoints?, courseId? }` |
+| `quiz.failed` | evaluaciones (`desafios.service`) | resultNotifications | `{ userId, quizRef, quizType, score, passed: false, attemptId, attemptNo, courseId }` |
+| `simulation.decision_made` | evaluaciones (`simulaciones.service`) | points | `{ userId, optionId, simulationId, stepId, isCorrect, points }` |
+| `simulation.completed` | evaluaciones (`simulaciones.service`) | rewards, recommendations, resultNotifications | `{ userId, simulationId, courseId, score, aprobada, aciertos, pasos, attemptId, attemptNo }` |
 | `points_assigned` | `points.service` | rewards, levels, anomalies | `{ userId, sourceType, sourceId, points, ledgerId }` |
 | `level_up` | `levels.service` | notifications | `{ userId, nivel, nombre, nivelesAlcanzados, puntos }` |
 | `reward_granted` | `rewards.service` | notifications | `{ userId, rewardId, rewardName, userRewardId }` |
@@ -154,8 +185,8 @@ nombre del evento y la forma del payload, y eso vive escrito en un solo lugar:
 | `report.scheduled_run` | `scheduledReports.service` (scheduler) | scheduledReports | `{ scheduleId, tipo, formato, periodo, params }` |
 | `report.auto_generated` | `scheduledReports.service` (job) | scheduledReports | `{ historyId, scheduleId, periodo }` |
 | `audit.log_recorded` | `dataLogs.registrar()`, desde cualquier modulo | dataLogs | `{ logUid, userId, actorType, actorEmail, actionType, module, resourceType, resourceId, oldValue, newValue, ipAddress, traceId, occurredAt }` |
-| `course.assigned` | `course.controller` (misma transaccion que la asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
-| `course.deadline_approaching` | `emailNotifications` (reloj, una vez por asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
+| `course.assigned` | cursos (`cursos.service`, misma transaccion que la asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
+| `course.deadline_approaching` | cursos (reloj de fechas limite, una vez por asignacion) | emailNotifications | `{ userId, courseId, assignmentId, dueDate }` |
 | `user.password_changed` | `recovery.service` (misma transaccion que el UPDATE) | emailNotifications | `{ userId, changedAt }` |
 | `user.invited` | `invitations.service` (misma transaccion que crear o reenviar) | emailNotifications | `{ invitationId, email, role, language, token, expiresAt, invitedBy, invitedByEmail, sendNo }` |
 
@@ -216,9 +247,9 @@ no se dupliquen ni los puntos, ni los avisos.
 Sin tocar a quien publica:
 
 ```js
-// src/services/mi.service.js
-const eventBus = require('./eventBus');
-const { EVENTOS } = require('../events/catalogo');
+// src/servicios/<servicio>/aplicacion/mi.service.js
+const eventBus = require('../../../compartido/eventos/eventBus');
+const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 
 async function reaccionar({ userId, courseId }) {
     // ...
@@ -231,9 +262,11 @@ function registrarHandlers() {
 module.exports = { reaccionar, registrarHandlers };
 ```
 
-Y agregarlo a la lista de `src/events/suscriptores.js`. Nada mas.
+Y llamarlo desde `registrarHandlers()` del `index.js` del servicio, sumando
+el evento a `consume` en su `manifiesto.js`. `src/servicios/suscriptores.js`
+conecta todos los servicios al arrancar. Nada mas.
 
-Si el evento es nuevo, primero va al catalogo (`src/events/catalogo.js`), junto
+Si el evento es nuevo, primero va al catalogo (`src/compartido/eventos/catalogo.js`), junto
 con su payload y sus suscriptores esperados. Publicar o suscribir un nombre que
 no este en el catalogo funciona igual, pero imprime un warning en el arranque:
 asi un typo se nota ahi y no tres pantallas mas adelante.
@@ -425,11 +458,13 @@ npm test
 ```
 
 Corren contra PostgreSQL real (PGlite, compilado a WebAssembly): no necesitan
-base levantada ni credenciales, y no tocan Supabase. Son 868 pruebas sobre
-migraciones, asignacion de puntos, motor de recompensas, niveles,
+base levantada ni credenciales, y no tocan Supabase. Son 18 suites: las de
+integracion de cada HU (migraciones, puntos, recompensas, niveles,
 recomendaciones, simulaciones, reportes, seguridad, reportes automaticos,
 resultados organizacionales, notificacion de resultados, logs de auditoria,
-notificaciones por correo e invitaciones. Ver `tests/README.md`.
+correo e invitaciones) mas las de la HU de microservicios: **unitarias**,
+**arquitectura** (reglas de capas, dependencias y datos) y **contratos** (la
+API real contra su OpenAPI). Ver `tests/README.md`.
 
 ---
 
@@ -853,10 +888,13 @@ ajustes manuales llegan a los dos.
 
 **Para registrar una accion nueva, una sola llamada, sin `await`:**
 
-```js
-const dataLogs = require('../services/dataLogs.service');
+Desde otro servicio, por su cliente de seguridad
+(`infraestructura/clientes/seguridad.cliente.js`):
 
-dataLogs.registrar({
+```js
+const dataLogs = require('../infraestructura/clientes/seguridad.cliente');
+
+dataLogs.registrarAccion({
     req,                                        // de aca salen usuario, IP y trace_id
     accion: dataLogs.ACCIONES.CONFIG_CHANGE,
     modulo: dataLogs.MODULOS.REPORTS,
@@ -1041,17 +1079,17 @@ recalcular el nivel o evaluar recompensas, **no hay que modificar
 `points.service.js`**: alcanza con suscribirse desde el archivo propio.
 
 ```js
-const eventBus = require('./eventBus');
-const { EVENTOS } = require('../events/catalogo');
+const eventBus = require('../../../compartido/eventos/eventBus');
+const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 
 eventBus.subscribe(EVENTOS.POINTS_ASSIGNED, async ({ userId, points, sourceType }) => {
     // recalcular nivel, evaluar recompensas, etc.
 });
 ```
 
-El nombre del evento se toma de `src/events/catalogo.js`, nunca se escribe a
-mano. El servicio se agrega a la lista de `src/events/suscriptores.js`, que es
-el unico lugar que decide quien participa del bus.
+El nombre del evento se toma de `src/compartido/eventos/catalogo.js`, nunca se
+escribe a mano. La suscripcion se registra en `registrarHandlers()` del
+`index.js` del servicio, y `src/servicios/suscriptores.js` conecta a todos.
 
 Si el handler lanza una excepcion, el evento se reintenta solo con backoff, asi
 que **el handler tiene que ser idempotente**. Ver "Arquitectura basada en
@@ -1063,7 +1101,7 @@ Los endpoints de `/api/gamification/*` que reciben un `:userId` usan siempre el
 mismo middleware, que ya resuelve la regla propio-usuario / admin / rh:
 
 ```js
-const { selfOrRoles } = require('../middlewares/role.middleware');
+const { selfOrRoles } = require('../../../compartido/middlewares/role.middleware');
 
 router.get('/level/:userId',
     verifyToken(),
@@ -1132,21 +1170,29 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 |-- docker-compose.yml          PostgreSQL de desarrollo
 |-- migrations/                 Migraciones SQL numeradas (leer su README)
 |-- schema.sql                  Esquema historico (NO editar, ver migrations/)
+|-- docs/
+|   |-- arquitectura/           README.md (la arquitectura) y SERVICIOS.md (catalogo generado)
+|   `-- contratos/              Politica de cambios de contrato y CHANGELOG
 |-- human-firewall-backend/
+|   |-- scripts/                setup-env.js y el generador del catalogo de servicios
+|   |-- tests/                  Suites de integracion, unitarias, arquitectura y contratos
 |   `-- src/
-|       |-- app.js              Monta la API y sirve el build de la interfaz
-|       |-- server.js           Arranque: conecta el bus y escucha el puerto
-|       |-- config/             Conexion a BD, Passport, seeds
-|       |-- controllers/        Manejadores de ruta
-|       |-- events/
-|       |   |-- catalogo.js     Nombres y payloads de todos los eventos
-|       |   `-- suscriptores.js Que servicios se conectan al bus
-|       |-- middlewares/        Autenticacion, roles, rate limiting
-|       |-- routes/             Definicion de endpoints
-|       |-- services/
-|       |   |-- eventBus.js     Publicacion, cola outbox, worker y reintentos
-|       |   `-- ...             Resto de la logica de negocio
-|       `-- utils/              Hashing y tokens
+|       |-- app.js              Monta las rutas de cada servicio, /api/docs y el manejo de errores
+|       |-- server.js           Arranque: valida el entorno, conecta el bus y escucha el puerto
+|       |-- compartido/         Plataforma transversal (no depende de ningun servicio)
+|       |   |-- config/         db, entorno, rutas, migraciones
+|       |   |-- eventos/        eventBus (outbox + worker) y catalogo de eventos
+|       |   |-- http/           formato comun de errores y validacion por DTO
+|       |   |-- middlewares/    autenticacion, roles, rate limiting, trace_id
+|       |   |-- contratos/      arma y sirve el OpenAPI de todos los servicios
+|       |   `-- utils/          hash, token, csv, correo
+|       `-- servicios/
+|           |-- index.js        Registro de los siete servicios
+|           |-- suscriptores.js Conecta los servicios al bus de eventos
+|           `-- <servicio>/     identidad, cursos, evaluaciones, gamificacion,
+|               |-- index.js        notificaciones, reportes, seguridad
+|               |-- manifiesto.js   (ver docs/arquitectura/README.md)
+|               |-- api/  aplicacion/  dominio/  infraestructura/  contrato/
 `-- human-firewall-frontend/
     |-- dist/                   Build compilado; lo sirve el backend (no se versiona)
     `-- src/
@@ -1184,11 +1230,21 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 | - | `auth.controller` tenia un bypass que entregaba un token de admin con `AdminPassword123!` sin consultar la base | Eliminado con la HU de logs de auditoria; el login fallido ahora queda en `data.logs` |
 | - | `PUT /api/users/:id` con un rol inexistente devolvia 500 con el error crudo de Postgres, y un id inexistente respondia "Usuario actualizado" | Valida rol e `is_active` (400) y responde 404 si el usuario no existe |
 | - | Un correo con el proveedor caido se daba por fallido tras 1 intento + 2 reintentos, y el criterio pide 3 reintentos | `email_jobs.max_attempts` pasa a contar intentos totales (`MAX_REINTENTOS + 1`), con prueba de regresion |
+| 4 | `JWT_SECRET` caia a `'secret'` si faltaba la variable | Sin valor por defecto (`compartido/config/entorno.js`): el servidor no arranca sin `DATABASE_URL` ni `JWT_SECRET` |
+| 7 | `auth.forgotPassword` devolvia el error real y permitia enumerar usuarios registrados | Responde siempre el mismo mensaje, exista o no la cuenta |
+| - | 68 respuestas 500 devolvian `error.message`, con el texto crudo de PostgreSQL | Formato comun de errores: un 500 responde un mensaje generico y el `traceId`; el detalle va al log |
+| - | Cuatro controladores (course, simulation, gamification, user) tenian 47 consultas SQL | Repositorios en `infraestructura/` y casos de uso en `aplicacion/`; ningun controlador importa la base |
+| - | Servicios que escribian en tablas de otro (notificaciones en `courses` y `course_assignments`, gamificacion en `quiz_attempts`) | Cada tabla tiene un dueno; las escrituras pasan por el contrato del dueno |
+| - | `seed_admin.js` tenia la contrasena del admin escrita en el codigo | La lee de `ADMIN_EMAIL` / `ADMIN_PASSWORD` |
+| - | La API no tenia contrato: la coleccion de Postman cubria 5 de 80 endpoints | Contrato OpenAPI 3.1 en `/api/docs`, verificado contra la API real por `tests/contratos.test.mjs` |
+| - | En una simulacion cuyas opciones no dan puntos, `pasos` daba 0 y el score por aciertos nunca se calculaba | Corregido en `evaluaciones/dominio/puntaje.js`; lo encontro la prueba unitaria |
 
 ### Pendiente
 
 | # | Fallo | Nota |
 |---|-------|------|
-| 4 | `JWT_SECRET` cae a `'secret'` si falta la variable | Mitigado con un aviso al arrancar; falta quitar el fallback |
-| 6 | `init_db.js` desincronizado con `schema.sql` | Reemplazar por el runner de `migrations/` |
-| 7 | `auth.forgotPassword` devuelve el error real y permite enumerar usuarios registrados | |
+| 6 | `init_db.js` desincronizado con `schema.sql` | Reemplazar por el runner de `migrations/` (ya existe: `npm run migrate`) |
+| - | Lecturas de tablas ajenas que quedan (reportes, resumen de desempeno, ranking, anomalias) | Declaradas con su motivo en cada `manifiesto.js`. Si se separa la base, reemplazarlas por proyecciones alimentadas por eventos |
+| - | Los servicios de aplicacion grandes (puntos, recompensas, notificaciones, reportes) todavia tienen su SQL adentro | El SQL nuevo va en repositorios; separar el existente cuando se toque cada archivo |
+| - | La migracion 027 siembra cuentas de desarrollo con contrasenas conocidas | No se edita (es una migracion mergeada); cambiarlas en cualquier entorno real |
+| - | La coleccion de Postman esta desactualizada | Importar `/api/docs/openapi.json` en Postman (Import > Link) |

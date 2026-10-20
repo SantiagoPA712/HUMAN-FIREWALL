@@ -4,9 +4,8 @@
  * Copiar .env.example a mano dejaba dos campos que el integrante nuevo no
  * sabia con que llenar:
  *
- *   - JWT_SECRET, que hay que inventar. Si queda vacio el servidor arranca
- *     igual pero firma los tokens con la cadena 'secret', y con eso cualquiera
- *     puede fabricarse un token de admin.
+ *   - JWT_SECRET, que hay que inventar. Si queda vacio el servidor no
+ *     arranca (antes arrancaba y firmaba con la cadena 'secret').
  *   - DATABASE_URL, que depende de donde corra la base.
  *
  * Este script resuelve los dos: genera un secreto aleatorio y deja apuntada la

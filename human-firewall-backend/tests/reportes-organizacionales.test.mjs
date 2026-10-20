@@ -29,7 +29,7 @@ const adapter = {
     query: (t, p) => pg.query(t, p),
     connect: async () => ({ query: (t, p) => pg.query(t, p), release: () => {} })
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -39,9 +39,9 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const org = require_('./services/orgReports.service');
-const controller = require_('./controllers/orgReports.controller');
-const { requireRoles } = require_('./middlewares/role.middleware');
+const org = require_('./servicios/reportes/aplicacion/orgReports.service');
+const controller = require_('./servicios/reportes/api/orgReports.controller');
+const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 
 const llamar = async (handler, req) => {
     let estado = 200, cuerpo = null;

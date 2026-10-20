@@ -25,7 +25,7 @@ const adapter = {
     };
   }
 };
-const dbPath = require_.resolve('./config/db');
+const dbPath = require_.resolve('./compartido/config/db');
 require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: adapter };
 
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
@@ -43,7 +43,7 @@ for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_trackin
 }
 console.log('Migraciones aplicadas\n');
 
-const controller = require_('./controllers/simulation.controller');
+const controller = require_('./servicios/evaluaciones/api/simulation.controller');
 
 const { rows:[e] } = await pg.query(`SELECT id FROM users WHERE email='emp@hf.com'`);
 const { rows:[i] } = await pg.query(`SELECT id FROM users WHERE email='instru@hf.com'`);
@@ -196,7 +196,7 @@ check('una simulacion inexistente da 404', inexistente.estado === 404);
 // ---------------------------------------------------------------------
 console.log('\n--- ALIMENTA EL RESUMEN DE DESEMPENO ---');
 
-const reco = require_('./services/recommendations.service');
+const reco = require_('./servicios/gamificacion/aplicacion/recommendations.service');
 const resumen = await reco.obtenerResumenDesempeno(empleado);
 check('la simulacion aparece entre las evaluaciones realizadas',
   resumen.evolucion.serie.some(s => s.quiz_ref === '910'),
