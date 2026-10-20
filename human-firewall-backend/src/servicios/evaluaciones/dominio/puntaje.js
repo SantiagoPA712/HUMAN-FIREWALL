@@ -43,11 +43,15 @@ function calcularResultadoSimulacion(opciones, decisiones) {
         throw new ReglaDeEvaluacion(`La opción ${ajena} no pertenece a esta simulación`, 'decisiones');
     }
 
-    // Techo del puntaje: la mejor opcion de cada paso.
+    // Techo del puntaje: la mejor opcion de cada paso. Todo paso entra en el
+    // mapa, aunque ninguna de sus opciones de puntos: antes solo entraban los
+    // pasos con alguna opcion > 0, asi que en una simulacion sin puntos
+    // `pasos` daba 0 y el score por aciertos nunca se calculaba (salia 0).
+    // Lo encontro la prueba unitaria de este archivo.
     const mejorPorPaso = new Map();
     for (const o of opciones) {
         const previa = mejorPorPaso.get(o.step_id) || 0;
-        if (o.points_awarded > previa) mejorPorPaso.set(o.step_id, o.points_awarded);
+        mejorPorPaso.set(o.step_id, Math.max(previa, o.points_awarded));
     }
     const puntajeMaximo = [...mejorPorPaso.values()].reduce((a, b) => a + b, 0);
 
