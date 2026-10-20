@@ -29,7 +29,7 @@ const schemas = {
         required: ['msg'],
         properties: {
             msg: { type: 'string' },
-            codigo: { type: 'string', const: 'VALIDACION' },
+            codigo: { type: 'string', enum: ['VALIDACION', 'JSON_INVALIDO'] },
             errores: {
                 type: 'array',
                 items: {

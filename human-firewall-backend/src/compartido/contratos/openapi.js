@@ -22,13 +22,19 @@ const comunes = require('./esquemas-comunes');
 /** Version del contrato publico. Ver docs/contratos/POLITICA.md antes de cambiarla. */
 const VERSION_CONTRATO = '1.0.0';
 
-let cache = null;
+const cache = new WeakMap();
 
-/** Construye (una vez) el documento OpenAPI completo. */
-function construir() {
-    if (cache) return cache;
-
-    const { SERVICIOS } = require('../../servicios');
+/**
+ * Construye (una vez por lista de servicios) el documento OpenAPI completo.
+ *
+ * Recibe los servicios en lugar de importarlos: compartido no depende de
+ * ningun servicio (lo verifica tests/arquitectura.test.mjs). Quien compone
+ * la aplicacion (app.js) se los pasa.
+ *
+ * @param {Array} servicios  la lista de servicios/index.js (SERVICIOS)
+ */
+function construir(servicios) {
+    if (cache.has(servicios)) return cache.get(servicios);
 
     const doc = {
         openapi: '3.1.0',
@@ -57,15 +63,9 @@ function construir() {
         }
     };
 
-    for (const servicio of SERVICIOS) {
+    for (const servicio of servicios) {
         const nombre = servicio.manifiesto.nombre;
-        let contrato;
-        try {
-            contrato = require(`../../servicios/${nombre}/contrato/openapi`);
-        } catch (e) {
-            if (e.code === 'MODULE_NOT_FOUND' && e.message.includes(`${nombre}/contrato/openapi`)) continue;
-            throw e;
-        }
+        const contrato = servicio.contrato();
 
         doc.tags.push({
             name: nombre,
@@ -90,12 +90,12 @@ function construir() {
         }
     }
 
-    cache = doc;
+    cache.set(servicios, doc);
     return doc;
 }
 
 /** Monta /api/docs y /api/docs/openapi.json en la app, si corresponde. */
-function montar(app) {
+function montar(app, servicios) {
     const habilitado = process.env.API_DOCS
         ? process.env.API_DOCS === 'true'
         : process.env.NODE_ENV !== 'production';
@@ -103,7 +103,7 @@ function montar(app) {
 
     const swaggerUi = require('swagger-ui-express');
 
-    app.get('/api/docs/openapi.json', (req, res) => res.json(construir()));
+    app.get('/api/docs/openapi.json', (req, res) => res.json(construir(servicios)));
     app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(null, {
         customSiteTitle: 'Human Firewall API',
         swaggerOptions: { url: '/api/docs/openapi.json', persistAuthorization: true }

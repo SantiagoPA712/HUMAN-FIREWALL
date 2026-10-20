@@ -9,6 +9,9 @@ const repo = require('./infraestructura/evaluaciones.repositorio');
 module.exports = {
     manifiesto,
 
+    /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
+    contrato: () => require('./contrato/openapi'),
+
     rutas: () => [
         { prefijo: '/api/simulations', router: require('./api/simulation.routes') },
         { prefijo: '/api/gamification/challenge', router: require('./api/desafios.routes') }

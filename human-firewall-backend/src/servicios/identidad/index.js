@@ -9,6 +9,9 @@ const usuarios = require('./infraestructura/usuarios.repositorio');
 module.exports = {
     manifiesto,
 
+    /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
+    contrato: () => require('./contrato/openapi'),
+
     rutas: () => [
         { prefijo: '/api/auth', router: require('./api/auth.routes') },
         { prefijo: '/api/users', router: require('./api/user.routes') },

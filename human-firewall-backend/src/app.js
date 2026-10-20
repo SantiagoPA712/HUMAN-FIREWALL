@@ -48,7 +48,7 @@ for (const { prefijo, router } of servicios.rutas()) {
 //   GET /api/docs               interfaz Swagger UI
 //   GET /api/docs/openapi.json  el contrato en JSON (importable en Postman)
 // Ver compartido/contratos/openapi.js.
-require('./compartido/contratos/openapi').montar(app);
+require('./compartido/contratos/openapi').montar(app, servicios.SERVICIOS);
 
 // 404 de la API en JSON.
 //

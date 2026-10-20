@@ -11,6 +11,9 @@ const emailNotifications = require('./aplicacion/emailNotifications.service');
 module.exports = {
     manifiesto,
 
+    /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
+    contrato: () => require('./contrato/openapi'),
+
     rutas: () => [{ prefijo: '/api/notifications', router: require('./api/notification.routes') }],
 
     registrarHandlers() {

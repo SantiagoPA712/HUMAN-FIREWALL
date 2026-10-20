@@ -14,6 +14,9 @@ const orgReports = require('./aplicacion/orgReports.service');
 module.exports = {
     manifiesto,
 
+    /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
+    contrato: () => require('./contrato/openapi'),
+
     rutas: () => [{ prefijo: '/api/gamification/reports', router: require('./api/reportes.routes') }],
 
     registrarHandlers() {

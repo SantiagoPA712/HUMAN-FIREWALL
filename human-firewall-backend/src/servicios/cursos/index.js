@@ -17,6 +17,9 @@ const cursos = require('./aplicacion/cursos.service');
 module.exports = {
     manifiesto,
 
+    /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
+    contrato: () => require('./contrato/openapi'),
+
     /** Routers HTTP que app.js monta. */
     rutas: () => [{ prefijo: '/api/courses', router: require('./api/course.routes') }],
 

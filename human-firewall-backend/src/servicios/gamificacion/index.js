@@ -13,6 +13,9 @@ const repo = require('./infraestructura/gamificacion.repositorio');
 module.exports = {
     manifiesto,
 
+    /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
+    contrato: () => require('./contrato/openapi'),
+
     rutas: () => [{ prefijo: '/api/gamification', router: require('./api/gamification.routes') }],
 
     registrarHandlers() {

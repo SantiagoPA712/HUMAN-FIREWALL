@@ -135,6 +135,16 @@ function traducirError(error) {
         };
     }
 
+    // Violacion de unicidad que ningun servicio atrapo antes (por ejemplo, dos
+    // altas simultaneas con el mismo correo). Es un conflicto, no un 500, y
+    // el nombre del indice no sale en la respuesta.
+    if (error && error.code === '23505') {
+        return {
+            status: 409,
+            cuerpo: { msg: 'Ya existe un registro con esos datos', codigo: CODIGOS.CONFLICTO }
+        };
+    }
+
     return null;
 }
 

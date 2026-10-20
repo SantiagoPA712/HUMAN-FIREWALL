@@ -11,6 +11,9 @@ const audit = require('./aplicacion/audit.service');
 module.exports = {
     manifiesto,
 
+    /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
+    contrato: () => require('./contrato/openapi'),
+
     rutas: () => [
         { prefijo: '/api/gamification/security', router: require('./api/seguridad.routes') },
         { prefijo: '/api/gamification/users', router: require('./api/ajustes.routes') },
