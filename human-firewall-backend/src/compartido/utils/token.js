@@ -1,3 +1,7 @@
+/**
+ * Firma de JWT con el secreto de JWT_SECRET (sin valor por defecto).
+ */
+
 const jwt = require('jsonwebtoken');
 const { secretoJwt } = require('../config/entorno');
 

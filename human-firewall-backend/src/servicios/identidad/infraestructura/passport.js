@@ -1,3 +1,8 @@
+/**
+ * Integracion con Google OAuth (passport). Crea la cuenta en el primer
+ * ingreso y publica user.registered, igual que el registro por formulario.
+ */
+
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('../../../compartido/config/db');

@@ -1,3 +1,8 @@
+/**
+ * Rutas del servicio de notificaciones, montadas en /api/notifications.
+ * El id del usuario sale siempre del token, nunca de la URL.
+ */
+
 const express = require('express');
 const router = express.Router();
 const notificationController = require('./notification.controller');

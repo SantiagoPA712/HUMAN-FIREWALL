@@ -1,3 +1,7 @@
+/**
+ * Limites de solicitudes por IP para las rutas publicas (login, invitaciones).
+ */
+
 const rateLimit = require('express-rate-limit');
 
 exports.loginLimiter = rateLimit({

@@ -1,3 +1,7 @@
+/**
+ * Hash y comparacion de contrasenas con bcrypt.
+ */
+
 const bcrypt = require('bcrypt');
 
 exports.hashPassword = async (password) => {

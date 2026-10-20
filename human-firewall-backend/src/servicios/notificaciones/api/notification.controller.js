@@ -1,3 +1,7 @@
+/**
+ * Controlador HTTP de la bandeja de avisos y del diagnostico del bus.
+ */
+
 const notificationsService = require('../aplicacion/notifications.service');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { responderError } = require('../../../compartido/http/errores');

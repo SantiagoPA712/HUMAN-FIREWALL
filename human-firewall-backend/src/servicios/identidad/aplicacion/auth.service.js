@@ -1,3 +1,8 @@
+/**
+ * Casos de uso de autenticacion: login (con bloqueo por intentos) y registro
+ * publico como employee, que publica user.registered.
+ */
+
 const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');

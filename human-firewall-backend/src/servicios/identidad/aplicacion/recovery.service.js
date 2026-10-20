@@ -1,3 +1,8 @@
+/**
+ * Casos de uso de recuperacion de contrasena: generar el token y
+ * restablecer la contrasena, que publica user.password_changed.
+ */
+
 const db = require('../../../compartido/config/db');
 const crypto = require('crypto');
 const { hashPassword } = require('../../../compartido/utils/hash');

@@ -1,3 +1,7 @@
+/**
+ * Rutas del registro de acciones criticas (data.logs), montadas en /api/logs.
+ */
+
 const express = require('express');
 const router = express.Router();
 

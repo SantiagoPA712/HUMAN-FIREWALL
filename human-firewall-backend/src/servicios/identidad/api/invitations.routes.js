@@ -1,3 +1,8 @@
+/**
+ * Rutas de invitaciones, montadas en /api/invitations: publicas para el
+ * invitado (con limite por IP) y de administrador.
+ */
+
 const express = require('express');
 const router = express.Router();
 

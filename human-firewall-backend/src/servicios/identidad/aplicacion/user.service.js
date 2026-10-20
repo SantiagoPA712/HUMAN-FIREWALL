@@ -1,3 +1,7 @@
+/**
+ * Casos de uso de cuentas: alta por un admin, listado y perfil propio.
+ */
+
 const db = require('../../../compartido/config/db');
 const { hashPassword } = require('../../../compartido/utils/hash');
 

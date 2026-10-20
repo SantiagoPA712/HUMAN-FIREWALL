@@ -1,5 +1,7 @@
 /**
- * Crea una cuenta admin a mano: node src/servicios/identidad/infraestructura/seed_admin.js
+ * Script que crea una cuenta admin con credenciales tomadas del entorno.
+ *
+ *     node src/servicios/identidad/infraestructura/seed_admin.js
  *
  * Antes el correo y la contrasena estaban escritos en este archivo
  * (AdminPassword123!), o sea publicados en el repositorio. Ahora salen del

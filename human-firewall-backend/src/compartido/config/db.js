@@ -1,3 +1,8 @@
+/**
+ * Pool de conexiones a PostgreSQL. Lo usan los repositorios y servicios de
+ * aplicacion; la capa api nunca lo importa (ver tests/arquitectura.test.mjs).
+ */
+
 const { Pool } = require('pg');
 const dns = require('dns');
 require('dotenv').config();

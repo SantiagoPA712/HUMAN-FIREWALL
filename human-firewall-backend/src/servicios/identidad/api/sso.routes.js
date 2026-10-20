@@ -1,3 +1,7 @@
+/**
+ * Rutas de inicio de sesion con Google, montadas en /api/sso.
+ */
+
 const express = require('express');
 const passport = require('passport');
 const { generateToken } = require('../../../compartido/utils/token');

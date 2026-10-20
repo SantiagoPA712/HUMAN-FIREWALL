@@ -1,3 +1,8 @@
+/**
+ * Creacion historica del esquema (OBSOLETO: desincronizado con schema.sql).
+ * Se conserva por referencia; el esquema real lo aplica migrate.js.
+ */
+
 const db = require('./db');
 
 async function initializeDB() {

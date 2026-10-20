@@ -1,3 +1,7 @@
+/**
+ * Autenticacion por JWT (verifyToken) con verificacion opcional de rol.
+ */
+
 const jwt = require('jsonwebtoken');
 const { secretoJwt } = require('../config/entorno');
 const { CODIGOS, responderError } = require('../http/errores');
