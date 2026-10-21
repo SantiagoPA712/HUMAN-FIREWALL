@@ -100,9 +100,228 @@ capas"):
 |-- contract/openapi.js         contrato de su API
 `-- index.js                    puerta de entrada (el ProductApplication del ejemplo)
 ```
- Un
-servicio solo llega a otro por su `index.js`, y solo es dueno de sus tablas.
+
+Un servicio solo llega a otro por su `index.js`, y solo es dueno de sus tablas.
 `tests/arquitectura.test.mjs` verifica esas reglas en cada `npm test`.
+
+#### Estructura del microservicio por capas
+
+Este es el arbol real del proyecto despues de aplicar la seccion 11 (el
+equivalente a la "Estructura recomendada del microservicio por capas" del
+material, donde aparece `product-service`). Cada servicio tiene las mismas
+carpetas; `index.js` de cada servicio cumple el papel de `ProductApplication`.
+
+```
+human-firewall-backend/
+└── src/
+    └── servicios/
+        ├── index.js
+        ├── suscriptores.js
+        ├── cursos/
+        │   ├── controller/
+        │   │   ├── course.controller.js
+        │   │   ├── course.routes.js
+        │   │   └── dto.js
+        │   ├── application/
+        │   │   └── cursos.service.js
+        │   ├── domain/
+        │   │   └── curso.js
+        │   ├── infrastructure/
+        │   │   └── persistence/
+        │   │       └── cursos.repositorio.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── evaluaciones/
+        │   ├── controller/
+        │   │   ├── desafios.controller.js
+        │   │   ├── desafios.routes.js
+        │   │   ├── dto.js
+        │   │   ├── simulation.controller.js
+        │   │   └── simulation.routes.js
+        │   ├── application/
+        │   │   ├── desafios.service.js
+        │   │   └── simulaciones.service.js
+        │   ├── domain/
+        │   │   └── puntaje.js
+        │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   └── evaluaciones.repositorio.js
+        │   │   └── client/
+        │   │       ├── cursos.cliente.js
+        │   │       └── gamificacion.cliente.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── gamificacion/
+        │   ├── controller/
+        │   │   ├── dto.js
+        │   │   ├── gamification.controller.js
+        │   │   └── gamification.routes.js
+        │   ├── application/
+        │   │   ├── gamificacion.service.js
+        │   │   ├── levels.service.js
+        │   │   ├── points.service.js
+        │   │   ├── recommendations.service.js
+        │   │   └── rewards.service.js
+        │   ├── domain/
+        │   │   ├── nivel.js
+        │   │   ├── puntos.js
+        │   │   ├── recomendacion.js
+        │   │   └── recompensa.js
+        │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   └── gamificacion.repositorio.js
+        │   │   └── client/
+        │   │       ├── cursos.cliente.js
+        │   │       ├── evaluaciones.cliente.js
+        │   │       ├── identidad.cliente.js
+        │   │       └── seguridad.cliente.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── identidad/
+        │   ├── controller/
+        │   │   ├── auth.controller.js
+        │   │   ├── auth.routes.js
+        │   │   ├── dto.js
+        │   │   ├── invitations.controller.js
+        │   │   ├── invitations.routes.js
+        │   │   ├── sso.routes.js
+        │   │   ├── user.controller.js
+        │   │   └── user.routes.js
+        │   ├── application/
+        │   │   ├── auth.service.js
+        │   │   ├── invitations.service.js
+        │   │   ├── recovery.service.js
+        │   │   ├── sso.service.js
+        │   │   └── user.service.js
+        │   ├── domain/
+        │   │   ├── invitacion.js
+        │   │   └── usuario.js
+        │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   ├── invitaciones.repositorio.js
+        │   │   │   ├── recuperacion.repositorio.js
+        │   │   │   └── usuarios.repositorio.js
+        │   │   ├── client/
+        │   │   │   ├── notificaciones.cliente.js
+        │   │   │   └── seguridad.cliente.js
+        │   │   ├── passport.js
+        │   │   └── seed_admin.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── notificaciones/
+        │   ├── controller/
+        │   │   ├── dto.js
+        │   │   ├── emailNotifications.controller.js
+        │   │   ├── notification.controller.js
+        │   │   ├── notification.routes.js
+        │   │   └── resultNotifications.controller.js
+        │   ├── application/
+        │   │   ├── emailNotifications.service.js
+        │   │   ├── emailTemplates.service.js
+        │   │   ├── notifications.service.js
+        │   │   └── resultNotifications.service.js
+        │   ├── domain/
+        │   │   ├── entrega.js
+        │   │   ├── notificacion.js
+        │   │   └── plantilla.js
+        │   ├── infrastructure/
+        │   │   └── client/
+        │   │       ├── cursos.cliente.js
+        │   │       ├── evaluaciones.cliente.js
+        │   │       └── identidad.cliente.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── reportes/
+        │   ├── controller/
+        │   │   ├── dto.js
+        │   │   ├── orgReports.controller.js
+        │   │   ├── report.controller.js
+        │   │   ├── reportes.routes.js
+        │   │   └── scheduledReports.controller.js
+        │   ├── application/
+        │   │   ├── orgReports.service.js
+        │   │   ├── reportExports.service.js
+        │   │   ├── reports.service.js
+        │   │   └── scheduledReports.service.js
+        │   ├── domain/
+        │   │   ├── periodo.js
+        │   │   └── programacion.js
+        │   ├── infrastructure/
+        │   │   └── client/
+        │   │       ├── gamificacion.cliente.js
+        │   │       ├── notificaciones.cliente.js
+        │   │       └── seguridad.cliente.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        └── seguridad/
+            ├── controller/
+            │   ├── ajustes.routes.js
+            │   ├── dto.js
+            │   ├── logs.controller.js
+            │   ├── logs.routes.js
+            │   ├── security.controller.js
+            │   └── seguridad.routes.js
+            ├── application/
+            │   ├── anomalies.service.js
+            │   ├── audit.service.js
+            │   └── dataLogs.service.js
+            ├── domain/
+            │   ├── anomalia.js
+            │   └── registro.js
+            ├── infrastructure/
+            │   └── client/
+            │       ├── gamificacion.cliente.js
+            │       └── identidad.cliente.js
+            ├── config/
+            │   └── configuracion.js
+            ├── contract/
+            │   └── openapi.js
+            ├── README.md
+            ├── index.js
+            └── manifiesto.js
+```
+
+Como leerlo, comparado con el ejemplo del material:
+
+| Material (`product-service`) | Human Firewall |
+|---|---|
+| `controller/ProductController.java` | `controller/*.controller.js` (+ `*.routes.js` y `dto.js`) |
+| `application/ProductService.java` | `application/*.service.js` |
+| `domain/Product.java`, `ProductStatus.java` | `domain/*.js` (reglas y estados del negocio) |
+| `infrastructure/persistence/ProductRepository.java` | `infrastructure/persistence/*.repositorio.js` |
+| `infrastructure/client/InventoryClient` | `infrastructure/client/<otro>.cliente.js` |
+| `config/application.yml` | `config/configuracion.js` |
+| `ProductApplication.java` | `index.js` |
 
 - Documento de arquitectura: [`docs/arquitectura/README.md`](docs/arquitectura/README.md)
 - Catalogo de servicios (generado): [`docs/arquitectura/SERVICIOS.md`](docs/arquitectura/SERVICIOS.md)
