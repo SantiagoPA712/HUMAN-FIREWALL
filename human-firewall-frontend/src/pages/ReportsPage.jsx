@@ -265,7 +265,7 @@ export default function ReportsPage() {
                     <h2 className="font-bold">Filtros</h2>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-ajustable [--ancho-columna:12rem] gap-4">
                     <Campo etiqueta="Desde">
                         <input type="date" value={filtros.from}
                                onChange={e => setFiltros({ ...filtros, from: e.target.value })}
@@ -376,7 +376,7 @@ export default function ReportsPage() {
                 <>
                     {/* --- Agregados --- */}
                     {!datos.vacio && (
-                        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <div className="mb-6 grid grid-ajustable [--ancho-columna:22rem] gap-4">
                             <Card className="p-6">
                                 <h3 className="mb-4 flex items-center gap-2 font-bold">
                                     <Users className="h-5 w-5 text-brand-blue" /> Por equipo
@@ -404,7 +404,7 @@ export default function ReportsPage() {
                                         <div className="space-y-2">
                                             {datos.agregados.por_curso.map(c => (
                                                 <div key={c.course_id} className="flex items-center justify-between text-sm">
-                                                    <span className="truncate pr-3">{c.curso}</span>
+                                                    <span className="min-w-0 break-words pr-3">{c.curso}</span>
                                                     <span className="shrink-0 text-text-secondary">
                                                         {c.completados}/{c.usuarios} ·{' '}
                                                         <strong className="text-brand-light">{c.porcentaje_completado}%</strong>
@@ -438,7 +438,7 @@ export default function ReportsPage() {
                         ) : (
                             <>
                                 <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[720px] text-left text-sm">
+                                    <table className="w-full min-w-[45rem] text-left text-sm">
                                         <thead>
                                             <tr className="border-b border-gray-700 text-text-secondary">
                                                 <th className="p-3 font-medium">Usuario</th>

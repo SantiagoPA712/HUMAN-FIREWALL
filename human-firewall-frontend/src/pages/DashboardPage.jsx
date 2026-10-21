@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText, User, Palette, MailPlus } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText, User, Palette, MailPlus, Type } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
 import { LevelBadge } from '../components/LevelBadge';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { ThemeSelector } from '../components/ThemeSelector';
+import { TextSizeSelector } from '../components/TextSizeSelector';
 import { UserProfileModal } from '../components/UserProfileModal';
 import { usePuntos } from '../context/PuntosContext';
 import { api, getUsuarioActual } from '../lib/api';
@@ -148,6 +149,11 @@ export default function DashboardPage() {
               </span>
             </div>
             <ThemeSelector variant="segmented" className="w-full justify-center" />
+            <span className="mt-3 mb-2 text-xs font-semibold text-text-secondary flex items-center gap-1.5">
+              <Type className="w-3.5 h-3.5 text-brand-blue" />
+              Tamaño del texto
+            </span>
+            <TextSizeSelector variant="segmented" className="w-full" />
             <button
               type="button"
               onClick={() => setIsProfileOpen(true)}
@@ -193,8 +199,9 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Widgets Gamificación (Epic 6 & 7) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        {/* Widgets Gamificación (Epic 6 & 7). Columnas por ancho minimo y no
+            por breakpoint: ver grid-ajustable en index.css. */}
+        <div className="grid grid-ajustable [--ancho-columna:15rem] gap-6 mb-10">
           <Card className="p-6">
             <PointsWidget />
           </Card>
@@ -233,7 +240,7 @@ export default function DashboardPage() {
 
         {/* Cursos Pendientes (Epic 3) */}
         <h2 className="text-2xl font-bold mb-6">Tus Tareas Pendientes</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-ajustable [--ancho-columna:20rem] gap-6">
           <Card className="p-6 flex flex-col justify-between border-l-4 border-l-brand-blue">
             <div>
               <div className="flex items-center gap-2 text-brand-light mb-2">

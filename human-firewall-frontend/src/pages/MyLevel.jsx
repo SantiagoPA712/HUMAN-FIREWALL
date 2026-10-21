@@ -79,7 +79,7 @@ export default function MyLevel() {
                             <LevelBadge nivel={nivel} />
                         </Card>
 
-                        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="mb-8 grid grid-ajustable [--ancho-columna:10rem] gap-4">
                             <Card className="p-6">
                                 <p className="text-sm text-text-secondary">Puntos actuales</p>
                                 <p className="text-3xl font-black text-brand-blue">{nivel.puntos_actuales}</p>

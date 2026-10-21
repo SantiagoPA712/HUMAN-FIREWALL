@@ -28,7 +28,7 @@ export default function LandingPage() {
           ¿Por qué Human Firewall?
         </h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full mb-24">
+        <div className="grid grid-ajustable [--ancho-columna:16rem] gap-8 w-full mb-24">
           <Card className="flex flex-col items-center text-center">
             <div className="w-16 h-16 rounded-full bg-brand-blue/10 flex items-center justify-center mb-6">
               <Globe className="w-8 h-8 text-brand-light" />

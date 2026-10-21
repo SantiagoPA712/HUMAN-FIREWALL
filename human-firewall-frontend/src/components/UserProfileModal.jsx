@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { User, X, Shield, Palette, Sparkles, CheckCircle2 } from 'lucide-react';
+import { User, X, Shield, Palette, Sparkles, CheckCircle2, Type } from 'lucide-react';
 import { ThemeSelector } from './ThemeSelector';
+import { TextSizeSelector } from './TextSizeSelector';
 import { getUsuarioActual } from '../lib/api';
 
 /**
@@ -40,7 +41,7 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl rounded-2xl border border-card-border bg-bg-card p-6 shadow-2xl transition-all"
+        className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-card-border bg-bg-card p-6 shadow-2xl transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabecera del Modal */}
@@ -106,6 +107,21 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
           </p>
 
           <ThemeSelector variant="cards" />
+        </div>
+
+        {/* Seccion: Tamano del texto (HU de tamano de texto) */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Type className="h-5 w-5 text-brand-blue" />
+            <h4 className="font-bold text-text-primary text-base">
+              Tamaño del texto
+            </h4>
+          </div>
+          <p className="text-xs text-text-secondary mb-4">
+            Ajusta el tamaño de los textos de toda la plataforma. Se aplica al instante en todos los módulos y se recordará la próxima vez que ingreses.
+          </p>
+
+          <TextSizeSelector variant="cards" />
         </div>
 
         {/* Pie del Modal */}

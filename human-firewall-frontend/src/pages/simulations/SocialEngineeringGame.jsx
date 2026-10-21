@@ -40,17 +40,17 @@ export default function SocialEngineeringGame() {
            
            <div className="bg-white p-3 rounded-lg rounded-tl-none self-start max-w-[85%] text-gray-800 shadow-sm relative text-sm">
              Hola, ¿estás disponible? Necesito un favor urgente.
-             <span className="text-[10px] text-gray-400 block text-right mt-1">10:41 AM</span>
+             <span className="text-3xs text-gray-400 block text-right mt-1">10:41 AM</span>
            </div>
 
            <div className="bg-white p-3 rounded-lg rounded-tl-none self-start max-w-[85%] text-gray-800 shadow-sm relative text-sm">
              Estoy en una reunión con unos inversionistas chinos y mi tarjeta corporativa fue bloqueada por estar fuera del país.
-             <span className="text-[10px] text-gray-400 block text-right mt-1">10:42 AM</span>
+             <span className="text-3xs text-gray-400 block text-right mt-1">10:42 AM</span>
            </div>
 
            <div className="bg-white p-3 rounded-lg rounded-tl-none self-start max-w-[85%] text-gray-800 shadow-sm relative text-sm">
              Necesito que me hagas una transferencia rápida de $1,500 USD a esta cuenta de Binance para pagar la cena del cierre del trato. Te lo devuelvo firmado por nómina mañana mismo a primera hora. ¡Urgente por favor! Es confidencial, no le digas a Finanzas aún.
-             <span className="text-[10px] text-gray-400 block text-right mt-1">10:42 AM</span>
+             <span className="text-3xs text-gray-400 block text-right mt-1">10:42 AM</span>
            </div>
 
            {gameState === 'playing' && (

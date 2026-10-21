@@ -1201,6 +1201,53 @@ Santi usa `001`-`019`, el companero `020`-`039`. Una migracion ya mergeada a
 
 ---
 
+## Interfaz: tamano de texto
+
+El empleado elige **Pequeno**, **Normal** o **Grande** en la barra lateral del
+panel (seccion "Tamano del texto") o en **Perfil y configuracion**. El cambio
+se ve al instante en toda la plataforma, sin recargar ni cerrar sesion.
+
+| Tamano | `id` | Escala del `font-size` raiz |
+|--------|------|-----------------------------|
+| Pequeno | `pequeno` | 87,5 % |
+| Normal (predeterminado) | `normal` | 100 % |
+| Grande | `grande` | 125 % |
+
+**Como se aplica.** `TextSizeContext` (arriba de las rutas en `App.jsx`) marca
+`<html data-text-size="...">`, y `index.css` traduce ese atributo a
+`--hf-escala-texto`, que es el `font-size` de `<html>`. Como Tailwind mide todo
+en `rem`, crecen juntos el texto, los espacios, los iconos y los anchos: un
+boton crece con su texto en lugar de cortarlo. Va en porcentaje y no en px
+para sumar sobre el tamano que la persona ya tenga configurado en el navegador.
+
+**Persistencia.** En `localStorage` (`human_firewall_text_size`), igual que el
+tema: es una preferencia de este navegador, no de la cuenta. Se lee antes del
+primer render, asi que la pagina no "salta" de tamano al cargar. Si otra
+pestana cambia el tamano, esta lo sigue.
+
+**Solo los tamanos definidos.** `TAMANOS_TEXTO` en `src/lib/tamanoTexto.js`
+es la lista cerrada. `setTextSize` rechaza cualquier otro valor y deja el
+actual; un valor adulterado a mano en `localStorage` se descarta al cargar y
+se usa el normal.
+
+**Lo que hubo que cambiar para que el texto grande no oculte nada:**
+
+- Los `text-[10px]` / `text-[11px]` sueltos pasaron a `text-3xs` / `text-2xs`
+  (definidos en `@theme`, en `rem`), y los `min-w-[NNNpx]` de las tablas a
+  `rem`: los px no seguian la escala.
+- Las grillas por breakpoint (`md:grid-cols-3`) pasaron a `grid-ajustable`,
+  una utilidad de `index.css` que decide las columnas por el ancho minimo de
+  cada celda. Los breakpoints miden la ventana, no la escala: con el texto
+  grande dejaban tres columnas donde el contenido ya no entraba (la tarjeta
+  de nivel del panel quedaba en "N").
+- Los titulos con `truncate` (nivel, insignias, cursos del reporte) se envuelven.
+- El modal de "Perfil y configuracion" tiene alto maximo y se desplaza.
+
+Para usar la grilla en una pantalla nueva: `grid grid-ajustable` (celdas de
+14rem como minimo) o `grid grid-ajustable [--ancho-columna:20rem]`.
+
+---
+
 ## Estructura
 
 ```

@@ -129,9 +129,9 @@ export default function ChallengesHub() {
       {/* Main Content */}
       <main className="flex-1 p-6 md:p-10 flex flex-col items-center overflow-y-auto">
       
-        <div className="w-full max-w-4xl mb-8 flex justify-between items-center">
+        <div className="w-full max-w-4xl mb-8 flex flex-wrap justify-between items-center gap-3">
           <h1 className="text-3xl font-bold">Desafíos Disponibles</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <ThemeToggle />
             <Button variant="outline" className="border-border-color hover:bg-nav-hover md:hidden" onClick={() => window.location.href = '/dashboard'}>
               <ArrowLeft className="w-4 h-4 mr-2" /> Menú

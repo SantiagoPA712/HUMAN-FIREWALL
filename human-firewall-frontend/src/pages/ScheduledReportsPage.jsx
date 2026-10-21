@@ -203,7 +203,7 @@ export default function ScheduledReportsPage() {
 
                     {mostrarFormulario && (
                         <div className="mb-6 rounded-xl border border-gray-700 p-4">
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="grid grid-ajustable [--ancho-columna:12rem] gap-4">
                                 <Campo etiqueta="Nombre">
                                     <input value={nueva.name}
                                            onChange={e => setNueva({ ...nueva, name: e.target.value })}
@@ -294,7 +294,7 @@ export default function ScheduledReportsPage() {
                         </p>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[760px] text-left text-sm">
+                            <table className="w-full min-w-[47.5rem] text-left text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-700 text-text-secondary">
                                         <th className="p-3 font-medium">Reporte</th>
@@ -365,7 +365,7 @@ export default function ScheduledReportsPage() {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[720px] text-left text-sm">
+                        <table className="w-full min-w-[45rem] text-left text-sm">
                             <thead>
                                 <tr className="border-b border-gray-700 text-text-secondary">
                                     <th className="p-3 font-medium">Reporte</th>
@@ -398,7 +398,7 @@ export default function ScheduledReportsPage() {
                                                         solo llega en la respuesta si sos admin. */}
                                                     <p className="mt-1 text-xs text-text-secondary">{h.mensaje}</p>
                                                     {h.detalle_tecnico && (
-                                                        <p className="mt-1 font-mono text-[11px] text-red-300/80">
+                                                        <p className="mt-1 font-mono text-2xs text-red-300/80">
                                                             {h.detalle_tecnico} · log {h.referencia_log}
                                                         </p>
                                                     )}

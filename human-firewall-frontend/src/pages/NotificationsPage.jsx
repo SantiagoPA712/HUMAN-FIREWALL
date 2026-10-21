@@ -186,7 +186,7 @@ export default function NotificationsPage() {
                         <select
                             value={correo.idioma || ''}
                             onChange={e => cambiarIdioma(e.target.value)}
-                            className="rounded-lg border border-gray-700 bg-bg-deep px-3 py-1.5 text-sm"
+                            className="min-w-0 max-w-full rounded-lg border border-gray-700 bg-bg-deep px-3 py-1.5 text-sm"
                         >
                             <option value="">Predeterminado de la plataforma ({correo.idioma_por_defecto})</option>
                             <option value="es">Español</option>
@@ -262,7 +262,7 @@ export default function NotificationsPage() {
 
             {/* --- Listado cronologico (criterio de aceptacion 3) --- */}
             <Card className="p-6">
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="font-bold">
                         Resultados
                         {centro?.no_leidas > 0 && (
@@ -272,7 +272,7 @@ export default function NotificationsPage() {
                         )}
                     </h2>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                         <button onClick={cargar} disabled={cargando}
                                 className="flex items-center gap-2 text-sm text-text-secondary hover:text-white disabled:opacity-50">
                             <RefreshCw className={`h-4 w-4 ${cargando ? 'animate-spin' : ''}`} />
@@ -332,7 +332,7 @@ function Aviso({ n, fecha }) {
                 <div className="shrink-0 text-right">
                     <p className="text-xs text-text-secondary">{fecha(n.created_at)}</p>
                     {!leida && (
-                        <span className="mt-1 inline-block rounded bg-brand-blue/20 px-2 py-0.5 text-[11px] font-semibold text-brand-light">
+                        <span className="mt-1 inline-block rounded bg-brand-blue/20 px-2 py-0.5 text-2xs font-semibold text-brand-light">
                             Sin leer
                         </span>
                     )}
@@ -362,7 +362,7 @@ function Aviso({ n, fecha }) {
                 <div className="mt-3 flex flex-wrap gap-2 pl-8">
                     {n.canales.map(c => (
                         <span key={c.canal}
-                              className="inline-flex items-center gap-1 rounded border border-gray-800 px-2 py-0.5 font-mono text-[11px] text-text-secondary">
+                              className="inline-flex items-center gap-1 rounded border border-gray-800 px-2 py-0.5 font-mono text-2xs text-text-secondary">
                             {c.canal === 'email' ? <Mail className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
                             {c.canal} · {c.estado}
                         </span>
