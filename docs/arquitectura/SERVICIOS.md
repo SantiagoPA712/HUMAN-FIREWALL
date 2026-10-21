@@ -4,7 +4,7 @@
 > No editar a mano: se arma con los manifiestos, el contrato OpenAPI y el codigo de cada servicio,
 > y `tests/arquitectura.test.mjs` falla si queda desactualizado.
 
-Version del contrato publico: **1.0.0**. Contrato navegable en `/api/docs`.
+Version del contrato publico: **1.1.0**. Contrato navegable en `/api/docs`.
 
 | Servicio | Responsabilidad | Prefijos HTTP | Depende de |
 |----------|-----------------|---------------|------------|
@@ -39,7 +39,7 @@ Cuentas de usuario, autenticacion (correo/contrasena y Google), recuperacion de 
 | POST | `/api/auth/forgot-password` | publica | Pedir recuperacion de contrasena |
 | POST | `/api/auth/reset-password` | publica | Restablecer contrasena con el token de recuperacion |
 | GET | `/api/users/me` | autenticado | Perfil propio |
-| PATCH | `/api/users/me` | autenticado | Cambiar el idioma de la cuenta |
+| PATCH | `/api/users/me` | autenticado | Actualizar el perfil propio |
 | GET | `/api/users` | admin | Listar usuarios |
 | POST | `/api/users` | admin | Crear un usuario |
 | PUT | `/api/users/{id}` | admin | Cambiar rol o estado de un usuario |

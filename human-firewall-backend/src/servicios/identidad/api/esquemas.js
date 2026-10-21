@@ -67,11 +67,26 @@ const actualizarUsuario = {
 
 const porId = { params: paramsId('id') };
 
+// Solo la forma: los formatos, lo obligatorio y los mensajes para la
+// pantalla los valida dominio/validarPerfil, y los campos fuera de la lista
+// blanca (role, is_active, email, ...) los rechaza el controlador con 403.
 const actualizarPerfil = {
     body: {
         type: 'object',
-        required: ['language'],
+        minProperties: 1,
         properties: {
+            full_name: {
+                type: 'string',
+                maxLength: 200,
+                description: 'Obligatorio si se envia: 2 a 150 caracteres, solo letras, espacios, apostrofos, puntos y guiones',
+                examples: ['Ana Maria Perez']
+            },
+            phone: {
+                type: ['string', 'null'],
+                maxLength: 30,
+                description: '7 a 15 digitos con + opcional; se guarda sin espacios ni guiones. Vacio o null lo borra',
+                examples: ['+57 300 123 4567']
+            },
             language: { type: ['string', 'null'], enum: [...IDIOMAS, null], description: 'null vuelve al idioma por defecto' }
         }
     }

@@ -8,7 +8,7 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { ThemeSelector } from '../components/ThemeSelector';
 import { UserProfileModal } from '../components/UserProfileModal';
 import { usePuntos } from '../context/PuntosContext';
-import { getUsuarioActual } from '../lib/api';
+import { api, getUsuarioActual } from '../lib/api';
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState("Admin");
@@ -23,6 +23,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (usuario?.id) {
       setUserName(usuario.role === 'admin' ? 'Admin' : `Empleado #${usuario.id}`);
+      // Si la persona ya registro su nombre en el perfil, se saluda con el.
+      api.get('/api/users/me')
+        .then(({ data }) => { if (data.full_name) setUserName(data.full_name); })
+        .catch(() => {});
     }
   }, [usuario?.id, usuario?.role]);
 
@@ -61,6 +65,10 @@ export default function DashboardPage() {
           <a href="/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-brand-blue/10 text-brand-light font-medium">
             <Trophy className="w-5 h-5" />
             Panel
+          </a>
+          <a href="/perfil" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+            <User className="w-5 h-5" />
+            Mi Perfil
           </a>
           <a href="/performance" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <TrendingUp className="w-5 h-5" />

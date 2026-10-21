@@ -11,7 +11,7 @@
 const { operacion } = require('../../../compartido/contratos/operacion');
 const { ref } = require('../../../compartido/contratos/esquemas-comunes');
 const esquemas = require('../api/esquemas');
-const { ROLES, IDIOMAS } = require('../dominio/usuario');
+const { ROLES, IDIOMAS, CAMPOS_EDITABLES_PERFIL } = require('../dominio/usuario');
 
 const fecha = { type: 'string', format: 'date-time' };
 const fechaONull = { type: ['string', 'null'], format: 'date-time' };
@@ -22,9 +22,43 @@ const schemas = {
         required: ['id', 'email', 'role'],
         properties: {
             id: { type: 'integer' },
+            email: { type: 'string', description: 'Solo lectura: es el usuario de login' },
+            role: { type: 'string', enum: ROLES, description: 'Solo lectura' },
+            full_name: { type: ['string', 'null'] },
+            phone: { type: ['string', 'null'], description: 'Normalizado: + opcional y solo digitos' },
+            language: { type: ['string', 'null'], enum: [...IDIOMAS, null] },
+            team_name: { type: ['string', 'null'], description: 'Solo lectura' },
+            created_at: fecha,
+            updated_at: fechaONull
+        }
+    },
+    PerfilActualizado: {
+        type: 'object',
+        description: 'El perfil completo, mas el resultado del guardado.',
+        required: ['id', 'email', 'role', 'msg', 'sin_cambios', 'cambios'],
+        properties: {
+            id: { type: 'integer' },
             email: { type: 'string' },
             role: { type: 'string', enum: ROLES },
-            language: { type: ['string', 'null'], enum: [...IDIOMAS, null] }
+            full_name: { type: ['string', 'null'] },
+            phone: { type: ['string', 'null'] },
+            language: { type: ['string', 'null'], enum: [...IDIOMAS, null] },
+            team_name: { type: ['string', 'null'] },
+            created_at: fecha,
+            updated_at: fechaONull,
+            msg: { type: 'string' },
+            sin_cambios: { type: 'boolean', description: 'true si todo coincidia con lo guardado: no se escribio nada' },
+            cambios: { type: 'array', items: { type: 'string', enum: CAMPOS_EDITABLES_PERFIL } }
+        }
+    },
+    CampoProtegido: {
+        type: 'object',
+        required: ['msg', 'codigo', 'campos', 'editables'],
+        properties: {
+            msg: { type: 'string' },
+            codigo: { type: 'string', const: 'PROHIBIDO' },
+            campos: { type: 'array', items: { type: 'string' }, description: 'Los campos rechazados' },
+            editables: { type: 'array', items: { type: 'string', enum: CAMPOS_EDITABLES_PERFIL } }
         }
     },
     UsuarioResumen: {
@@ -173,10 +207,18 @@ const paths = {
             errores: [404]
         }),
         patch: operacion({
-            resumen: 'Cambiar el idioma de la cuenta',
+            resumen: 'Actualizar el perfil propio',
+            descripcion: 'Solo se pueden cambiar ' + CAMPOS_EDITABLES_PERFIL.join(', ') + '. Cualquier otro campo ' +
+                '(role, is_active, email, ...) rechaza la solicitud entera con 403, sin guardar nada. ' +
+                'Si ningun valor cambia responde 200 con sin_cambios: true y no escribe. ' +
+                'Cada guardado con cambios queda en data.logs con el valor anterior y el nuevo.',
             acceso: 'autenticado',
             dto: esquemas.actualizarPerfil,
-            respuestas: { 200: { descripcion: 'Perfil actualizado', esquema: ref('Perfil') } },
+            respuestas: {
+                200: { descripcion: 'Perfil guardado, o sin cambios (ver sin_cambios)', esquema: ref('PerfilActualizado') },
+                400: { descripcion: 'Formato incorrecto o campo obligatorio vacio, con un error por campo', esquema: ref('ErrorDeValidacion') },
+                403: { descripcion: 'La solicitud intenta cambiar un campo protegido', esquema: ref('CampoProtegido') }
+            },
             errores: [404]
         })
     },
