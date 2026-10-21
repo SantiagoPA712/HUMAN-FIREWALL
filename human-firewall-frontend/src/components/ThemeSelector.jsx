@@ -73,7 +73,7 @@ export function ThemeSelector({ variant = 'cards', className = '' }) {
         <div>
           <h4 className="font-bold text-text-primary flex items-center gap-2">
             Tema Claro
-            <span className="text-[10px] font-normal uppercase tracking-wider text-text-secondary border border-border-color rounded px-1.5 py-0.2">
+            <span className="text-3xs font-normal uppercase tracking-wider text-text-secondary border border-border-color rounded px-1.5 py-0.2">
               Predeterminado
             </span>
           </h4>

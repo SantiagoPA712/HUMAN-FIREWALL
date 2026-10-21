@@ -62,6 +62,14 @@ body.dark,
   --color-nav-hover: var(--nav-hover);
 
   --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* Tamanos menores que text-xs, en rem para que sigan la escala de texto.
+     Reemplazan a los text-[10px] / text-[11px] que habia sueltos, que no
+     crecian al agrandar el texto. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 1rem;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
 }
 
 body {

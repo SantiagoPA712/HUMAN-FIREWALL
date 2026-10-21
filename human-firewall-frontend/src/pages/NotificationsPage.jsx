@@ -332,7 +332,7 @@ function Aviso({ n, fecha }) {
                 <div className="shrink-0 text-right">
                     <p className="text-xs text-text-secondary">{fecha(n.created_at)}</p>
                     {!leida && (
-                        <span className="mt-1 inline-block rounded bg-brand-blue/20 px-2 py-0.5 text-[11px] font-semibold text-brand-light">
+                        <span className="mt-1 inline-block rounded bg-brand-blue/20 px-2 py-0.5 text-2xs font-semibold text-brand-light">
                             Sin leer
                         </span>
                     )}
@@ -362,7 +362,7 @@ function Aviso({ n, fecha }) {
                 <div className="mt-3 flex flex-wrap gap-2 pl-8">
                     {n.canales.map(c => (
                         <span key={c.canal}
-                              className="inline-flex items-center gap-1 rounded border border-gray-800 px-2 py-0.5 font-mono text-[11px] text-text-secondary">
+                              className="inline-flex items-center gap-1 rounded border border-gray-800 px-2 py-0.5 font-mono text-2xs text-text-secondary">
                             {c.canal === 'email' ? <Mail className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
                             {c.canal} · {c.estado}
                         </span>

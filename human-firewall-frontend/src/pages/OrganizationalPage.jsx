@@ -228,7 +228,7 @@ function TarjetaKpi({ kpi, comparado }) {
             <p className="mt-3 text-xs text-text-secondary">{kpi.descripcion}</p>
 
             {kpi.detalle && (
-                <p className="mt-2 font-mono text-[11px] text-text-secondary">
+                <p className="mt-2 font-mono text-2xs text-text-secondary">
                     {Object.entries(kpi.detalle).map(([k, v]) => `${k}: ${v}`).join(' · ')}
                 </p>
             )}
@@ -276,7 +276,7 @@ function GraficoTendencia({ serie = [] }) {
                         <div className="w-full rounded-t bg-brand-blue/70 transition-all"
                              style={{ height: `${alto}px` }}
                              title={`${punto.period}: ${punto.valor}`} />
-                        <span className="text-[11px] text-text-secondary">{punto.period}</span>
+                        <span className="text-2xs text-text-secondary">{punto.period}</span>
                     </div>
                 );
             })}

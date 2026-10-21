@@ -107,7 +107,7 @@ export default function InvitationsPanel() {
                 </p>
 
                 <form onSubmit={invitar} className="flex flex-wrap items-end gap-3">
-                    <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-sm">
+                    <label className="flex min-w-[13.75rem] flex-1 flex-col gap-1 text-sm">
                         <span className="text-text-secondary">Correo</span>
                         <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
                                placeholder="nombre@empresa.com"

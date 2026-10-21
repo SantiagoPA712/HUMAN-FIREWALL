@@ -165,7 +165,7 @@ function Evolucion({ evolucion }) {
             <p className="mb-4 text-sm text-text-secondary">{TEXTO[tendencia]}</p>
 
             <div className="overflow-x-auto">
-                <svg viewBox={`0 0 ${W} ${H}`} className="h-40 w-full min-w-[320px]" role="img"
+                <svg viewBox={`0 0 ${W} ${H}`} className="h-40 w-full min-w-[20rem]" role="img"
                      aria-label="Grafico de evolucion de puntajes">
                     {/* Referencia del 70%, el umbral por defecto */}
                     <line x1={PAD} y1={H - PAD - 0.7 * (H - PAD * 2)} x2={W - PAD}

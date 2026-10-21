@@ -399,7 +399,7 @@ function TablaAuditoria({ datos }) {
             </div>
 
             <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-left text-sm">
+                <table className="w-full min-w-[45rem] text-left text-sm">
                     <thead>
                         <tr className="border-b border-gray-700 text-text-secondary">
                             <th className="p-3 font-medium">Cuándo</th>
