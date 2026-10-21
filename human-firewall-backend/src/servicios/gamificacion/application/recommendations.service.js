@@ -21,6 +21,10 @@ const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { REGLA_POR_DEFECTO, filtrarAreasDeOportunidad } = require('../domain/recomendacion');
 const repo = require('../infrastructure/persistence/recomendaciones.repositorio');
+// Intentos y cursos son de otros servicios (cada uno con su base): se piden
+// por su contrato en lugar de hacer JOIN con sus tablas.
+const servicioCursos = require('../infrastructure/client/cursos.cliente');
+const servicioEvaluaciones = require('../infrastructure/client/evaluaciones.cliente');
 
 /** Regla activa. Si la tabla esta vacia, se cae a los valores del enunciado. */
 async function obtenerRegla() {
@@ -37,8 +41,21 @@ async function obtenerRegla() {
  * quiz_ref a entero: castear reventaria al toparse con un ref como 'phishing'.
  */
 async function obtenerEvaluaciones(userId) {
-    const rows = await repo.evaluacionesConsolidadas(userId);
-    return rows;
+    const rows = await servicioEvaluaciones.resultadosConsolidados(userId);
+    const titulos = await titulosDeCursos(rows.flatMap(r => [r.course_id, r.course_id_evaluacion]));
+
+    return rows.map(({ course_id_evaluacion: cursoDeLaEvaluacion, ...r }) => ({
+        ...r,
+        curso: titulos.get(r.course_id) ?? titulos.get(cursoDeLaEvaluacion) ?? null
+    }));
+}
+
+/** Map id -> titulo de los cursos pedidos, por el contrato de cursos. */
+async function titulosDeCursos(ids) {
+    const unicos = [...new Set(ids.filter(id => id != null).map(Number))];
+    if (unicos.length === 0) return new Map();
+    const filas = await servicioCursos.obtenerTitulos(unicos);
+    return new Map(filas.map(c => [c.id, c.title]));
 }
 
 /**
@@ -54,8 +71,17 @@ async function obtenerEvaluaciones(userId) {
  * concreto, no del portal abierto (regla de negocio RN-01).
  */
 async function obtenerPendientes(userId) {
-    const rows = await repo.evaluacionesPendientes(userId);
-    return rows;
+    const asignados = await servicioCursos.idsDeCursosAsignados(userId);
+    const rows = await servicioEvaluaciones.pendientesDe(userId, asignados);
+    const titulos = await titulosDeCursos(rows.map(r => r.course_id));
+    return rows.map(r => ({
+        quiz_ref: r.quiz_ref,
+        quiz_type: r.quiz_type,
+        titulo: r.titulo,
+        course_id: r.course_id,
+        curso: titulos.get(r.course_id) ?? null,
+        puntos: r.puntos
+    }));
 }
 
 /**
@@ -67,7 +93,7 @@ async function obtenerPendientes(userId) {
  * usuarios (criterio de aceptacion 3).
  */
 async function obtenerEvolucion(userId, ventana = 5) {
-    const serie = await repo.serieDeIntentos(userId);
+    const serie = await servicioEvaluaciones.serieDeIntentos(userId);
 
     const promedio = (lista) =>
         lista.length === 0 ? null : Math.round(lista.reduce((a, x) => a + x.score, 0) / lista.length);
@@ -110,7 +136,7 @@ async function obtenerEvolucion(userId, ventana = 5) {
 
 /** Avance de lecciones por curso asignado. */
 async function obtenerAvanceCursos(userId) {
-    const rows = await repo.avanceDeCursos(userId);
+    const rows = await servicioCursos.avanceDe(userId);
 
     return rows.map(r => ({
         ...r,
@@ -135,7 +161,7 @@ async function generarRecomendaciones(userId, areas, regla) {
     const cursos = [...new Set(areas.map(a => a.course_id).filter(Boolean))];
     if (cursos.length === 0) return [];
 
-    const lecciones = await repo.leccionesPendientesDeCursos(cursos, userId);
+    const lecciones = await servicioCursos.leccionesPendientes(cursos, userId);
 
     // Cada leccion se sugiere por el area mas floja de su curso, para que el
     // motivo que se muestra sea el mas relevante.

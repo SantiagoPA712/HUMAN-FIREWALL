@@ -12,6 +12,7 @@
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const cursos = require('../infrastructure/client/cursos.cliente');
+const identidad = require('../infrastructure/client/identidad.cliente');
 const { conTransaccion } = require('../../../compartido/config/transaccion');
 const { calcularPuntos } = require('../domain/puntos');
 const repo = require('../infrastructure/persistence/puntos.repositorio');
@@ -29,16 +30,13 @@ const obtenerRegla = (code) => repo.reglaActiva(code);
  * @returns {Promise<object|null>} el movimiento insertado, o null si ya existia
  */
 async function registrarMovimiento({ userId, sourceType, sourceId, points, ruleCode, idempotencyKey }) {
-    return conTransaccion(async (tx) => {
+    const movimiento = await conTransaccion(async (tx) => {
         const movimiento = await repo.insertarMovimiento(
             { userId, sourceType, sourceId, points, ruleCode, idempotencyKey }, tx
         );
 
         // Ya se habian otorgado estos puntos: no se duplica nada.
         if (!movimiento) return null;
-
-        // La cache se recalcula desde el historial en vez de incrementarse.
-        await repo.recalcularTotalEnCache(userId, tx);
 
         // Evento para la HU de recompensas: se encola en la misma transaccion,
         // asi que solo existe si los puntos realmente se otorgaron.
@@ -52,6 +50,12 @@ async function registrarMovimiento({ userId, sourceType, sourceId, points, ruleC
 
         return movimiento;
     });
+
+    // La cache de puntos vive en la cuenta (identidad): se le manda el total
+    // recalculado desde el historial, no un incremento. Va despues del commit
+    // porque es otra base; si fallara, el siguiente movimiento la corrige.
+    if (movimiento) await identidad.guardarCacheDePuntos(userId, await repo.totalDe(userId));
+    return movimiento;
 }
 
 /**

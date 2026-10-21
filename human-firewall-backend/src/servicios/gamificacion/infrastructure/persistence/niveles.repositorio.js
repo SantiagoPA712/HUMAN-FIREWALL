@@ -56,16 +56,4 @@ async function registrarNivelAlcanzado({ userId, nivel, puntos }, tx) {
     return rows.length > 0;
 }
 
-/**
- * Cache del nivel en users (escritura compartida declarada en el manifiesto).
- * Se escribe el valor calculado, no un incremento: un incremento se puede
- * desincronizar.
- */
-async function guardarNivelEnCache(userId, nivel, tx) {
-    await q(tx).query(
-        `UPDATE identidad.users SET level = $1 WHERE id = $2 AND level IS DISTINCT FROM $1`,
-        [nivel, userId]
-    );
-}
-
-module.exports = { escalera, puntosDe, historialDe, registrarNivelAlcanzado, guardarNivelEnCache };
+module.exports = { escalera, puntosDe, historialDe, registrarNivelAlcanzado };

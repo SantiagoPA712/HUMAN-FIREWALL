@@ -187,7 +187,121 @@ async function tituloDeSimulacion(simulationId) {
     return rows[0]?.title || null;
 }
 
+// ---------------------------------------------------------------------
+// Consultas para otros servicios (base de datos por servicio)
+// ---------------------------------------------------------------------
+
+/**
+ * Resultado consolidado por evaluacion: intentos, mejor y ultimo puntaje.
+ * quiz_ref se compara contra id::varchar porque puede ser texto (desafios).
+ *
+ * course_id es el curso del intento; course_id_evaluacion, el curso al que
+ * pertenece la evaluacion (desafio o simulacion). El titulo del curso lo
+ * resuelve quien consulta, con el contrato de cursos.
+ */
+async function resultadosConsolidados(userId) {
+    const { rows } = await db.query(
+        `SELECT q.quiz_ref,
+                q.quiz_type,
+                MAX(q.course_id)                       AS course_id,
+                MAX(COALESCE(ch.course_id, s.course_id)) AS course_id_evaluacion,
+                COALESCE(ch.name, s.title, q.quiz_ref) AS titulo,
+                COUNT(*)::int                          AS intentos,
+                MAX(q.score)::int                      AS mejor_puntaje,
+                MIN(q.score)::int                      AS peor_puntaje,
+                BOOL_OR(q.passed)                      AS aprobada,
+                MAX(q.passing_score)::int              AS puntaje_minimo,
+                MAX(q.created_at)                      AS ultimo_intento,
+                (ARRAY_AGG(q.score  ORDER BY q.created_at DESC, q.id DESC))[1]::int AS ultimo_puntaje,
+                (ARRAY_AGG(q.passed ORDER BY q.created_at DESC, q.id DESC))[1]      AS ultimo_aprobado
+           FROM evaluaciones.quiz_attempts q
+           LEFT JOIN evaluaciones.challenges  ch ON q.quiz_type = 'challenge'  AND ch.id = q.quiz_ref
+           LEFT JOIN evaluaciones.simulations s  ON q.quiz_type = 'simulation' AND s.id::varchar = q.quiz_ref
+          WHERE q.user_id = $1
+          GROUP BY q.quiz_ref, q.quiz_type, ch.name, s.title
+          ORDER BY MAX(q.score) ASC, MAX(q.created_at) DESC`,
+        [userId]
+    );
+    return rows;
+}
+
+/**
+ * Evaluaciones que el usuario todavia no intento: todos los desafios del
+ * portal, y las simulaciones sin curso o de los cursos que tiene asignados
+ * (los ids los da el contrato de cursos).
+ */
+async function pendientesDe(userId, cursosAsignados) {
+    const { rows } = await db.query(
+        `SELECT ch.id::varchar AS quiz_ref, 'challenge' AS quiz_type,
+                ch.name AS titulo, ch.course_id, ch.points_reward AS puntos
+           FROM evaluaciones.challenges ch
+          WHERE NOT EXISTS (
+                    SELECT 1 FROM evaluaciones.quiz_attempts q
+                     WHERE q.user_id = $1 AND q.quiz_type = 'challenge' AND q.quiz_ref = ch.id
+                )
+
+          UNION ALL
+
+         SELECT s.id::varchar, 'simulation', s.title, s.course_id, NULL
+           FROM evaluaciones.simulations s
+          WHERE NOT EXISTS (
+                    SELECT 1 FROM evaluaciones.quiz_attempts q
+                     WHERE q.user_id = $1 AND q.quiz_type = 'simulation' AND q.quiz_ref = s.id::varchar
+                )
+            AND (s.course_id IS NULL OR s.course_id = ANY($2::int[]))
+          ORDER BY titulo`,
+        [userId, cursosAsignados]
+    );
+    return rows;
+}
+
+/** Intentos del usuario en orden cronologico, con el titulo de la evaluacion. */
+async function serieDeIntentos(userId) {
+    const { rows } = await db.query(
+        `SELECT q.quiz_ref, q.quiz_type, q.score, q.passed, q.created_at,
+                COALESCE(ch.name, s.title, q.quiz_ref) AS titulo
+           FROM evaluaciones.quiz_attempts q
+           LEFT JOIN evaluaciones.challenges  ch ON q.quiz_type = 'challenge'  AND ch.id = q.quiz_ref
+           LEFT JOIN evaluaciones.simulations s  ON q.quiz_type = 'simulation' AND s.id::varchar = q.quiz_ref
+          WHERE q.user_id = $1
+          ORDER BY q.created_at ASC, q.id ASC`,
+        [userId]
+    );
+    return rows;
+}
+
+/** Intentos por usuario en [desde, hasta). Cualquiera de los dos puede ser null. */
+async function intentosPorUsuarioEntre(desde = null, hasta = null) {
+    const { rows } = await db.query(
+        `SELECT user_id, COUNT(*)::int AS acciones
+           FROM evaluaciones.quiz_attempts
+          WHERE ($1::timestamptz IS NULL OR created_at >= $1::timestamptz)
+            AND ($2::timestamptz IS NULL OR created_at <  $2::timestamptz)
+          GROUP BY user_id`,
+        [desde, hasta]
+    );
+    return rows;
+}
+
+/** Ultimo intento de cada usuario. */
+async function ultimoIntentoDe(userIds) {
+    if (!userIds.length) return [];
+    const { rows } = await db.query(
+        `SELECT user_id, MAX(created_at) AS ultima
+           FROM evaluaciones.quiz_attempts
+          WHERE user_id = ANY($1::int[])
+          GROUP BY user_id`,
+        [userIds]
+    );
+    return rows;
+}
+
 module.exports = {
+    resultadosConsolidados,
+    pendientesDe,
+    serieDeIntentos,
+    intentosPorUsuarioEntre,
+    ultimoIntentoDe,
     listarSimulaciones,
     insertarSimulacion,
     insertarPaso,

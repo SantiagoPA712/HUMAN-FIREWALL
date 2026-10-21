@@ -30,5 +30,13 @@ module.exports = {
     /** Cuantas evaluaciones distintas aprobo el usuario. */
     contarEvaluacionesAprobadas: (userId) => repo.contarEvaluacionesAprobadas(userId),
     /** passed de los ultimos intentos, del mas reciente al mas viejo. */
-    ultimosResultados: (userId, limite) => repo.ultimosResultados(userId, limite)
+    ultimosResultados: (userId, limite) => repo.ultimosResultados(userId, limite),
+
+    // Consultas de lectura para gamificacion y reportes (base de datos por
+    // servicio: nadie mas hace JOIN con las tablas de evaluaciones).
+    resultadosConsolidados: (...args) => repo.resultadosConsolidados(...args),
+    pendientesDe: (...args) => repo.pendientesDe(...args),
+    serieDeIntentos: (...args) => repo.serieDeIntentos(...args),
+    accionesPorUsuarioEntre: (...args) => repo.intentosPorUsuarioEntre(...args),
+    ultimaActividadDe: (...args) => repo.ultimoIntentoDe(...args)
 };

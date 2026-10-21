@@ -36,20 +36,6 @@ async function insertarMovimiento({ userId, sourceType, sourceId, points, ruleCo
     return rows[0] || null;
 }
 
-/**
- * Recalcula la cache users.total_points desde el historial (escritura
- * compartida declarada en el manifiesto). Se recalcula en vez de
- * incrementarse para que no pueda desincronizarse de la fuente de verdad.
- */
-async function recalcularTotalEnCache(userId, tx) {
-    await q(tx).query(
-        `UPDATE identidad.users
-            SET total_points = (SELECT COALESCE(SUM(points), 0) FROM gamificacion.points_ledger WHERE user_id = $1)
-          WHERE id = $1`,
-        [userId]
-    );
-}
-
 /** true si el usuario ya cobro puntos por esa evaluacion. */
 async function yaCobroEvaluacion(userId, quizRef) {
     // rows.length y no rowCount: PGlite (el motor de las pruebas) no expone rowCount.
@@ -113,10 +99,104 @@ async function movimientosDe(userId, { limit, offset }) {
     return rows;
 }
 
+// ---------------------------------------------------------------------
+// Consultas para otros servicios (base de datos por servicio)
+// ---------------------------------------------------------------------
+
+/** Total del historial de un usuario (para la cache de identidad). */
+async function totalDe(userId, tx) {
+    const { rows } = await q(tx).query(
+        'SELECT COALESCE(SUM(points), 0)::int AS total FROM gamificacion.points_ledger WHERE user_id = $1',
+        [userId]
+    );
+    return rows[0].total;
+}
+
+/** Movimientos por usuario en [desde, hasta). Cualquiera de los dos puede ser null. */
+async function movimientosPorUsuarioEntre(desde = null, hasta = null) {
+    const { rows } = await db.query(
+        `SELECT user_id, COUNT(*)::int AS acciones
+           FROM gamificacion.points_ledger
+          WHERE ($1::timestamptz IS NULL OR created_at >= $1::timestamptz)
+            AND ($2::timestamptz IS NULL OR created_at <  $2::timestamptz)
+          GROUP BY user_id`,
+        [desde, hasta]
+    );
+    return rows;
+}
+
+/** Ultimo movimiento de cada usuario. */
+async function ultimoMovimientoDe(userIds) {
+    if (!userIds.length) return [];
+    const { rows } = await db.query(
+        `SELECT user_id, MAX(created_at) AS ultima
+           FROM gamificacion.points_ledger
+          WHERE user_id = ANY($1::int[])
+          GROUP BY user_id`,
+        [userIds]
+    );
+    return rows;
+}
+
+/** Puntos acumulados por usuario antes de una fecha (solo quienes tienen alguno). */
+async function puntosPorUsuarioHasta(fin) {
+    const { rows } = await db.query(
+        `SELECT user_id, COALESCE(SUM(points), 0)::int AS puntos
+           FROM gamificacion.points_ledger
+          WHERE created_at < $1::timestamptz
+          GROUP BY user_id`,
+        [fin]
+    );
+    return rows;
+}
+
+/** Movimientos del usuario en la ventana de N minutos que termina en `hasta` (o ahora). */
+async function movimientosEnVentana(userId, ventanaMinutos, hasta = null) {
+    const { rows } = await db.query(
+        `SELECT id, source_type, source_id, points, rule_code, created_at
+           FROM gamificacion.points_ledger
+          WHERE user_id = $1
+            AND created_at >  COALESCE($3::timestamptz, now()) - ($2 || ' minutes')::interval
+            AND created_at <= COALESCE($3::timestamptz, now())
+          ORDER BY created_at, id`,
+        [userId, String(ventanaMinutos), hasta]
+    );
+    return rows;
+}
+
+/** Usuarios con movimientos en los ultimos N minutos. */
+async function usuariosConMovimientosRecientes(minutos) {
+    const { rows } = await db.query(
+        `SELECT DISTINCT user_id FROM gamificacion.points_ledger
+          WHERE created_at > now() - ($1 || ' minutes')::interval`,
+        [String(minutos)]
+    );
+    return rows.map(r => r.user_id);
+}
+
+/** Ultimos N movimientos del usuario, del mas reciente al mas antiguo. */
+async function ultimosMovimientos(userId, limite = 50) {
+    const { rows } = await db.query(
+        `SELECT id, source_type, source_id, points, rule_code, created_at
+           FROM gamificacion.points_ledger
+          WHERE user_id = $1
+          ORDER BY created_at DESC
+          LIMIT $2`,
+        [userId, limite]
+    );
+    return rows;
+}
+
 module.exports = {
+    totalDe,
+    movimientosPorUsuarioEntre,
+    ultimoMovimientoDe,
+    puntosPorUsuarioHasta,
+    movimientosEnVentana,
+    usuariosConMovimientosRecientes,
+    ultimosMovimientos,
     reglaActiva,
     insertarMovimiento,
-    recalcularTotalEnCache,
     yaCobroEvaluacion,
     existeClave,
     totalesPorUsuarios,

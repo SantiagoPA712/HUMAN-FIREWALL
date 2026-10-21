@@ -17,6 +17,7 @@ const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { conTransaccion } = require('../../../compartido/config/transaccion');
 const { calcularProgreso } = require('../domain/nivel');
 const repo = require('../infrastructure/persistence/niveles.repositorio');
+const identidad = require('../infrastructure/client/identidad.cliente');
 
 /** Escalera de niveles activos, de menor a mayor umbral. */
 const obtenerEscalera = () => repo.escalera();
@@ -66,7 +67,7 @@ async function sincronizarNivel({ userId }) {
         return { nivel: null, subio: false, niveles_nuevos: [] };
     }
 
-    return conTransaccion(async (tx) => {
+    const resultado = await conTransaccion(async (tx) => {
         // Todos los niveles que le corresponden y todavia no estan registrados.
         const alcanzados = escalera.filter(n => n.level <= progreso.nivel_actual);
         const nuevos = [];
@@ -74,8 +75,6 @@ async function sincronizarNivel({ userId }) {
         for (const nivel of alcanzados) {
             if (await repo.registrarNivelAlcanzado({ userId, nivel, puntos }, tx)) nuevos.push(nivel.level);
         }
-
-        await repo.guardarNivelEnCache(userId, progreso.nivel_actual, tx);
 
         // El nivel 1 no se anuncia: todos arrancan ahi, no es un logro.
         const subidasReales = nuevos.filter(n => n > (escalera[0]?.level ?? 1));
@@ -92,6 +91,10 @@ async function sincronizarNivel({ userId }) {
 
         return { nivel: progreso.nivel_actual, subio: subidasReales.length > 0, niveles_nuevos: subidasReales };
     });
+
+    // Cache del nivel en la cuenta (identidad), por su contrato.
+    await identidad.guardarCacheDeNivel(userId, progreso.nivel_actual);
+    return resultado;
 }
 
 /**

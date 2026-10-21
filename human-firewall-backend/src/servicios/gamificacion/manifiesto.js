@@ -19,28 +19,10 @@ module.exports = {
         'simulation.decision_made', 'simulation.completed', 'points_assigned'
     ],
     dependeDe: ['identidad', 'cursos', 'evaluaciones', 'seguridad'],
-    lecturasCompartidas: [
-        {
-            tabla: 'identidad.users', servicio: 'identidad',
-            motivo: 'El ranking ordena por las columnas de cache total_points y level, que vive en users ' +
-                    'y mantiene este mismo servicio (ver escriturasCompartidas).'
-        },
-        {
-            tablas: ['evaluaciones.quiz_attempts', 'evaluaciones.challenges', 'evaluaciones.simulations'], servicio: 'evaluaciones',
-            motivo: 'El resumen de desempeno y las recomendaciones agregan el historial de intentos en ' +
-                    'una sola consulta. Es una proyeccion de lectura: nunca escribe en esas tablas.'
-        },
-        {
-            tablas: ['cursos.courses', 'cursos.course_contents', 'cursos.course_assignments', 'cursos.lesson_progress'], servicio: 'cursos',
-            motivo: 'Mismo caso: el avance por curso del resumen de desempeno se calcula con un JOIN.'
-        }
-    ],
-    escriturasCompartidas: [
-        {
-            tabla: 'identidad.users', servicio: 'identidad', columnas: ['total_points', 'level'],
-            motivo: 'Cache desnormalizada del total y del nivel. La fuente de verdad es points_ledger; ' +
-                    'identidad no escribe nunca estas dos columnas.'
-        }
-    ],
+    // Base de datos por servicio: no lee ni escribe tablas ajenas. La cache de
+    // puntos y nivel de la cuenta se actualiza por el contrato de identidad, y
+    // los intentos y cursos del resumen de desempeno se piden por contrato.
+    lecturasCompartidas: [],
+    escriturasCompartidas: [],
     procesos: []
 };

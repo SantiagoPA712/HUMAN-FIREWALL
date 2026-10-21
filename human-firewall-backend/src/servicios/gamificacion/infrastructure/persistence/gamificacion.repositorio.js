@@ -1,37 +1,13 @@
 /**
- * Repositorio de las consultas que antes escribia a mano
- * gamification.controller.js.
+ * Repositorio de las consultas de los endpoints de gamificacion (insignias,
+ * catalogo de recompensas, reglas de puntos).
  *
- * Los servicios de aplicacion de este modulo (points, rewards, levels,
- * recommendations) todavia tienen su propio SQL adentro: separarlo es un
- * cambio grande sin beneficio inmediato, y la HU pide no reescribir de mas.
- * La regla que si se cumple desde ahora es que ningun controlador habla con
- * la base (lo verifica tests/arquitectura.test.mjs).
+ * Capa Infrastructure / Persistence (seccion 11 del material). Solo toca el
+ * esquema gamificacion: el ranking y el estado del usuario se piden a
+ * identidad por su contrato.
  */
 
 const db = require('../../../../compartido/config/db');
-
-/**
- * Top 10 por puntos. Lee las columnas de cache total_points y level de
- * users, que mantiene este mismo servicio (lectura declarada en el
- * manifiesto).
- */
-async function ranking(limite = 10) {
-    const { rows } = await db.query(
-        `SELECT id, email, total_points, level
-           FROM identidad.users
-          WHERE is_active = true
-          ORDER BY total_points DESC
-          LIMIT $1`,
-        [limite]
-    );
-    return rows;
-}
-
-async function estadoDe(userId) {
-    const { rows } = await db.query('SELECT total_points, level FROM identidad.users WHERE id = $1', [userId]);
-    return rows[0] || null;
-}
 
 /** Insignias ganadas, desde el snapshot de user_rewards (no del catalogo). */
 async function insigniasDe(userId) {
@@ -87,8 +63,6 @@ async function contarRecompensasDe(userId) {
 }
 
 module.exports = {
-    ranking,
-    estadoDe,
     insigniasDe,
     insertarRecompensa,
     buscarRecompensa,

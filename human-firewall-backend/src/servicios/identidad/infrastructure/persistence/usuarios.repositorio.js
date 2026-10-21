@@ -216,7 +216,87 @@ async function desactivar(userId) {
     return rows[0] || null;
 }
 
+// ---------------------------------------------------------------------
+// Consultas para otros servicios (base de datos por servicio: nadie mas
+// lee identidad.users con un JOIN; se piden por el contrato index.js)
+// ---------------------------------------------------------------------
+
+/** Cuentas activas con su equipo y la cache de puntos (reportes). */
+async function activosConEquipo() {
+    const { rows } = await db.query(
+        `SELECT u.id, u.email, u.role, u.team_id, t.name AS equipo, u.created_at,
+                COALESCE(u.total_points, 0)::int AS total_points
+           FROM identidad.users u
+           LEFT JOIN identidad.teams t ON t.id = u.team_id
+          WHERE u.is_active = true
+          ORDER BY u.id`
+    );
+    return rows;
+}
+
+/** { id, email, role } de varias cuentas (para mostrar correos en listados ajenos). */
+async function resumenesDe(ids) {
+    const unicos = [...new Set((ids || []).filter(Boolean).map(Number))];
+    if (unicos.length === 0) return [];
+    const { rows } = await db.query(
+        'SELECT id, email, role FROM identidad.users WHERE id = ANY($1::int[])',
+        [unicos]
+    );
+    return rows;
+}
+
+/** Ids de las cuentas activas con alguno de esos roles. */
+async function activosConRoles(roles) {
+    const { rows } = await db.query(
+        'SELECT id FROM identidad.users WHERE role = ANY($1::text[]) AND is_active = true ORDER BY id',
+        [roles]
+    );
+    return rows.map(r => r.id);
+}
+
+/** Top N por la cache de puntos (ranking). */
+async function rankingPorPuntos(limite = 10) {
+    const { rows } = await db.query(
+        `SELECT id, email, total_points, level
+           FROM identidad.users
+          WHERE is_active = true
+          ORDER BY total_points DESC
+          LIMIT $1`,
+        [limite]
+    );
+    return rows;
+}
+
+/** { total_points, level } de la cache, o null. */
+async function cacheDeGamificacion(userId) {
+    const { rows } = await db.query('SELECT total_points, level FROM identidad.users WHERE id = $1', [userId]);
+    return rows[0] || null;
+}
+
+/**
+ * Cache de puntos y nivel en la cuenta. La fuente de verdad es el historial
+ * de gamificacion; gamificacion manda el valor ya calculado (no un
+ * incremento, que se podria desincronizar).
+ */
+async function guardarCacheDePuntos(userId, totalPoints) {
+    await db.query('UPDATE identidad.users SET total_points = $1 WHERE id = $2', [totalPoints, userId]);
+}
+
+async function guardarCacheDeNivel(userId, nivel) {
+    await db.query(
+        'UPDATE identidad.users SET level = $1 WHERE id = $2 AND level IS DISTINCT FROM $1',
+        [nivel, userId]
+    );
+}
+
 module.exports = {
+    activosConEquipo,
+    resumenesDe,
+    activosConRoles,
+    rankingPorPuntos,
+    cacheDeGamificacion,
+    guardarCacheDePuntos,
+    guardarCacheDeNivel,
     existe,
     buscarPorCorreo,
     cuentaPorCorreo,

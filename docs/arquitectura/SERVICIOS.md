@@ -57,7 +57,7 @@ Cuentas de usuario, autenticacion (correo/contrasena y Google), recuperacion de 
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `usuarioExiste`, `correoDe`, `idPorCorreo`, `obtenerContacto`, `responsablesRhDe`, `activosConRol`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `usuarioExiste`, `correoDe`, `idPorCorreo`, `obtenerContacto`, `responsablesRhDe`, `activosConRol`, `activosConRoles`, `usuariosActivos`, `resumenesDe`, `buscarEquipo`, `equiposActivos`, `rankingPorPuntos`, `cacheDeGamificacion`, `guardarCacheDePuntos`, `guardarCacheDeNivel`.
 
 ### Estructura
 
@@ -99,6 +99,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde identidad.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde identidad.
 - `infrastructure/passport.js` — Integracion con Google OAuth (passport).
+- `infrastructure/persistence/equipos.repositorio.js` — Repositorio de equipos (areas) del servicio de identidad.
 - `infrastructure/persistence/invitaciones.repositorio.js` — Repositorio de invitaciones (esquema identidad).
 - `infrastructure/persistence/recuperacion.repositorio.js` — Repositorio de tokens de recuperacion de contrasena (esquema identidad).
 - `infrastructure/persistence/usuarios.repositorio.js` — Repositorio de cuentas de usuario (esquema identidad).
@@ -135,7 +136,7 @@ Catalogo de cursos y lecciones, asignacion de cursos a usuarios, progreso por le
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `obtenerTitulo`, `obtenerTitulos`, `idsDeCursosAsignados`, `obtenerLeccion`, `contarLeccionesCompletadas`, `contarCursosCompletados`, `listarConCriticidad`, `marcarCritico`, `buscarVencimientosProximos`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `obtenerTitulo`, `obtenerTitulos`, `idsDeCursosAsignados`, `obtenerLeccion`, `contarLeccionesCompletadas`, `contarCursosCompletados`, `listarConCriticidad`, `marcarCritico`, `buscarVencimientosProximos`, `titulosOrdenados`, `usuariosAsignadosA`, `asignacionesDe`, `accionesPorUsuarioEntre`, `ultimaActividadDe`, `cursosCompletadosPorUsuarioEntre`, `avanceDe`, `leccionesPendientes`.
 
 ### Estructura
 
@@ -198,7 +199,7 @@ Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal y e
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `nombreDeDesafio`, `tituloDeSimulacion`, `contarEvaluacionesAprobadas`, `ultimosResultados`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `nombreDeDesafio`, `tituloDeSimulacion`, `contarEvaluacionesAprobadas`, `ultimosResultados`, `resultadosConsolidados`, `pendientesDe`, `serieDeIntentos`, `accionesPorUsuarioEntre`, `ultimaActividadDe`.
 
 ### Estructura
 
@@ -250,15 +251,6 @@ Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking
 - **Consume:** `lesson.completed`, `quiz.approved`, `course.completed`, `simulation.decision_made`, `simulation.completed`, `points_assigned`
 - **Depende de (por contrato interno):** identidad, cursos, evaluaciones, seguridad
 - **Procesos de fondo:** -
-
-**Acceso declarado a datos de otros servicios** (verificado por las pruebas de arquitectura):
-
-| Tipo | Tablas | Dueno | Motivo |
-|------|--------|-------|--------|
-| lee | `identidad.users` | identidad | El ranking ordena por las columnas de cache total_points y level, que vive en users y mantiene este mismo servicio (ver escriturasCompartidas). |
-| lee | `evaluaciones.quiz_attempts`, `evaluaciones.challenges`, `evaluaciones.simulations` | evaluaciones | El resumen de desempeno y las recomendaciones agregan el historial de intentos en una sola consulta. Es una proyeccion de lectura: nunca escribe en esas tablas. |
-| lee | `cursos.courses`, `cursos.course_contents`, `cursos.course_assignments`, `cursos.lesson_progress` | cursos | Mismo caso: el avance por curso del resumen de desempeno se calcula con un JOIN. |
-| escribe | `identidad.users` (total_points, level) | identidad | Cache desnormalizada del total y del nivel. La fuente de verdad es points_ledger; identidad no escribe nunca estas dos columnas. |
 
 ### Endpoints
 
@@ -319,7 +311,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde gamificacion.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde gamificacion.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde gamificacion.
-- `infrastructure/persistence/gamificacion.repositorio.js` — Repositorio de las consultas que antes escribia a mano gamification.controller.js.
+- `infrastructure/persistence/gamificacion.repositorio.js` — Repositorio de las consultas de los endpoints de gamificacion (insignias, catalogo de recompensas, reglas de puntos).
 - `infrastructure/persistence/niveles.repositorio.js` — Repositorio de niveles: levels_config, user_level_history y la cache users.level.
 - `infrastructure/persistence/puntos.repositorio.js` — Repositorio de puntos: points_rules, points_ledger (historial inmutable), la vista v_user_points y la cache users.total_points.
 - `infrastructure/persistence/recomendaciones.repositorio.js` — Repositorio de recomendaciones (servicio de gamificacion).

@@ -221,7 +221,127 @@ async function obtenerProgreso(courseId, userId) {
     return rows[0];
 }
 
+// ---------------------------------------------------------------------
+// Consultas para otros servicios (base de datos por servicio)
+// ---------------------------------------------------------------------
+
+/** Todos los cursos { id, title } por titulo (panel de filtros de reportes). */
+async function titulosOrdenados() {
+    const { rows } = await db.query('SELECT id, title FROM cursos.courses ORDER BY title');
+    return rows;
+}
+
+/** Ids de los usuarios que tienen asignado un curso. */
+async function usuariosAsignadosA(courseId) {
+    const { rows } = await db.query(
+        'SELECT DISTINCT user_id FROM cursos.course_assignments WHERE course_id = $1',
+        [courseId]
+    );
+    return rows.map(r => r.user_id);
+}
+
+/** Asignaciones { user_id, course_id, status } de varios usuarios. */
+async function asignacionesDe(userIds) {
+    if (!userIds.length) return [];
+    const { rows } = await db.query(
+        `SELECT user_id, course_id, status
+           FROM cursos.course_assignments
+          WHERE user_id = ANY($1::int[])`,
+        [userIds]
+    );
+    return rows;
+}
+
+/** Lecciones completadas por usuario en [desde, hasta). Cualquiera de los dos puede ser null. */
+async function leccionesPorUsuarioEntre(desde = null, hasta = null) {
+    const { rows } = await db.query(
+        `SELECT user_id, COUNT(*)::int AS acciones
+           FROM cursos.lesson_progress
+          WHERE ($1::timestamptz IS NULL OR completed_at >= $1::timestamptz)
+            AND ($2::timestamptz IS NULL OR completed_at <  $2::timestamptz)
+          GROUP BY user_id`,
+        [desde, hasta]
+    );
+    return rows;
+}
+
+/** Ultima leccion completada de cada usuario. */
+async function ultimaLeccionDe(userIds) {
+    if (!userIds.length) return [];
+    const { rows } = await db.query(
+        `SELECT user_id, MAX(completed_at) AS ultima
+           FROM cursos.lesson_progress
+          WHERE user_id = ANY($1::int[])
+          GROUP BY user_id`,
+        [userIds]
+    );
+    return rows;
+}
+
+/** Cursos completados por usuario en [desde, hasta). */
+async function cursosCompletadosPorUsuarioEntre(desde, hasta) {
+    const { rows } = await db.query(
+        `SELECT user_id, COUNT(*)::int AS cursos
+           FROM cursos.course_assignments
+          WHERE status = 'completed'
+            AND completed_at >= $1::timestamptz
+            AND completed_at <  $2::timestamptz
+          GROUP BY user_id`,
+        [desde, hasta]
+    );
+    return rows;
+}
+
+/** Avance de lecciones por curso asignado a un usuario. */
+async function avanceDe(userId) {
+    const { rows } = await db.query(
+        `SELECT c.id AS course_id,
+                c.title AS curso,
+                ca.status,
+                COUNT(cc.id)::int AS lecciones_totales,
+                COUNT(lp.id)::int AS lecciones_completadas
+           FROM cursos.course_assignments ca
+           JOIN cursos.courses c ON c.id = ca.course_id
+           LEFT JOIN cursos.course_contents cc ON cc.course_id = c.id
+           LEFT JOIN cursos.lesson_progress lp ON lp.content_id = cc.id AND lp.user_id = $1
+          WHERE ca.user_id = $1
+          GROUP BY c.id, c.title, ca.status
+          ORDER BY c.title`,
+        [userId]
+    );
+    return rows;
+}
+
+/** Lecciones de esos cursos que el usuario todavia no completo. */
+async function leccionesPendientes(courseIds, userId) {
+    if (!courseIds.length) return [];
+    const { rows } = await db.query(
+        `SELECT cc.id AS content_id, cc.course_id, cc.content_type,
+                cc.order_idx, cc.points_reward,
+                c.title AS curso,
+                LEFT(cc.body, 120) AS extracto
+           FROM cursos.course_contents cc
+           JOIN cursos.courses c ON c.id = cc.course_id
+          WHERE cc.course_id = ANY($1::int[])
+            AND NOT EXISTS (
+                    SELECT 1 FROM cursos.lesson_progress lp
+                     WHERE lp.user_id = $2 AND lp.content_id = cc.id
+                )
+          ORDER BY cc.course_id, cc.order_idx, cc.id`,
+        [courseIds, userId]
+    );
+    return rows;
+}
+
 module.exports = {
+    titulosOrdenados,
+    usuariosAsignadosA,
+    asignacionesDe,
+    leccionesPorUsuarioEntre,
+    ultimaLeccionDe,
+    cursosCompletadosPorUsuarioEntre,
+    avanceDe,
+    leccionesPendientes,
     insertarCurso,
     insertarContenido,
     listarTodos,

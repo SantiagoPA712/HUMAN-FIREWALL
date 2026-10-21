@@ -252,8 +252,8 @@ const declaracionesViejas = NOMBRES.flatMap(n =>
 check('no quedan lecturas declaradas que el codigo ya no hace', declaracionesViejas.length === 0, lista(declaracionesViejas));
 
 const escriturasDeclaradas = NOMBRES.flatMap(n => manifiestos[n].escriturasCompartidas.map(d => `${n}->${d.tabla}`));
-check('la unica escritura compartida es la cache de puntos y nivel en users',
-    JSON.stringify(escriturasDeclaradas) === JSON.stringify(['gamificacion->identidad.users']), `(${escriturasDeclaradas})`);
+check('ningun servicio escribe en la base de otro (la cache de puntos va por el contrato de identidad)',
+    escriturasDeclaradas.length === 0, `(${escriturasDeclaradas})`);
 
 // =====================================================================
 console.log('\n--- EVENTOS: EL MANIFIESTO DICE LA VERDAD ---');

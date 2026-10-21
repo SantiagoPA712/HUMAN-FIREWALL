@@ -13,6 +13,7 @@
 
 const manifiesto = require('./manifiesto');
 const cursos = require('./application/cursos.service');
+const repo = require('./infrastructure/persistence/cursos.repositorio');
 
 module.exports = {
     manifiesto,
@@ -39,5 +40,16 @@ module.exports = {
     contarCursosCompletados: (...args) => cursos.contarCursosCompletados(...args),
     listarConCriticidad: (...args) => cursos.listarConCriticidad(...args),
     marcarCritico: (...args) => cursos.marcarCritico(...args),
-    buscarVencimientosProximos: (...args) => cursos.buscarVencimientosProximos(...args)
+    buscarVencimientosProximos: (...args) => cursos.buscarVencimientosProximos(...args),
+
+    // Consultas de lectura para reportes, gamificacion (base de datos por
+    // servicio: nadie mas hace JOIN con las tablas de cursos).
+    titulosOrdenados: (...args) => repo.titulosOrdenados(...args),
+    usuariosAsignadosA: (...args) => repo.usuariosAsignadosA(...args),
+    asignacionesDe: (...args) => repo.asignacionesDe(...args),
+    accionesPorUsuarioEntre: (...args) => repo.leccionesPorUsuarioEntre(...args),
+    ultimaActividadDe: (...args) => repo.ultimaLeccionDe(...args),
+    cursosCompletadosPorUsuarioEntre: (...args) => repo.cursosCompletadosPorUsuarioEntre(...args),
+    avanceDe: (...args) => repo.avanceDe(...args),
+    leccionesPendientes: (...args) => repo.leccionesPendientes(...args)
 };
