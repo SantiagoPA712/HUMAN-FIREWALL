@@ -81,6 +81,10 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
               <p className="text-xs text-text-secondary">
                 ID de empleado: <span className="font-mono text-text-primary">{usuario?.id || '—'}</span>
               </p>
+              <a href="/perfil" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-light hover:underline">
+                <User className="h-3.5 w-3.5" />
+                Ver y editar mi información personal
+              </a>
             </div>
             <div className="flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-light border border-brand-blue/20">
               <Shield className="h-3.5 w-3.5 text-brand-blue" />

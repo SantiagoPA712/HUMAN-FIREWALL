@@ -3,6 +3,30 @@
 Formato: la version del contrato publico (`info.version` en `/api/docs/openapi.json`)
 y que cambio para quien consume la API. Ver [POLITICA.md](POLITICA.md).
 
+## 1.1.0 — 2026-10-20
+
+HU de perfil editable. Compatible con el frontend actual.
+
+**Consumidores revisados:** `NotificationsPage.jsx` (manda `{ language }` y no
+lee la respuesta) y la pantalla nueva `ProfilePage.jsx`.
+
+### Nuevo
+
+- `GET /api/users/me` y la respuesta de `PATCH /api/users/me` traen `full_name`,
+  `phone`, `team_name`, `created_at` y `updated_at`.
+- `PATCH /api/users/me` acepta `full_name` y `phone` ademas de `language`, y
+  ninguno es obligatorio por separado (antes `language` lo era). Tiene que
+  venir al menos uno.
+- La respuesta del `PATCH` suma `msg`, `sin_cambios` y `cambios` al lado del
+  perfil, que sigue plano como antes.
+
+### Cambios de comportamiento
+
+| Endpoint | Antes | Ahora | Por que |
+|----------|-------|-------|---------|
+| `PATCH /api/users/me` con un campo que no es `full_name`, `phone` ni `language` (por ejemplo `role`) | se ignoraba y respondia 200 | 403 `PROHIBIDO` con `campos` y `editables`, y no se guarda nada | Criterio tecnico 6: que una solicitud manipulada no pase por un guardado exitoso. Ningun consumidor manda otros campos |
+| `PATCH /api/users/me` con los mismos valores ya guardados | escribia y movia `updated_at` | 200 con `sin_cambios: true`, sin escribir | Criterio de aceptacion 5 |
+
 ## 1.0.0 — 2026-10-20
 
 Primera version publicada del contrato (HU de microservicios por capas y

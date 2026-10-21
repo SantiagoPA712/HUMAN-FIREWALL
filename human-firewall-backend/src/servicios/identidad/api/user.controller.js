@@ -8,7 +8,12 @@
 
 const userService = require('../aplicacion/user.service');
 const usuarios = require('../infraestructura/usuarios.repositorio');
-const { ROLES: ROLES_VALIDOS, IDIOMAS: IDIOMAS_VALIDOS } = require('../dominio/usuario');
+const {
+    ROLES: ROLES_VALIDOS,
+    CAMPOS_EDITABLES_PERFIL,
+    camposProtegidos,
+    validarPerfil
+} = require('../dominio/usuario');
 const { responderError } = require('../../../compartido/http/errores');
 // data.logs es de seguridad: se llega por su contrato.
 const dataLogs = require('../infraestructura/clientes/seguridad.cliente');
@@ -166,28 +171,72 @@ exports.getMe = async (req, res) => {
 };
 
 /**
- * PATCH /api/users/me   Body: { language: 'es' | 'en' | null }
+ * PATCH /api/users/me   Body: { full_name?, phone?, language? }
  *
- * Idioma de la cuenta (HU de notificaciones por correo, criterio de
- * aceptacion 3). null vuelve al idioma por defecto de la plataforma.
+ * HU de perfil editable. Antes solo cambiaba el idioma (HU de notificaciones
+ * por correo); ahora es la misma ruta para todo el perfil propio, sin una
+ * segunda ruta que haga lo mismo (criterio tecnico 2).
+ *
+ * El id sale del token, nunca del cuerpo: no hay forma de apuntar a otro
+ * usuario (criterio tecnico 9). Orden de los rechazos:
+ *   1. 403 si viene cualquier campo fuera de la lista blanca, aunque traiga
+ *      campos validos al lado: no se guarda nada (aceptacion 8, tecnico 6).
+ *   2. 400 con un error por campo si algun valor es invalido (aceptacion 4).
+ *   3. 200 con sin_cambios: true y sin escribir, si todo coincide con lo
+ *      guardado (aceptacion 5).
  */
 exports.updateMe = async (req, res) => {
     try {
-        const { language } = req.body || {};
+        const cuerpo = req.body || {};
 
-        if (language === undefined || (language !== null && !IDIOMAS_VALIDOS.includes(language))) {
-            return res.status(400).json({
-                msg: 'Parametros invalidos',
-                errores: [{
-                    campo: 'language',
-                    detalle: `Idioma invalido. Validos: ${IDIOMAS_VALIDOS.join(', ')} o null para el de la plataforma.`
-                }]
+        const protegidos = camposProtegidos(cuerpo);
+        if (protegidos.length > 0) {
+            return res.status(403).json({
+                msg: 'No puedes modificar estos datos desde tu perfil',
+                codigo: 'PROHIBIDO',
+                campos: protegidos,
+                editables: CAMPOS_EDITABLES_PERFIL
             });
         }
 
-        const perfil = await userService.updateLanguage(req.user.id, language);
-        if (!perfil) return res.status(404).json({ msg: 'Usuario no encontrado' });
-        res.status(200).json(perfil);
+        const { valores, errores } = validarPerfil(cuerpo);
+        if (errores.length > 0) {
+            return res.status(400).json({ msg: 'Revisa los datos del perfil', codigo: 'VALIDACION', errores });
+        }
+
+        const resultado = await userService.updateProfile(req.user.id, valores);
+        if (!resultado) return res.status(404).json({ msg: 'Usuario no encontrado', codigo: 'NO_ENCONTRADO' });
+
+        const campos = Object.keys(resultado.cambios);
+        if (campos.length === 0) {
+            return res.status(200).json({
+                ...resultado.perfil,
+                msg: 'No hay cambios para guardar',
+                sin_cambios: true,
+                cambios: []
+            });
+        }
+
+        // Solo los campos que cambiaron, con su valor anterior y el nuevo.
+        dataLogs.registrarAccion({
+            req,
+            accion: dataLogs.ACCIONES.UPDATE,
+            modulo: dataLogs.MODULOS.USERS,
+            recurso: 'user_profile',
+            recursoId: req.user.id,
+            antes: Object.fromEntries(campos.map(c => [c, resultado.antes[c] ?? null])),
+            despues: resultado.cambios
+        });
+
+        // El perfil va plano, como antes de esta HU (la pantalla de
+        // notificaciones ya consumia esta respuesta); msg, sin_cambios y
+        // cambios son campos nuevos al lado.
+        res.status(200).json({
+            ...resultado.perfil,
+            msg: 'Perfil actualizado correctamente',
+            sin_cambios: false,
+            cambios: campos
+        });
     } catch (error) {
         responderError(req, res, error);
     }

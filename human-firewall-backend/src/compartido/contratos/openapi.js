@@ -20,7 +20,7 @@
 const comunes = require('./esquemas-comunes');
 
 /** Version del contrato publico. Ver docs/contratos/POLITICA.md antes de cambiarla. */
-const VERSION_CONTRATO = '1.0.0';
+const VERSION_CONTRATO = '1.1.0';
 
 const cache = new WeakMap();
 

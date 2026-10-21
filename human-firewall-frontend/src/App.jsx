@@ -26,6 +26,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import AcceptInvitationPage from './pages/AcceptInvitationPage';
 import InvitationsPage from './pages/InvitationsPage';
+import ProfilePage from './pages/ProfilePage';
 import { PuntosProvider } from './context/PuntosContext';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -50,6 +51,10 @@ function App() {
         <Route path="/rewards" element={<RewardsGallery />} />
         <Route path="/level" element={<MyLevel />} />
         <Route path="/performance" element={<Performance />} />
+
+        {/* Perfil propio: cada usuario ve y edita solo el suyo. El backend
+            toma el id del token, no de la URL. */}
+        <Route path="/perfil" element={<ProfilePage />} />
 
         {/* Centro de notificaciones: es de cada usuario, no tiene restriccion
             de rol. El bloque de cursos criticos, dentro de la pantalla, solo

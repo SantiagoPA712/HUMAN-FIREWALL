@@ -1062,6 +1062,45 @@ pero con el enlace armado:
 docker compose exec postgres psql -U postgres -c "SELECT to_email, substring(body_text from 'https?://[^ ]+') AS enlace FROM email_jobs WHERE notification_type = 'user_invitation' ORDER BY id DESC LIMIT 5;"
 ```
 
+### 0.12 Perfil propio: lista blanca de campos
+
+El empleado consulta y edita su perfil en **Mi Perfil** (`/perfil`, en el menu
+del panel y en "Perfil y configuracion"). Se reutilizan las rutas que ya
+existian, sin rutas nuevas: `GET /api/users/me` para leer y `PATCH /api/users/me`
+para guardar. El id sale siempre del token: no hay forma de apuntar a otro usuario.
+
+| Campo | Editable | Regla |
+|-------|----------|-------|
+| `full_name` | Si | Obligatorio, 2 a 150 caracteres, solo letras (con tildes), espacios, `'`, `.` y `-`. Se guarda sin espacios de mas |
+| `phone` | Si | Opcional. 7 a 15 digitos con `+` opcional; se guarda sin espacios, guiones ni parentesis (`+573001234567`) |
+| `language` | Si | `es`, `en` o `null` (el de la plataforma) |
+| `email`, `role`, equipo, fecha de alta | No | Se muestran como "Datos de la cuenta". El correo es el usuario de login |
+
+**Lista blanca, no lista negra.** `CAMPOS_EDITABLES_PERFIL` en
+`servicios/identidad/dominio/usuario.js` es lo unico que se acepta. Si la
+solicitud trae cualquier otro campo (`role`, `is_active`, `email`, `team_id`,
+`total_points`, `password`, `id`...) se rechaza **entera** con 403 `PROHIBIDO`,
+aunque traiga campos validos al lado. Ignorarlo en silencio le haria creer a
+quien manipula la solicitud que se guardo. Es la unica ruta que rechaza campos
+desconocidos (la politica general es aceptarlos, ver `validacion.js`), porque
+es la unica donde un campo de mas puede ser una escalada de privilegios.
+
+**Validacion en dos lados.** `src/lib/perfil.js` (frontend) tiene las mismas
+reglas para avisar antes de enviar. El backend las vuelve a aplicar con
+`validarPerfil` y responde 400 con un error por campo. El telefono tiene
+ademas un `CHECK` en la base (migracion `036`) como ultima barrera.
+
+**Sin cambios no se escribe.** Se compara contra lo guardado ya normalizado
+(`300 123 4567` y `3001234567` son el mismo telefono). Si nada cambio, la
+pantalla ni manda la solicitud, y si llega igual el backend responde 200 con
+`sin_cambios: true` sin tocar `updated_at` ni dejar log.
+
+**Integridad.** Leer, comparar y escribir van en una transaccion con
+`SELECT ... FOR UPDATE`: si el `UPDATE` falla no queda nada a medias y la
+pantalla muestra que no se guardo, sin confirmacion. Cada guardado con cambios
+deja una fila en `data.logs` (`update`, recurso `user_profile`) con el valor
+anterior y el nuevo de cada campo que cambio.
+
 ### 1. La fuente de verdad es `points_ledger`
 
 `users.total_points` y `users.level` son **cache**, no fuente de verdad. Nadie
