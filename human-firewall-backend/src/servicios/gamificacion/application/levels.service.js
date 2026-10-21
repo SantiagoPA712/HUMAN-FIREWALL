@@ -12,46 +12,20 @@
  * cambia solo, sin migrar datos.
  */
 
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
+const { conTransaccion } = require('../../../compartido/config/transaccion');
 const { calcularProgreso } = require('../domain/nivel');
+const repo = require('../infrastructure/persistence/niveles.repositorio');
 
-/**
- * Escalera de niveles activos, de menor a mayor umbral.
- * @returns {Promise<Array<{level:number,name:string,min_points:number}>>}
- */
-async function obtenerEscalera() {
-    const { rows } = await db.query(
-        `SELECT level, name, description, icon_url, min_points
-           FROM levels_config
-          WHERE is_active = true
-          ORDER BY min_points ASC, level ASC`
-    );
-    return rows;
-}
+/** Escalera de niveles activos, de menor a mayor umbral. */
+const obtenerEscalera = () => repo.escalera();
 
 /** Total acumulado del usuario, leido del historial y no de la cache. */
-async function obtenerPuntos(userId) {
-    const { rows } = await db.query(
-        `SELECT COALESCE(total_points, 0) AS total FROM v_user_points WHERE user_id = $1`,
-        [userId]
-    );
-    // Un usuario sin ningun movimiento no aparece en la vista: tiene 0 puntos.
-    return Number(rows[0]?.total || 0);
-}
+const obtenerPuntos = (userId) => repo.puntosDe(userId);
 
 /** Niveles que el usuario ya alcanzo, del mas reciente al mas antiguo. */
-async function obtenerHistorialNiveles(userId) {
-    const { rows } = await db.query(
-        `SELECT level, level_name, min_points, points_at, reached_at
-           FROM user_level_history
-          WHERE user_id = $1
-          ORDER BY level DESC`,
-        [userId]
-    );
-    return rows;
-}
+const obtenerHistorialNiveles = (userId) => repo.historialDe(userId);
 
 /**
  * Criterio de aceptacion 1: nivel actual, puntos acumulados, puntos
@@ -92,31 +66,16 @@ async function sincronizarNivel({ userId }) {
         return { nivel: null, subio: false, niveles_nuevos: [] };
     }
 
-    const client = await db.connect();
-    try {
-        await client.query('BEGIN');
-
+    return conTransaccion(async (tx) => {
         // Todos los niveles que le corresponden y todavia no estan registrados.
         const alcanzados = escalera.filter(n => n.level <= progreso.nivel_actual);
         const nuevos = [];
 
         for (const nivel of alcanzados) {
-            const { rows } = await client.query(
-                `INSERT INTO user_level_history (user_id, level, level_name, min_points, points_at)
-                 VALUES ($1, $2, $3, $4, $5)
-                 ON CONFLICT (user_id, level) DO NOTHING
-                 RETURNING level`,
-                [userId, nivel.level, nivel.name, nivel.min_points, puntos]
-            );
-            if (rows.length > 0) nuevos.push(nivel.level);
+            if (await repo.registrarNivelAlcanzado({ userId, nivel, puntos }, tx)) nuevos.push(nivel.level);
         }
 
-        // Cache. Se escribe el valor calculado, no un incremento, por el mismo
-        // motivo que total_points: un incremento se puede desincronizar.
-        await client.query(
-            `UPDATE users SET level = $1 WHERE id = $2 AND level IS DISTINCT FROM $1`,
-            [progreso.nivel_actual, userId]
-        );
+        await repo.guardarNivelEnCache(userId, progreso.nivel_actual, tx);
 
         // El nivel 1 no se anuncia: todos arrancan ahi, no es un logro.
         const subidasReales = nuevos.filter(n => n > (escalera[0]?.level ?? 1));
@@ -128,18 +87,11 @@ async function sincronizarNivel({ userId }) {
                 nombre: progreso.nombre,
                 nivelesAlcanzados: subidasReales,
                 puntos
-            }, client);
+            }, tx);
         }
 
-        await client.query('COMMIT');
         return { nivel: progreso.nivel_actual, subio: subidasReales.length > 0, niveles_nuevos: subidasReales };
-
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
-    }
+    });
 }
 
 /**

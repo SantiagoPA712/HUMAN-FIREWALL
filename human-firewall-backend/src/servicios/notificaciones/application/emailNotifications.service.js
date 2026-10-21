@@ -32,8 +32,8 @@
  *     hace la plantilla (emailTemplates.service).
  */
 
-const db = require('../../../compartido/config/db');
 const config = require('../config/configuracion');
+const { conTransaccion } = require('../../../compartido/config/transaccion');
 const identidad = require('../infrastructure/client/identidad.cliente');
 const cursos = require('../infrastructure/client/cursos.cliente');
 const { esCorreoValido } = require('../../../compartido/utils/correo');
@@ -41,6 +41,7 @@ const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const plantillas = require('./emailTemplates.service');
 const { CODIGOS_DE_RED, esErrorTransitorio } = require('../domain/entrega');
+const repo = require('../infrastructure/persistence/correos.repositorio');
 
 // ---------------------------------------------------------------------
 // Configuracion
@@ -172,10 +173,7 @@ function detalleTecnico(err) {
 // ---------------------------------------------------------------------
 
 async function obtenerTipo(tipo) {
-    const { rows } = await db.query(
-        'SELECT code, is_critical, description FROM email_notification_types WHERE code = $1',
-        [tipo]
-    );
+    const rows = await repo.tipoDeCorreo(tipo);
     return rows[0] || null;
 }
 
@@ -187,36 +185,17 @@ async function obtenerTipo(tipo) {
  * las dos estan habilitadas.
  */
 async function quiereRecibir(userId, tipo) {
-    const { rows } = await db.query(
-        `SELECT
-            COALESCE((SELECT enabled FROM notification_preferences
-                       WHERE user_id = $1 AND channel = 'email'), true) AS canal,
-            COALESCE((SELECT enabled FROM email_preferences
-                       WHERE user_id = $1 AND notification_type = $2), true) AS tipo`,
-        [userId, tipo]
-    );
+    const rows = await repo.preferenciaDeCorreo(userId, tipo);
     return rows[0].canal && rows[0].tipo;
 }
 
 /** Preferencias de correo de un usuario, con los valores por defecto resueltos. */
 async function obtenerPreferencias(userId) {
-    const { rows: tipos } = await db.query(
-        `SELECT t.code, t.is_critical, t.description,
-                COALESCE(p.enabled, true) AS enabled
-           FROM email_notification_types t
-           LEFT JOIN email_preferences p
-                  ON p.notification_type = t.code AND p.user_id = $1
-          WHERE t.user_configurable
-          ORDER BY t.is_critical DESC, t.code`,
-        [userId]
-    );
+    const tipos = await repo.preferenciasPorTipo(userId);
 
     // El idioma es un dato de la cuenta (identidad); el canal es de este servicio.
     const contacto = await identidad.obtenerContacto(userId);
-    const { rows: [canal] } = await db.query(
-        `SELECT enabled FROM notification_preferences WHERE user_id = $1 AND channel = 'email'`,
-        [userId]
-    );
+    const { rows: [canal] } = await repo.canalDeCorreo(userId);
     const usuario = contacto
         ? { language: contacto.language, canal_email: canal ? canal.enabled : true }
         : null;
@@ -251,9 +230,7 @@ async function actualizarPreferencias(userId, cambios = {}) {
     if (!pedidos || typeof pedidos !== 'object' || Array.isArray(pedidos)) {
         errores.push({ campo: 'tipos', detalle: 'Debe ser un objeto { tipo: true|false }.' });
     } else {
-        const { rows: catalogo } = await db.query(
-            'SELECT code, is_critical FROM email_notification_types WHERE user_configurable'
-        );
+        const catalogo = await repo.tiposConfigurables();
         const porCodigo = new Map(catalogo.map(t => [t.code, t]));
 
         for (const [tipo, valor] of Object.entries(pedidos)) {
@@ -279,13 +256,7 @@ async function actualizarPreferencias(userId, cambios = {}) {
     }
 
     for (const [tipo, valor] of Object.entries(pedidos)) {
-        await db.query(
-            `INSERT INTO email_preferences (user_id, notification_type, enabled)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (user_id, notification_type)
-             DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`,
-            [userId, tipo, valor]
-        );
+        await repo.guardarPreferencia(userId, tipo, valor);
     }
 
     return obtenerPreferencias(userId);
@@ -416,16 +387,7 @@ async function encolar({ userId = null, destinatario = null, tipo, datos = {}, d
     // queda registrado como no entregable. Se registra igual que un job, para
     // que soporte lo encuentre donde busca los demas correos.
     if (!esCorreoValido(usuario.email)) {
-        const { rows } = await db.query(
-            `INSERT INTO email_jobs
-                 (user_id, notification_type, dedupe_key, notification_id, to_email,
-                  language, status, max_attempts, last_error, finished_at)
-             VALUES ($1, $2, $3, $4, $5, $6, 'undeliverable', 0, $7, now())
-             ON CONFLICT (dedupe_key) DO NOTHING
-             RETURNING id`,
-            [userId, tipo, dedupeKey, notificationId, usuario.email || null, idiomaPedido,
-             'el destinatario no tiene un correo valido registrado']
-        );
+        const rows = await repo.encolarNoEntregable(userId, tipo, dedupeKey, notificationId, usuario, idiomaPedido);
         console.warn(
             `[email] ${tipo} -> ${userId ? `usuario ${userId}` : 'destinatario sin cuenta'}: no entregable, correo invalido ` +
             `(${JSON.stringify(usuario.email)}). Se descarta sin reintentar.`
@@ -441,17 +403,7 @@ async function encolar({ userId = null, destinatario = null, tipo, datos = {}, d
         plantilla, prepararVariables(datos, usuario, plantilla.language)
     );
 
-    const { rows } = await db.query(
-        `INSERT INTO email_jobs
-             (user_id, notification_type, dedupe_key, notification_id, to_email, language,
-              template_id, template_version, subject, body_html, body_text, max_attempts)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         ON CONFLICT (dedupe_key) DO NOTHING
-         RETURNING id`,
-        [userId, tipo, dedupeKey, notificationId, usuario.email.trim(), plantilla.language,
-         plantilla.id, plantilla.version, contenido.subject, contenido.html, contenido.text,
-         MAX_INTENTOS]
-    );
+    const rows = await repo.encolar(userId, tipo, dedupeKey, notificationId, usuario, plantilla, contenido, MAX_INTENTOS);
 
     if (rows.length === 0) return { estado: 'duplicado' };
 
@@ -474,28 +426,13 @@ async function encolar({ userId = null, destinatario = null, tipo, datos = {}, d
 async function reflejarEnEntrega(job, estado, error = null) {
     if (!job.notification_id) return;
 
-    const columna = estado === 'entregada' ? 'delivered_at' : 'failed_at';
-    await db.query(
-        `INSERT INTO notification_deliveries (notification_id, channel, status, error, ${columna})
-         VALUES ($1, 'email', $2, $3, now())
-         ON CONFLICT (notification_id, channel) DO UPDATE
-            SET status = EXCLUDED.status,
-                error = EXCLUDED.error,
-                ${columna} = EXCLUDED.${columna}
-          WHERE notification_deliveries.status <> 'leida'`,
-        [job.notification_id, estado, error]
-    );
+    await repo.reflejarEntrega(job, estado, error);
 }
 
 async function registrarIntento(job, resultado, err = null) {
-    await db.query(
-        `INSERT INTO email_job_attempts (job_id, attempt_no, outcome, error_code, error_detail)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (job_id, attempt_no) DO NOTHING`,
-        [job.id, job.attempts, resultado,
-         err ? String(err.code || err.responseCode || err.statusCode || '').slice(0, 50) || null : null,
-         err ? detalleTecnico(err) : null]
-    );
+    const codigo = err ? String(err.code || err.responseCode || err.statusCode || '').slice(0, 50) || null : null;
+    const detalle = err ? detalleTecnico(err) : null;
+    await repo.registrarIntento(job, resultado, codigo, detalle);
 }
 
 /**
@@ -505,42 +442,11 @@ async function registrarIntento(job, resultado, err = null) {
  * servidor, dos workers nunca toman el mismo correo.
  */
 async function tomarSiguiente() {
-    const client = await db.connect();
-    try {
-        await client.query('BEGIN');
-
-        const { rows } = await client.query(
-            `SELECT id FROM email_jobs
-              WHERE status = 'pending' AND next_attempt_at <= now()
-              ORDER BY next_attempt_at, id
-              FOR UPDATE SKIP LOCKED
-              LIMIT 1`
-        );
-
-        if (rows.length === 0) {
-            await client.query('COMMIT');
-            return null;
-        }
-
-        // next_attempt_at pasa a ser "cuando se tomo": es lo que usa
-        // recuperarHuerfanos para saber cuanto lleva en 'processing'.
-        const { rows: [job] } = await client.query(
-            `UPDATE email_jobs
-                SET status = 'processing', attempts = attempts + 1, next_attempt_at = now()
-              WHERE id = $1
-              RETURNING id, user_id, notification_type, notification_id, to_email,
-                        subject, body_html, body_text, attempts, max_attempts`,
-            [rows[0].id]
-        );
-
-        await client.query('COMMIT');
-        return job;
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
-    }
+    return conTransaccion(async (tx) => {
+        const siguiente = await repo.bloquearSiguientePendiente(tx);
+        if (!siguiente) return null;
+        return repo.marcarProcesando(siguiente.id, tx);
+    });
 }
 
 /**
@@ -552,10 +458,7 @@ async function enviar(job) {
     const emisor = obtenerTransporte();
 
     if (!emisor) {
-        await db.query(
-            `UPDATE email_jobs SET status = 'skipped', finished_at = now() WHERE id = $1`,
-            [job.id]
-        );
+        await repo.marcarOmitido(job);
         console.log(`[email] sin SMTP_HOST: job ${job.id} (${job.notification_type}) -> ${job.to_email}: "${job.subject}"`);
         return 'skipped';
     }
@@ -570,12 +473,7 @@ async function enviar(job) {
         });
 
         await registrarIntento(job, 'sent');
-        await db.query(
-            `UPDATE email_jobs
-                SET status = 'sent', sent_at = now(), finished_at = now(), last_error = NULL
-              WHERE id = $1`,
-            [job.id]
-        );
+        await repo.marcarEnviado(job);
         await reflejarEnEntrega(job, 'entregada');
         return 'sent';
 
@@ -587,22 +485,11 @@ async function enviar(job) {
         await registrarIntento(job, transitorio ? 'transient_error' : 'permanent_error', err);
 
         if (agotado) {
-            await db.query(
-                `UPDATE email_jobs
-                    SET status = 'failed', last_error = $2, finished_at = now()
-                  WHERE id = $1`,
-                [job.id, detalle]
-            );
+            await repo.marcarFallido(job, detalle);
             await reflejarEnEntrega(job, 'fallida', detalle.slice(0, 500));
         } else {
             const espera = BACKOFF_BASE_SEGUNDOS * Math.pow(2, job.attempts - 1);
-            await db.query(
-                `UPDATE email_jobs
-                    SET status = 'pending', last_error = $2,
-                        next_attempt_at = now() + ($3 || ' seconds')::interval
-                  WHERE id = $1`,
-                [job.id, detalle, String(espera)]
-            );
+            await repo.reprogramar(job, detalle, espera);
         }
 
         console.warn(
@@ -619,14 +506,7 @@ async function enviar(job) {
 
 /** Devuelve a la cola los jobs que un proceso caido dejo en 'processing'. */
 async function recuperarHuerfanos() {
-    const { rows } = await db.query(
-        `UPDATE email_jobs
-            SET status = 'pending'
-          WHERE status = 'processing'
-            AND next_attempt_at < now() - ($1 || ' minutes')::interval
-          RETURNING id`,
-        [String(MINUTOS_JOB_HUERFANO)]
-    );
+    const rows = await repo.devolverHuerfanos(MINUTOS_JOB_HUERFANO);
     if (rows.length > 0) {
         console.warn(`[email] ${rows.length} job(s) huerfano(s) devueltos a la cola`);
     }
@@ -740,29 +620,11 @@ async function alCambiarContrasena({ userId, changedAt }) {
 
 /** Estado de la cola de correos. Alimenta GET /api/notifications/correo/estado. */
 async function estadoDeLaCola() {
-    const { rows } = await db.query(
-        'SELECT status, COUNT(*)::int AS total FROM email_jobs GROUP BY status'
-    );
+    const rows = await repo.contarPorEstado();
     const porEstado = { pending: 0, processing: 0, sent: 0, failed: 0, undeliverable: 0, skipped: 0 };
     for (const r of rows) porEstado[r.status] = r.total;
 
-    const { rows: problemas } = await db.query(
-        `SELECT j.id, j.notification_type, j.user_id, j.to_email, j.status,
-                j.attempts, j.max_attempts, j.last_error, j.created_at, j.finished_at,
-                COALESCE(
-                    json_agg(json_build_object(
-                        'intento', a.attempt_no, 'resultado', a.outcome,
-                        'codigo', a.error_code, 'detalle', a.error_detail, 'en', a.attempted_at
-                    ) ORDER BY a.attempt_no) FILTER (WHERE a.id IS NOT NULL),
-                    '[]'
-                ) AS intentos
-           FROM email_jobs j
-           LEFT JOIN email_job_attempts a ON a.job_id = j.id
-          WHERE j.status IN ('failed', 'undeliverable')
-          GROUP BY j.id
-          ORDER BY j.id DESC
-          LIMIT 20`
-    );
+    const problemas = await repo.jobsConProblemas();
 
     return { por_estado: porEstado, ultimos_con_problemas: problemas };
 }

@@ -8,10 +8,10 @@
  * otorgando gamificacion al consumir quiz.approved.
  */
 
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { ErrorHttp } = require('../../../compartido/http/errores');
+const { conTransaccion } = require('../../../compartido/config/transaccion');
 const repo = require('../infrastructure/persistence/evaluaciones.repositorio');
 const { normalizarResultadoDesafio, PUNTAJE_MINIMO } = require('../domain/puntaje');
 
@@ -26,13 +26,10 @@ const { normalizarResultadoDesafio, PUNTAJE_MINIMO } = require('../domain/puntaj
 async function registrarResultado(userId, { challengeId, passed, score }) {
     const { aprobado, puntaje } = normalizarResultadoDesafio({ passed, score });
 
-    const client = await db.connect();
-    try {
-        const desafio = await repo.buscarDesafio(challengeId, client);
-        if (!desafio) throw ErrorHttp.noEncontrado('Desafío no encontrado');
+    const desafio = await repo.buscarDesafio(challengeId);
+    if (!desafio) throw ErrorHttp.noEncontrado('Desafío no encontrado');
 
-        await client.query('BEGIN');
-
+    return conTransaccion(async (client) => {
         // Solo un desafio superado se marca como ganado. Un fallo queda
         // unicamente en el historial de intentos, para poder reintentarlo.
         let yaGanado = false;
@@ -77,8 +74,6 @@ async function registrarResultado(userId, { challengeId, passed, score }) {
             }, client);
         }
 
-        await client.query('COMMIT');
-
         return {
             msg: !aprobado
                 ? 'Intento registrado: esta vez no lo superaste'
@@ -88,12 +83,7 @@ async function registrarResultado(userId, { challengeId, passed, score }) {
             ya_completado: yaGanado,
             puntos_estimados: (aprobado && !yaGanado) ? desafio.points_reward : 0
         };
-    } catch (error) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw error;
-    } finally {
-        client.release();
-    }
+    });
 }
 
 module.exports = { registrarResultado };

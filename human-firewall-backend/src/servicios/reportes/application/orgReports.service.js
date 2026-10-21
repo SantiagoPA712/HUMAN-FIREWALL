@@ -36,11 +36,11 @@
  * organizacion" y no puede significar dos cosas a la vez.
  */
 
-const db = require('../../../compartido/config/db');
 const config = require('../config/configuracion');
 // Escalera de niveles y progreso: por el contrato de gamificacion.
 const gamificacion = require('../infrastructure/client/gamificacion.cliente');
 const { FORMATO_PERIODO, esPeriodoValido, periodoDe, periodoAnterior, rangoDePeriodo, calcularVariacion } = require('../domain/periodo');
+const repo = require('../infrastructure/persistence/organizacional.repositorio');
 
 /**
  * Cada cuanto recalcula el job. Criterio tecnico 3: configurable, diaria por
@@ -97,35 +97,7 @@ const KPIS = {
 // Calculo de los KPIs (criterio tecnico 3)
 // ---------------------------------------------------------------------
 
-/**
- * Condicion "tuvo actividad en el rango".
- *
- * Las tres fuentes, igual que en reports.service: alguien pudo completar
- * lecciones o reprobar evaluaciones sin sumar un solo punto, y eso sigue
- * siendo participacion.
- */
-const TUVO_ACTIVIDAD = `(
-    EXISTS (SELECT 1 FROM points_ledger p
-             WHERE p.user_id = u.id AND p.created_at >= $1::timestamptz AND p.created_at < $2::timestamptz)
- OR EXISTS (SELECT 1 FROM quiz_attempts q
-             WHERE q.user_id = u.id AND q.created_at >= $1::timestamptz AND q.created_at < $2::timestamptz)
- OR EXISTS (SELECT 1 FROM lesson_progress l
-             WHERE l.user_id = u.id AND l.completed_at >= $1::timestamptz AND l.completed_at < $2::timestamptz)
-)`;
 
-/**
- * GROUPING SETS: una sola pasada devuelve las filas por area Y la fila del
- * total de la organizacion.
- *
- * La alternativa era correr cada consulta dos veces (una agrupada, otra sin
- * agrupar) y arriesgar que el total no coincidiera con la suma de las partes
- * si algo cambiaba entre una y otra.
- *
- * GROUPING(u.team_id) vale 1 en la fila del total. Hace falta porque en esa
- * fila team_id tambien es NULL, igual que en la de las personas sin area: sin
- * este desempate serian indistinguibles.
- */
-const AGRUPACION = `GROUP BY GROUPING SETS ((u.team_id), ())`;
 
 /**
  * Normaliza las filas de una consulta agrupada a { areaId, esTotal, ...fila }.
@@ -142,16 +114,7 @@ function normalizarGrupos(rows) {
 
 /** Participacion: activos / padron * 100. */
 async function calcularParticipacion(inicio, fin) {
-    const { rows } = await db.query(
-        `SELECT u.team_id AS area_id,
-                GROUPING(u.team_id)::int AS total_org,
-                COUNT(*)::int AS padron,
-                COUNT(*) FILTER (WHERE ${TUVO_ACTIVIDAD})::int AS activos
-           FROM users u
-          WHERE u.is_active = true
-          ${AGRUPACION}`,
-        [inicio, fin]
-    );
+    const rows = await repo.participacionPorArea(inicio, fin);
 
     return normalizarGrupos(rows).map(r => ({
         areaId: r.areaId,
@@ -174,16 +137,7 @@ async function calcularParticipacion(inicio, fin) {
  */
 async function calcularProgresoPromedio(inicio, fin) {
     const [{ rows: usuarios }, escalera] = await Promise.all([
-        db.query(
-            `SELECT u.id, u.team_id,
-                    COALESCE(SUM(pl.points), 0)::int AS puntos
-               FROM users u
-               LEFT JOIN points_ledger pl
-                      ON pl.user_id = u.id AND pl.created_at < $1::timestamptz
-              WHERE u.is_active = true
-              GROUP BY u.id, u.team_id`,
-            [fin]
-        ),
+        repo.puntosPorUsuarioHasta(fin),
         gamificacion.obtenerEscalera()
     ]);
 
@@ -216,21 +170,7 @@ async function calcularProgresoPromedio(inicio, fin) {
 
 /** Cursos completados dentro del periodo. */
 async function calcularCursosCompletados(inicio, fin) {
-    const { rows } = await db.query(
-        `SELECT u.team_id AS area_id,
-                GROUPING(u.team_id)::int AS total_org,
-                COUNT(ca.id)::int AS cursos,
-                COUNT(DISTINCT ca.user_id)::int AS personas
-           FROM users u
-           LEFT JOIN course_assignments ca
-                  ON ca.user_id = u.id
-                 AND ca.status = 'completed'
-                 AND ca.completed_at >= $1::timestamptz
-                 AND ca.completed_at <  $2::timestamptz
-          WHERE u.is_active = true
-          ${AGRUPACION}`,
-        [inicio, fin]
-    );
+    const rows = await repo.cursosCompletadosPorArea(inicio, fin);
 
     return normalizarGrupos(rows).map(r => ({
         areaId: r.areaId,
@@ -249,27 +189,7 @@ async function calcularCursosCompletados(inicio, fin) {
  * un KPI que finge medir lo que no mide es peor que no tenerlo.
  */
 async function calcularEngagement(inicio, fin) {
-    const { rows } = await db.query(
-        `WITH acciones AS (
-             SELECT user_id FROM points_ledger
-              WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz
-             UNION ALL
-             SELECT user_id FROM quiz_attempts
-              WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz
-             UNION ALL
-             SELECT user_id FROM lesson_progress
-              WHERE completed_at >= $1::timestamptz AND completed_at < $2::timestamptz
-         )
-         SELECT u.team_id AS area_id,
-                GROUPING(u.team_id)::int AS total_org,
-                COUNT(a.user_id)::int    AS acciones,
-                COUNT(DISTINCT u.id)::int AS padron
-           FROM users u
-           LEFT JOIN acciones a ON a.user_id = u.id
-          WHERE u.is_active = true
-          ${AGRUPACION}`,
-        [inicio, fin]
-    );
+    const rows = await repo.engagementPorArea(inicio, fin);
 
     return normalizarGrupos(rows).map(r => ({
         areaId: r.areaId,
@@ -335,11 +255,7 @@ async function recalcularPeriodo(periodo = periodoDe()) {
     ], await obtenerAreas());
 
     for (const m of medidas) {
-        await db.query(
-            `INSERT INTO org_kpi_snapshots (period, area_id, kpi_type, value, metadata)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [periodo, m.areaId, m.kpi, m.valor, JSON.stringify(m.metadata || {})]
-        );
+        await repo.insertarSnapshot(periodo, m);
     }
 
     console.log(`[org-kpis] periodo ${periodo}: ${medidas.length} snapshots recalculados`);
@@ -408,14 +324,7 @@ function detenerJob() {
  * @returns {Promise<Map<string, {value: number, metadata: object, calculated_at: Date}>>}
  */
 async function obtenerSnapshots(periodo, areaId = null) {
-    const { rows } = await db.query(
-        `SELECT DISTINCT ON (kpi_type)
-                kpi_type, value, metadata, calculated_at
-           FROM org_kpi_snapshots
-          WHERE period = $1 AND area_id IS NOT DISTINCT FROM $2
-          ORDER BY kpi_type, calculated_at DESC, id DESC`,
-        [periodo, areaId]
-    );
+    const rows = await repo.snapshotsDe(periodo, areaId);
 
     const mapa = new Map();
     for (const r of rows) {
@@ -444,10 +353,7 @@ async function validarArea(areaId) {
         throw error;
     }
 
-    const { rows } = await db.query(
-        'SELECT id, name, is_active FROM teams WHERE id = $1',
-        [id]
-    );
+    const rows = await repo.buscarArea(id);
 
     // Un area desactivada se trata igual que una inexistente: el criterio pide
     // "que exista y este activa". La diferencia se explica en el mensaje, para
@@ -471,9 +377,7 @@ async function validarArea(areaId) {
 
 /** Areas activas, para el selector del dashboard. */
 async function obtenerAreas() {
-    const { rows } = await db.query(
-        'SELECT id, name FROM teams WHERE is_active = true ORDER BY name'
-    );
+    const rows = await repo.areasActivas();
     return rows;
 }
 
@@ -485,16 +389,7 @@ async function obtenerAreas() {
  * una caida que nunca ocurrio.
  */
 async function obtenerTendencia(kpi, areaId, hastaPeriodo, limite = PERIODOS_DE_TENDENCIA) {
-    const { rows } = await db.query(
-        `SELECT DISTINCT ON (period) period, value, calculated_at
-           FROM org_kpi_snapshots
-          WHERE kpi_type = $1
-            AND area_id IS NOT DISTINCT FROM $2
-            AND period <= $3
-          ORDER BY period DESC, calculated_at DESC, id DESC
-          LIMIT $4`,
-        [kpi, areaId, hastaPeriodo, limite]
-    );
+    const rows = await repo.tendenciaDe(kpi, areaId, hastaPeriodo, limite);
 
     return rows
         .map(r => ({ period: r.period, valor: Number(r.value) }))
@@ -514,12 +409,7 @@ async function obtenerTendencia(kpi, areaId, hastaPeriodo, limite = PERIODOS_DE_
 async function registrarConsulta({ userId, periodo, compararCon, areaId }) {
     const parametros = { period: periodo, compare_to: compararCon, area_id: areaId ?? null };
 
-    await db.query(
-        `INSERT INTO org_report_access_log
-            (requested_by, period, compare_to, area_id, params)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [userId, periodo, compararCon, areaId ?? null, JSON.stringify(parametros)]
-    );
+    await repo.registrarConsulta(userId, periodo, compararCon, areaId, parametros);
 
     console.log(
         `[org-reportes] consulta organizacional usuario=${userId} ` +

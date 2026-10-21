@@ -9,22 +9,15 @@
  * inmutable. users.total_points queda como cache derivada de ese historial.
  */
 
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const cursos = require('../infrastructure/client/cursos.cliente');
+const { conTransaccion } = require('../../../compartido/config/transaccion');
 const { calcularPuntos } = require('../domain/puntos');
+const repo = require('../infrastructure/persistence/puntos.repositorio');
 
 /** Lee una regla activa del catalogo. */
-async function obtenerRegla(code) {
-    const { rows } = await db.query(
-        `SELECT code, source_type, points_mode, points, allow_repeat, is_active
-           FROM points_rules
-          WHERE code = $1 AND is_active = true`,
-        [code]
-    );
-    return rows[0] || null;
-}
+const obtenerRegla = (code) => repo.reglaActiva(code);
 
 /**
  * Inserta un movimiento en el historial y actualiza la cache de total_points.
@@ -36,35 +29,16 @@ async function obtenerRegla(code) {
  * @returns {Promise<object|null>} el movimiento insertado, o null si ya existia
  */
 async function registrarMovimiento({ userId, sourceType, sourceId, points, ruleCode, idempotencyKey }) {
-    const client = await db.connect();
-
-    try {
-        await client.query('BEGIN');
-
-        const { rows } = await client.query(
-            `INSERT INTO points_ledger (user_id, source_type, source_id, points, rule_code, idempotency_key)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (idempotency_key) DO NOTHING
-             RETURNING id, user_id, source_type, source_id, points, rule_code, created_at`,
-            [userId, sourceType, sourceId != null ? String(sourceId) : null, points, ruleCode, idempotencyKey]
+    return conTransaccion(async (tx) => {
+        const movimiento = await repo.insertarMovimiento(
+            { userId, sourceType, sourceId, points, ruleCode, idempotencyKey }, tx
         );
 
         // Ya se habian otorgado estos puntos: no se duplica nada.
-        if (rows.length === 0) {
-            await client.query('COMMIT');
-            return null;
-        }
+        if (!movimiento) return null;
 
-        const movimiento = rows[0];
-
-        // La cache se recalcula desde el historial en vez de incrementarse, para
-        // que no pueda desincronizarse de la fuente de verdad.
-        await client.query(
-            `UPDATE users
-                SET total_points = (SELECT COALESCE(SUM(points), 0) FROM points_ledger WHERE user_id = $1)
-              WHERE id = $1`,
-            [userId]
-        );
+        // La cache se recalcula desde el historial en vez de incrementarse.
+        await repo.recalcularTotalEnCache(userId, tx);
 
         // Evento para la HU de recompensas: se encola en la misma transaccion,
         // asi que solo existe si los puntos realmente se otorgaron.
@@ -74,17 +48,10 @@ async function registrarMovimiento({ userId, sourceType, sourceId, points, ruleC
             sourceId: movimiento.source_id,
             points: movimiento.points,
             ledgerId: movimiento.id
-        }, client);
+        }, tx);
 
-        await client.query('COMMIT');
         return movimiento;
-
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
-    }
+    });
 }
 
 /**
@@ -133,17 +100,7 @@ async function asignarPuntosPorQuiz({ userId, quizRef, quizType, score, passed, 
     const reglaEfectiva = basePoints != null ? { ...regla, points: basePoints } : regla;
 
     if (!regla.allow_repeat) {
-        // rows.length y no rowCount: en un SELECT son lo mismo con node-postgres,
-        // pero PGlite (el motor de las pruebas) no expone rowCount, y con
-        // rowCount esta guarda quedaba en undefined > 0 = false. O sea: la
-        // proteccion funcionaba en produccion y NINGUNA prueba la ejercitaba.
-        const { rows: yaCobrado } = await db.query(
-            `SELECT 1 FROM points_ledger
-              WHERE user_id = $1 AND source_type = 'quiz' AND source_id = $2
-              LIMIT 1`,
-            [userId, String(quizRef)]
-        );
-        if (yaCobrado.length > 0) return null;   // ya cobro esta evaluacion
+        if (await repo.yaCobroEvaluacion(userId, quizRef)) return null;   // ya cobro esta evaluacion
     }
 
     const puntos = calcularPuntos(reglaEfectiva, score);
@@ -222,11 +179,7 @@ async function asignarPuntosPorDecisionSimulacion({ userId, optionId, points }) 
  * modifican a traves de eventos.
  */
 async function yaOtorgado(idempotencyKey) {
-    const { rows } = await db.query(
-        `SELECT 1 FROM points_ledger WHERE idempotency_key = $1 LIMIT 1`,
-        [idempotencyKey]
-    );
-    return rows.length > 0;
+    return repo.existeClave(idempotencyKey);
 }
 
 /**
@@ -255,21 +208,7 @@ async function obtenerTotalesPorUsuarios(userIds, { from = null, to = null } = {
     const resultado = new Map();
     if (!Array.isArray(userIds) || userIds.length === 0) return resultado;
 
-    const { rows } = await db.query(
-        `SELECT user_id,
-                COALESCE(SUM(points), 0)::int AS total,
-                COUNT(*)::int                 AS movimientos,
-                MAX(created_at)               AS ultimo
-           FROM points_ledger
-          WHERE user_id = ANY($1::int[])
-            AND ($2::timestamptz IS NULL OR created_at >= $2::timestamptz)
-            -- El "to" se recibe como fecha (2026-03-01) y se interpreta como
-            -- el dia completo: sin el +1 dia, un movimiento de las 14:00 de
-            -- ese mismo dia quedaria fuera del rango.
-            AND ($3::timestamptz IS NULL OR created_at < ($3::timestamptz + interval '1 day'))
-          GROUP BY user_id`,
-        [userIds, from, to]
-    );
+    const rows = await repo.totalesPorUsuarios(userIds, { from, to });
 
     for (const r of rows) {
         resultado.set(r.user_id, { total: r.total, movimientos: r.movimientos, ultimo: r.ultimo });
@@ -281,23 +220,12 @@ async function obtenerTotalesPorUsuarios(userIds, { from = null, to = null } = {
 async function obtenerHistorial(userId, { page = 1, limit = 20 } = {}) {
     const offset = (page - 1) * limit;
 
-    const [totales, detalle] = await Promise.all([
-        db.query(
-            `SELECT total_points, movimientos, ultimo_movimiento
-               FROM v_user_points WHERE user_id = $1`,
-            [userId]
-        ),
-        db.query(
-            `SELECT id, source_type, source_id, points, rule_code, created_at
-               FROM points_ledger
-              WHERE user_id = $1
-              ORDER BY created_at DESC, id DESC
-              LIMIT $2 OFFSET $3`,
-            [userId, limit, offset]
-        )
+    const [totales, historial] = await Promise.all([
+        repo.resumenDe(userId),
+        repo.movimientosDe(userId, { limit, offset })
     ]);
 
-    const resumen = totales.rows[0] || { total_points: 0, movimientos: 0, ultimo_movimiento: null };
+    const resumen = totales || { total_points: 0, movimientos: 0, ultimo_movimiento: null };
 
     return {
         user_id: userId,
@@ -309,7 +237,7 @@ async function obtenerHistorial(userId, { page = 1, limit = 20 } = {}) {
             limit,
             total_paginas: Math.max(1, Math.ceil(resumen.movimientos / limit))
         },
-        historial: detalle.rows
+        historial
     };
 }
 

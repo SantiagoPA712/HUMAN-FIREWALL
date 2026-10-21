@@ -25,11 +25,12 @@
  * una sola alerta.
  */
 
-const db = require('../../../compartido/config/db');
 const config = require('../config/configuracion');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { ESTADOS } = require('../domain/anomalia');
+const { conTransaccion } = require('../../../compartido/config/transaccion');
+const repo = require('../infrastructure/persistence/anomalias.repositorio');
 
 /** Cada cuanto corre el job de respaldo. Configurable (criterio tecnico 6). */
 const INTERVALO_JOB_MS =
@@ -39,12 +40,7 @@ let temporizador = null;
 
 /** Reglas activas. */
 async function obtenerReglas() {
-    const { rows } = await db.query(
-        `SELECT code, description, rule_type, window_minutes, max_points, severity
-           FROM anomaly_rules
-          WHERE is_active = true
-          ORDER BY max_points DESC`
-    );
+    const rows = await repo.reglasActivas();
     return rows;
 }
 
@@ -56,15 +52,7 @@ async function obtenerReglas() {
  * esos puntos" (criterio de aceptacion 1).
  */
 async function movimientosEnVentana(userId, ventanaMinutos, hasta = null) {
-    const { rows } = await db.query(
-        `SELECT id, source_type, source_id, points, rule_code, created_at
-           FROM points_ledger
-          WHERE user_id = $1
-            AND created_at >  COALESCE($3::timestamptz, now()) - ($2 || ' minutes')::interval
-            AND created_at <= COALESCE($3::timestamptz, now())
-          ORDER BY created_at ASC, id ASC`,
-        [userId, String(ventanaMinutos), hasta]
-    );
+    const rows = await repo.movimientosEnVentana(userId, ventanaMinutos, hasta);
     return rows;
 }
 
@@ -100,15 +88,7 @@ async function registrarAnomalia({ userId, regla, movimientos, disparadorId }) {
 
     // Una sola escritura: no hace falta transaccion. La deduplicacion la
     // garantiza el UNIQUE sobre dedupe_key, no un bloqueo.
-    const { rows } = await db.query(
-        `INSERT INTO anomaly_events
-            (user_id, rule_triggered, evidence, severity, source_id, dedupe_key)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (dedupe_key) DO NOTHING
-         RETURNING id, user_id, rule_triggered, severity, status, detected_at`,
-        [userId, regla.code, JSON.stringify(evidencia), regla.severity,
-         String(disparadorId), dedupeKey]
-    );
+    const rows = await repo.insertarAnomalia(userId, regla, evidencia, disparadorId, dedupeKey);
 
     if (rows.length === 0) return null;   // ya detectada
 
@@ -205,12 +185,7 @@ async function ejecutarJob(minutosHaciaAtras = null) {
 
     // Solo los usuarios con movimientos recientes: no tiene sentido recorrer
     // el padron entero.
-    const { rows: usuarios } = await db.query(
-        `SELECT DISTINCT user_id
-           FROM points_ledger
-          WHERE created_at > now() - ($1 || ' minutes')::interval`,
-        [String(lookback)]
-    );
+    const usuarios = await repo.usuariosConMovimientosRecientes(lookback);
 
     let detectadas = 0;
     for (const { user_id } of usuarios) {
@@ -252,40 +227,9 @@ function detenerJob() {
 /** Listado para el panel, con filtros y paginacion. */
 async function listarAnomalias({ status = null, severity = null, userId = null,
                                  page = 1, pageSize = 25 } = {}) {
-    const condiciones = [];
-    const params = [];
-
-    if (status)   { params.push(status);   condiciones.push(`a.status = $${params.length}`); }
-    if (severity) { params.push(severity); condiciones.push(`a.severity = $${params.length}`); }
-    if (userId)   { params.push(userId);   condiciones.push(`a.user_id = $${params.length}`); }
-
-    const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
-
-    const { rows: totales } = await db.query(
-        `SELECT COUNT(*)::int AS total FROM anomaly_events a ${where}`, params
-    );
-    const total = totales[0].total;
-
-    const offset = (page - 1) * pageSize;
-    const { rows } = await db.query(
-        `SELECT a.id, a.user_id, u.email, a.rule_triggered, a.severity, a.status,
-                a.detected_at,
-                (a.evidence->>'total_en_ventana')::int AS total_en_ventana,
-                (a.evidence->>'umbral')::int            AS umbral,
-                jsonb_array_length(a.evidence->'movimientos') AS movimientos
-           FROM anomaly_events a
-           JOIN users u ON u.id = a.user_id
-           ${where}
-          ORDER BY
-                -- Lo grave y sin revisar primero: es el orden en que el area
-                -- de seguridad necesita atenderlas, no el cronologico.
-                CASE a.status WHEN 'pending' THEN 0 ELSE 1 END,
-                CASE a.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1
-                                WHEN 'medium' THEN 2 ELSE 3 END,
-                a.detected_at DESC
-          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-        [...params, pageSize, offset]
-    );
+    const filtros = { status, severity, userId };
+    const total = await repo.contarAnomalias(filtros);
+    const rows = await repo.paginaDeAnomalias(filtros, { limit: pageSize, offset: (page - 1) * pageSize });
 
     return {
         paginacion: { page, page_size: pageSize, total, total_paginas: Math.max(1, Math.ceil(total / pageSize)) },
@@ -296,10 +240,7 @@ async function listarAnomalias({ status = null, severity = null, userId = null,
 
 /** Contadores para la cabecera del panel. */
 async function obtenerResumen() {
-    const { rows } = await db.query(
-        `SELECT status, severity, COUNT(*)::int AS total
-           FROM anomaly_events GROUP BY status, severity`
-    );
+    const rows = await repo.resumenPorEstadoYSeveridad();
 
     const resumen = { total: 0, pendientes: 0, revisadas: 0, descartadas: 0, por_severidad: {} };
     for (const r of rows) {
@@ -322,49 +263,16 @@ async function obtenerResumen() {
  * alerta y no en otra pantalla.
  */
 async function obtenerAnomalia(id) {
-    const { rows } = await db.query(
-        `SELECT a.id, a.user_id, u.email, u.role, a.rule_triggered, a.evidence,
-                a.severity, a.status, a.source_id, a.detected_at,
-                r.description AS regla_descripcion,
-                r.window_minutes, r.max_points
-           FROM anomaly_events a
-           JOIN users u ON u.id = a.user_id
-           LEFT JOIN anomaly_rules r ON r.code = a.rule_triggered
-          WHERE a.id = $1`,
-        [id]
-    );
+    const rows = await repo.buscarAnomalia(id);
     if (rows.length === 0) return null;
 
     const anomalia = rows[0];
+    const afectadoId = anomalia.user_id;
 
     const [historial, linea, ajustes] = await Promise.all([
-        db.query(
-            `SELECT h.previous_status, h.new_status, h.note, h.changed_at,
-                    u.email AS changed_by_email
-               FROM anomaly_status_history h
-               JOIN users u ON u.id = h.changed_by
-              WHERE h.anomaly_id = $1
-              ORDER BY h.changed_at DESC`,
-            [id]
-        ),
-        db.query(
-            `SELECT id, source_type, source_id, points, rule_code, created_at
-               FROM points_ledger
-              WHERE user_id = $1
-              ORDER BY created_at DESC
-              LIMIT 50`,
-            [anomalia.user_id]
-        ),
-        db.query(
-            `SELECT l.change_type, l.previous_value, l.new_value, l.reason,
-                    l.created_at, a.email AS actor_email
-               FROM audit_log l
-               JOIN users a ON a.id = l.actor_id
-              WHERE l.target_user_id = $1
-              ORDER BY l.created_at DESC
-              LIMIT 20`,
-            [anomalia.user_id]
-        )
+        repo.historialDeEstados(id),
+        repo.lineaDeTiempo(afectadoId),
+        repo.ajustesManuales(afectadoId)
     ]);
 
     return {
@@ -389,43 +297,16 @@ async function cambiarEstado({ anomalyId, nuevoEstado, userId, nota = null }) {
         throw error;
     }
 
-    const client = await db.connect();
-    try {
-        await client.query('BEGIN');
+    return conTransaccion(async (tx) => {
+        const actual = await repo.bloquearAnomalia(anomalyId, tx);
+        if (!actual) return null;
 
-        const { rows: actuales } = await client.query(
-            'SELECT id, status FROM anomaly_events WHERE id = $1 FOR UPDATE',
-            [anomalyId]
-        );
-        if (actuales.length === 0) {
-            await client.query('ROLLBACK');
-            return null;
-        }
+        const anterior = actual.status;
+        const actualizada = await repo.actualizarEstado(anomalyId, nuevoEstado, tx);
+        await repo.registrarCambioDeEstado({ anomalyId, anterior, nuevoEstado, userId, nota }, tx);
 
-        const anterior = actuales[0].status;
-
-        const { rows } = await client.query(
-            `UPDATE anomaly_events SET status = $2 WHERE id = $1
-             RETURNING id, status`,
-            [anomalyId, nuevoEstado]
-        );
-
-        await client.query(
-            `INSERT INTO anomaly_status_history
-                (anomaly_id, previous_status, new_status, changed_by, note)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [anomalyId, anterior, nuevoEstado, userId, nota]
-        );
-
-        await client.query('COMMIT');
-        return { ...rows[0], previous_status: anterior };
-
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
-    }
+        return { ...actualizada, previous_status: anterior };
+    });
 }
 
 /** Conecta el servicio al bus y arranca el job de respaldo. */

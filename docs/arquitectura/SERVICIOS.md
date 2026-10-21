@@ -320,6 +320,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde gamificacion.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde gamificacion.
 - `infrastructure/persistence/gamificacion.repositorio.js` — Repositorio de las consultas que antes escribia a mano gamification.controller.js.
+- `infrastructure/persistence/niveles.repositorio.js` — Repositorio de niveles: levels_config, user_level_history y la cache users.level.
+- `infrastructure/persistence/puntos.repositorio.js` — Repositorio de puntos: points_rules, points_ledger (historial inmutable), la vista v_user_points y la cache users.total_points.
+- `infrastructure/persistence/recomendaciones.repositorio.js` — Repositorio de recomendaciones (servicio de gamificacion).
+- `infrastructure/persistence/recompensas.repositorio.js` — Repositorio de recompensas: rewards_catalog y user_rewards (con el snapshot de la recompensa al momento de otorgarse).
 
 **contract/** — Contrato publico OpenAPI
 
@@ -396,6 +400,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde notificaciones.
 - `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde notificaciones.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde notificaciones.
+- `infrastructure/persistence/correos.repositorio.js` — Repositorio de la cola de correos (servicio de notificaciones).
+- `infrastructure/persistence/notificaciones.repositorio.js` — Repositorio de la bandeja de notificaciones (servicio de notificaciones).
+- `infrastructure/persistence/plantillas.repositorio.js` — Repositorio de plantillas de correo (servicio de notificaciones).
+- `infrastructure/persistence/resultados.repositorio.js` — Repositorio de notificaciones de resultados (servicio de notificaciones).
 
 **contract/** — Contrato publico OpenAPI
 
@@ -479,6 +487,10 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 - `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde reportes.
 - `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde reportes.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde reportes.
+- `infrastructure/persistence/desempeno.repositorio.js` — Repositorio del reporte de desempeno para RH (servicio de reportes).
+- `infrastructure/persistence/exportaciones.repositorio.js` — Repositorio de exportaciones de reportes (servicio de reportes).
+- `infrastructure/persistence/organizacional.repositorio.js` — Repositorio del reporte organizacional (servicio de reportes).
+- `infrastructure/persistence/programados.repositorio.js` — Repositorio de reportes programados (servicio de reportes).
 
 **contract/** — Contrato publico OpenAPI
 
@@ -558,6 +570,9 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 - `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde seguridad.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde seguridad.
+- `infrastructure/persistence/anomalias.repositorio.js` — Repositorio de anomalias (servicio de seguridad).
+- `infrastructure/persistence/auditoria.repositorio.js` — Repositorio de auditoria de ajustes manuales (servicio de seguridad).
+- `infrastructure/persistence/logs.repositorio.js` — Repositorio del registro de actividad (servicio de seguridad).
 
 **contract/** — Contrato publico OpenAPI
 

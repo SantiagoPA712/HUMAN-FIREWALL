@@ -92,6 +92,22 @@ const dominioImpuro = todos.filter(f => f.capa === 'domain' && f.requires.some(r
 check('la capa de dominio no depende de nada fuera del dominio (ni base, ni bus, ni HTTP)',
     dominioImpuro.length === 0, lista(dominioImpuro.map(f => `${f.relativo} -> ${f.requires.map(r => r.especificador)}`)));
 
+// Seccion 11: Application coordina; el SQL vive en infrastructure/persistence.
+// application/ no importa el pool (las transacciones las abre con
+// compartido/config/transaccion.js) ni escribe SQL.
+const aplicacionConBase = todos.filter(f => f.capa === 'application' && f.requires.some(r => r.destino === DB));
+check('ningun archivo de application/ importa la base de datos', aplicacionConBase.length === 0,
+    lista(aplicacionConBase.map(f => f.relativo)));
+
+const aplicacionConSql = todos.filter(f => f.capa === 'application' && (f.lecturas.length || f.escrituras.length));
+check('ningun archivo de application/ tiene SQL: todo esta en infrastructure/persistence/', aplicacionConSql.length === 0,
+    lista(aplicacionConSql.map(f => f.relativo)));
+
+const sqlFueraDePersistencia = todos.filter(f => (f.lecturas.length || f.escrituras.length) &&
+    !f.relativo.includes('/infrastructure/persistence/') && !f.relativo.endsWith('/infrastructure/seed_admin.js'));
+check('el SQL de cada servicio esta solo en infrastructure/persistence/', sqlFueraDePersistencia.length === 0,
+    lista(sqlFueraDePersistencia.map(f => f.relativo)));
+
 const dominioConSql = todos.filter(f => f.capa === 'domain' && (f.lecturas.length || f.escrituras.length));
 check('la capa de dominio no tiene SQL', dominioConSql.length === 0, lista(dominioConSql.map(f => f.relativo)));
 

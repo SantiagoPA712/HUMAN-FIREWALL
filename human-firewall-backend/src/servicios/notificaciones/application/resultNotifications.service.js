@@ -30,7 +30,6 @@
  * el servidor de correo; este modulo decide QUE se dice y A QUIEN.
  */
 
-const db = require('../../../compartido/config/db');
 // Desafios y simulaciones son de evaluaciones, cursos de cursos y cuentas de
 // identidad: las etiquetas y los destinatarios se piden por sus contratos.
 const identidad = require('../infrastructure/client/identidad.cliente');
@@ -41,6 +40,7 @@ const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const notificationsService = require('./notifications.service');
 const emailNotifications = require('./emailNotifications.service');
 const { CANALES, ESTADOS, LARGO_TITULO, recortarTitulo } = require('../domain/notificacion');
+const repo = require('../infrastructure/persistence/resultados.repositorio');
 
 /**
  * Parte de la clave de deduplicacion que identifica UN intento.
@@ -109,10 +109,7 @@ async function destinatariosRh(userId) {
  * guarda lo que alguien cambio, no el estado de todo el padron.
  */
 async function canalesDe(userId) {
-    const { rows } = await db.query(
-        'SELECT channel, enabled FROM notification_preferences WHERE user_id = $1',
-        [userId]
-    );
+    const rows = await repo.canalesDe(userId);
 
     const canales = { in_app: true, email: true };
     for (const r of rows) canales[r.channel] = r.enabled;
@@ -153,13 +150,8 @@ async function actualizarPreferencias(userId, cambios = {}) {
 
     for (const canal of CANALES) {
         if (cambios[canal] === undefined) continue;
-        await db.query(
-            `INSERT INTO notification_preferences (user_id, channel, enabled)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (user_id, channel)
-             DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`,
-            [userId, canal, cambios[canal]]
-        );
+        const habilitado = cambios[canal];
+        await repo.guardarCanal(userId, canal, habilitado);
     }
 
     return obtenerPreferencias(userId);
@@ -357,20 +349,7 @@ async function avisoParaRh(aviso, empleado, curso) {
  * el evento, la entrega no se duplica ni se pisa la fecha original.
  */
 async function registrarEntrega(notificationId, canal, estado, error = null) {
-    const columnaFecha = {
-        generada:  'generated_at',
-        entregada: 'delivered_at',
-        fallida:   'failed_at',
-        leida:     'read_at'
-    }[estado];
-
-    const { rows } = await db.query(
-        `INSERT INTO notification_deliveries (notification_id, channel, status, error, ${columnaFecha})
-         VALUES ($1, $2, $3, $4, now())
-         ON CONFLICT (notification_id, channel) DO NOTHING
-         RETURNING id, channel, status`,
-        [notificationId, canal, estado, error]
-    );
+    const rows = await repo.insertarEntrega(notificationId, canal, estado, error);
 
     return rows[0] || null;
 }
@@ -394,9 +373,7 @@ async function registrarEntrega(notificationId, canal, estado, error = null) {
  * consta de verdad.
  */
 async function reconciliarEntregas(dedupeKey, canales) {
-    const { rows } = await db.query(
-        'SELECT id FROM notifications WHERE dedupe_key = $1', [dedupeKey]
-    );
+    const rows = await repo.idPorDedupe(dedupeKey);
     const existente = rows[0];
     if (!existente) return;
 
@@ -545,41 +522,9 @@ async function obtenerCentro(userId, { soloNoLeidas = false, limit = 50 } = {}) 
     //
     // Ahora el centro ES la vista del canal in_app: el JOIN (no LEFT) contra
     // su entrega decide que se lista, y el estado de lectura sale de ahi.
-    const { rows } = await db.query(
-        `SELECT n.id, n.event_name, n.title, n.body, n.payload, n.created_at,
-                app.read_at AS leida_en_app,
-                app.status  AS estado_en_app,
-                COALESCE(
-                    json_agg(
-                        json_build_object('canal', d.channel, 'estado', d.status,
-                                          'entregada_en', d.delivered_at, 'leida_en', d.read_at)
-                        ORDER BY d.channel
-                    ) FILTER (WHERE d.id IS NOT NULL),
-                    '[]'
-                ) AS canales
-           FROM notifications n
-           JOIN notification_deliveries app
-             ON app.notification_id = n.id AND app.channel = 'in_app'
-           LEFT JOIN notification_deliveries d ON d.notification_id = n.id
-          WHERE n.user_id = $1
-            AND n.event_name = ANY($2::text[])
-            AND ($3::boolean = false OR app.status <> 'leida')
-          GROUP BY n.id, app.read_at, app.status
-          ORDER BY n.created_at DESC, n.id DESC
-          LIMIT $4`,
-        [userId, EVENTOS_DE_RESULTADO, soloNoLeidas, limit]
-    );
+    const rows = await repo.centroDe(userId, EVENTOS_DE_RESULTADO, soloNoLeidas, limit);
 
-    const { rows: [contador] } = await db.query(
-        `SELECT COUNT(*)::int AS no_leidas
-           FROM notifications n
-           JOIN notification_deliveries app
-             ON app.notification_id = n.id AND app.channel = 'in_app'
-          WHERE n.user_id = $1
-            AND n.event_name = ANY($2::text[])
-            AND app.status <> 'leida'`,
-        [userId, EVENTOS_DE_RESULTADO]
-    );
+    const { rows: [contador] } = await repo.contarResultadosNoLeidos(userId, EVENTOS_DE_RESULTADO);
 
     return {
         user_id: userId,
@@ -612,28 +557,9 @@ async function obtenerCentro(userId, { soloNoLeidas = false, limit = 50 } = {}) 
  * El conteo que se devuelve es el de este centro, o sea el del canal in_app.
  */
 async function marcarTodasLeidas(userId) {
-    const { rows } = await db.query(
-        `UPDATE notifications
-            SET read_at = now()
-          WHERE user_id = $1
-            AND event_name = ANY($2::text[])
-            AND read_at IS NULL
-          RETURNING id`,
-        [userId, EVENTOS_DE_RESULTADO]
-    );
+    const rows = await repo.marcarResultadosLeidos(userId, EVENTOS_DE_RESULTADO);
 
-    const { rows: entregas } = await db.query(
-        `UPDATE notification_deliveries d
-            SET status = 'leida', read_at = now()
-           FROM notifications n
-          WHERE d.notification_id = n.id
-            AND n.user_id = $1
-            AND n.event_name = ANY($2::text[])
-            AND d.channel = 'in_app'
-            AND d.status <> 'leida'
-          RETURNING d.id`,
-        [userId, EVENTOS_DE_RESULTADO]
-    );
+    const entregas = await repo.marcarEntregasLeidas(userId, EVENTOS_DE_RESULTADO);
 
     return {
         marcadas: entregas.length,
