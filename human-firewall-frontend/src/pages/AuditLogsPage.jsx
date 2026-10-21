@@ -220,7 +220,7 @@ export default function AuditLogsPage() {
         <Marco>
             {/* Filtros (criterio de aceptacion 2) */}
             <Card className="mb-6 p-5">
-                <form onSubmit={aplicar} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <form onSubmit={aplicar} className="grid grid-ajustable [--ancho-columna:11rem] gap-4">
                     <Campo etiqueta="Desde">
                         <input type="date" value={borrador.desde} className={entradaClase}
                                onChange={e => setBorrador({ ...borrador, desde: e.target.value })} />
@@ -426,7 +426,7 @@ function ModalDetalle({ log, onCerrar }) {
                     <button onClick={onCerrar} className="text-text-secondary hover:text-white" aria-label="Cerrar">✕</button>
                 </div>
 
-                <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="mb-6 grid grid-ajustable gap-3">
                     <Dato titulo="IP de origen" valor={log.ip_address || (log.actor_type === 'system' ? 'no aplica (sistema)' : 'no registrada')} />
                     <Dato titulo="trace_id (correlacion)" valor={log.trace_id || 'sin traza'} mono />
                     <Dato titulo="Hora del servidor" valor={fecha(log.occurred_at)} />

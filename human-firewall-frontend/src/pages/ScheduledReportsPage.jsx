@@ -203,7 +203,7 @@ export default function ScheduledReportsPage() {
 
                     {mostrarFormulario && (
                         <div className="mb-6 rounded-xl border border-gray-700 p-4">
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="grid grid-ajustable [--ancho-columna:12rem] gap-4">
                                 <Campo etiqueta="Nombre">
                                     <input value={nueva.name}
                                            onChange={e => setNueva({ ...nueva, name: e.target.value })}

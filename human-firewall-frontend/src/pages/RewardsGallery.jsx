@@ -83,7 +83,10 @@ export default function RewardsGallery() {
                                 </p>
                             </Card>
                         ) : (
-                            <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="mb-10 grid grid-ajustable [--ancho-columna:16rem] gap-4">
+                                {/* Columnas por ancho minimo (ver grid-ajustable en index.css) y
+                                    nombres que se envuelven en vez de truncarse: con el texto
+                                    grande, tres columnas fijas cortaban el nombre de cada insignia. */}
                                 {datos.obtenidas.map((r) => (
                                     <button
                                         key={r.id}
@@ -98,7 +101,7 @@ export default function RewardsGallery() {
                                                         : <Award className="h-6 w-6 text-brand-blue" />}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <h3 className="truncate font-bold">{r.reward_name}</h3>
+                                                    <h3 className="break-words font-bold">{r.reward_name}</h3>
                                                     <p className="text-xs text-text-secondary">
                                                         {formatearFecha(r.earned_at)}
                                                     </p>
@@ -121,14 +124,14 @@ export default function RewardsGallery() {
                                 <p className="font-semibold">Las ganaste todas</p>
                             </Card>
                         ) : (
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="grid grid-ajustable [--ancho-columna:16rem] gap-4">
                                 {datos.bloqueadas.map((b) => (
                                     <Card key={b.reward_id} className="p-5 opacity-60">
                                         <div className="mb-3 flex items-center gap-3">
                                             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-gray-700 bg-gray-800">
                                                 <Lock className="h-5 w-5 text-text-secondary" />
                                             </div>
-                                            <h3 className="min-w-0 truncate font-bold text-text-secondary">
+                                            <h3 className="min-w-0 break-words font-bold text-text-secondary">
                                                 {b.name}
                                             </h3>
                                         </div>

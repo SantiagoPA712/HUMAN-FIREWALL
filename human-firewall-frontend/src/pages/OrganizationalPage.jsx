@@ -104,7 +104,7 @@ export default function OrganizationalPage() {
                     <h2 className="font-bold">Periodo y segmentación</h2>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-ajustable [--ancho-columna:12rem] gap-4">
                     <Campo etiqueta="Periodo">
                         <input type="month" value={periodo}
                                onChange={e => setPeriodo(e.target.value)}
@@ -169,7 +169,7 @@ export default function OrganizationalPage() {
             {datos?.estado === 'listo' && (
                 <>
                     {/* --- Mockup 1: tarjetas de KPIs con variacion --- */}
-                    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="mb-6 grid grid-ajustable [--ancho-columna:12rem] gap-4">
                         {datos.kpis.map(k => <TarjetaKpi key={k.kpi_type} kpi={k} comparado={datos.compare_to} />)}
                     </div>
 

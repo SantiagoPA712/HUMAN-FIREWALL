@@ -191,8 +191,9 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Widgets Gamificación (Epic 6 & 7) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        {/* Widgets Gamificación (Epic 6 & 7). Columnas por ancho minimo y no
+            por breakpoint: ver grid-ajustable en index.css. */}
+        <div className="grid grid-ajustable [--ancho-columna:15rem] gap-6 mb-10">
           <Card className="p-6">
             <PointsWidget />
           </Card>
@@ -231,7 +232,7 @@ export default function DashboardPage() {
 
         {/* Cursos Pendientes (Epic 3) */}
         <h2 className="text-2xl font-bold mb-6">Tus Tareas Pendientes</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-ajustable [--ancho-columna:20rem] gap-6">
           <Card className="p-6 flex flex-col justify-between border-l-4 border-l-brand-blue">
             <div>
               <div className="flex items-center gap-2 text-brand-light mb-2">

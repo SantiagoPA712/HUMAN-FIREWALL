@@ -47,7 +47,9 @@ export function LevelBadge({ nivel, compacto = false }) {
                     <Shield className="h-6 w-6 text-brand-blue" />
                 </div>
                 <div className="min-w-0">
-                    <h3 className="truncate text-lg font-bold">
+                    {/* Se envuelve en vez de truncarse: con el texto grande
+                        (HU de tamano de texto) el truncado dejaba solo "N". */}
+                    <h3 className="break-words text-lg font-bold">
                         Nivel {nivel_actual} – {nombre}
                     </h3>
                     <p className="text-sm text-text-secondary">
@@ -70,7 +72,7 @@ export function LevelBadge({ nivel, compacto = false }) {
                 />
             </div>
 
-            <div className="mt-1.5 flex justify-between text-xs text-text-secondary">
+            <div className="mt-1.5 flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-text-secondary">
                 <span>{porcentaje_avance}% del nivel</span>
                 {es_nivel_maximo
                     ? <span className="text-brand-light">Nivel máximo alcanzado</span>

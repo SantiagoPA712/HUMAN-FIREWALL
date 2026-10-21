@@ -186,7 +186,7 @@ export default function NotificationsPage() {
                         <select
                             value={correo.idioma || ''}
                             onChange={e => cambiarIdioma(e.target.value)}
-                            className="rounded-lg border border-gray-700 bg-bg-deep px-3 py-1.5 text-sm"
+                            className="min-w-0 max-w-full rounded-lg border border-gray-700 bg-bg-deep px-3 py-1.5 text-sm"
                         >
                             <option value="">Predeterminado de la plataforma ({correo.idioma_por_defecto})</option>
                             <option value="es">Español</option>
@@ -262,7 +262,7 @@ export default function NotificationsPage() {
 
             {/* --- Listado cronologico (criterio de aceptacion 3) --- */}
             <Card className="p-6">
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="font-bold">
                         Resultados
                         {centro?.no_leidas > 0 && (
@@ -272,7 +272,7 @@ export default function NotificationsPage() {
                         )}
                     </h2>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                         <button onClick={cargar} disabled={cargando}
                                 className="flex items-center gap-2 text-sm text-text-secondary hover:text-white disabled:opacity-50">
                             <RefreshCw className={`h-4 w-4 ${cargando ? 'animate-spin' : ''}`} />

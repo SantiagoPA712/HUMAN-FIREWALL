@@ -28,9 +28,9 @@ export function PointsWidget({ compacto = false }) {
     return (
         <div>
             <h3 className="mb-2 text-lg font-bold">Puntos de Seguridad</h3>
-            <div className="text-4xl font-black text-brand-blue">
+            <div className="flex flex-wrap items-baseline gap-x-1 text-4xl font-black text-brand-blue">
                 {total === null ? '—' : total.toLocaleString('es')}
-                <span className="ml-1 text-lg text-text-secondary">pts</span>
+                <span className="text-lg text-text-secondary">pts</span>
             </div>
             <a href="/points" className="mt-2 inline-block text-sm text-brand-light hover:underline">
                 Ver historial

@@ -75,7 +75,7 @@ export default function AdminDashboard() {
 
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-ajustable [--ancho-columna:12rem] gap-4">
               <Card className="p-6 border-t-2 border-t-brand-blue">
                 <p className="text-sm text-text-secondary mb-1">Empleados Registrados</p>
                 <div className="text-3xl font-bold">{metrics.totalEmployees}</div>
@@ -94,7 +94,7 @@ export default function AdminDashboard() {
               </Card>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-ajustable [--ancho-columna:22rem] gap-8">
               <Card className="p-6">
                 <h3 className="font-bold flex items-center gap-2 mb-4"><AlertTriangle className="text-yellow-500 w-5 h-5"/> Usuarios de Alto Riesgo</h3>
                 <div className="space-y-4">

@@ -248,7 +248,7 @@ function Resumen({ resumen }) {
         { etiqueta: 'Descartadas', valor: resumen.descartadas, color: 'text-text-secondary' }
     ];
     return (
-        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="mb-6 grid grid-ajustable [--ancho-columna:10rem] gap-4">
             {items.map(i => (
                 <Card key={i.etiqueta} className="p-5">
                     <p className="text-sm text-text-secondary">{i.etiqueta}</p>

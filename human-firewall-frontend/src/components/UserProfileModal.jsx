@@ -41,7 +41,7 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl rounded-2xl border border-card-border bg-bg-card p-6 shadow-2xl transition-all"
+        className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-card-border bg-bg-card p-6 shadow-2xl transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabecera del Modal */}

@@ -51,7 +51,7 @@ export function TextSizeSelector({ variant = 'cards', className = '' }) {
   }
 
   return (
-    <div role="radiogroup" aria-label="Tamaño del texto" className={`grid grid-cols-1 gap-3 sm:grid-cols-3 ${className}`}>
+    <div role="radiogroup" aria-label="Tamaño del texto" className={`grid grid-ajustable [--ancho-columna:9rem] gap-3 ${className}`}>
       {sizes.map((t) => {
         const activo = textSize === t.id;
         return (

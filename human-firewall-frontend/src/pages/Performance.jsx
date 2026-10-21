@@ -85,7 +85,7 @@ function Resumen({ resumen }) {
     ];
 
     return (
-        <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="mb-8 grid grid-ajustable [--ancho-columna:10rem] gap-4">
             {items.map((i) => (
                 <Card key={i.etiqueta} className="p-5">
                     <p className="text-sm text-text-secondary">{i.etiqueta}</p>
@@ -218,7 +218,7 @@ function Areas({ areas, umbral }) {
                     <p className="mt-1 text-sm text-text-secondary">Seguí así.</p>
                 </Card>
             ) : (
-                <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="mb-8 grid grid-ajustable [--ancho-columna:20rem] gap-4">
                     {areas.map((a) => (
                         <Card key={`${a.quiz_type}-${a.quiz_ref}`} className={`border-l-4 p-5 ${
                             a.retrocedio ? 'border-l-orange-500' : 'border-l-yellow-500'

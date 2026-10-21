@@ -89,14 +89,18 @@ body.dark,
   --text-3xs--line-height: 1rem;
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
+}
 
-  /* Tamanos menores que text-xs, en rem para que sigan la escala de texto.
-     Reemplazan a los text-[10px] / text-[11px] que habia sueltos, que no
-     crecian al agrandar el texto. */
-  --text-3xs: 0.625rem;
-  --text-3xs--line-height: 1rem;
-  --text-2xs: 0.6875rem;
-  --text-2xs--line-height: 1rem;
+/* Grilla que decide sus columnas por el ancho minimo de cada celda (en rem)
+   y no por el ancho de la ventana. Los breakpoints (sm:, md:, lg:) miden la
+   ventana en px del navegador y NO siguen la escala de texto: con el texto
+   grande dejaban tantas columnas como en normal, y el contenido no entraba.
+   Esta grilla, en cambio, pasa a menos columnas sola cuando el texto crece.
+
+   Uso: "grid grid-ajustable" (celdas de 14rem como minimo) o con otro
+   minimo: "grid grid-ajustable [--ancho-columna:20rem]". */
+@utility grid-ajustable {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ancho-columna, 14rem)), 1fr));
 }
 
 body {
