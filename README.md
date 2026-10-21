@@ -104,6 +104,14 @@ capas"):
 Un servicio solo llega a otro por su `index.js`, y solo es dueno de sus tablas.
 `tests/arquitectura.test.mjs` verifica esas reglas en cada `npm test`.
 
+**Datos: una base PostgreSQL, un esquema por servicio.** Cada microservicio
+tiene su esquema (`identidad`, `cursos`, `evaluaciones`, `gamificacion`,
+`notificaciones`, `reportes`, `seguridad`) y sus repositorios nombran las
+tablas con el esquema (`SELECT ... FROM identidad.users`). Lo hace la
+migracion `090_esquemas_por_servicio.sql`, que mueve las tablas sin copiar ni
+borrar datos. Detalle en la seccion 6 de
+[`docs/arquitectura/README.md`](docs/arquitectura/README.md).
+
 #### Estructura del microservicio por capas
 
 Este es el arbol real del proyecto despues de aplicar la seccion 11 (el
@@ -179,7 +187,11 @@ human-firewall-backend/
         │   │   └── recompensa.js
         │   ├── infrastructure/
         │   │   ├── persistence/
-        │   │   │   └── gamificacion.repositorio.js
+        │   │   │   ├── gamificacion.repositorio.js
+        │   │   │   ├── niveles.repositorio.js
+        │   │   │   ├── puntos.repositorio.js
+        │   │   │   ├── recomendaciones.repositorio.js
+        │   │   │   └── recompensas.repositorio.js
         │   │   └── client/
         │   │       ├── cursos.cliente.js
         │   │       ├── evaluaciones.cliente.js
@@ -245,6 +257,11 @@ human-firewall-backend/
         │   │   ├── notificacion.js
         │   │   └── plantilla.js
         │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   ├── correos.repositorio.js
+        │   │   │   ├── notificaciones.repositorio.js
+        │   │   │   ├── plantillas.repositorio.js
+        │   │   │   └── resultados.repositorio.js
         │   │   └── client/
         │   │       ├── cursos.cliente.js
         │   │       ├── evaluaciones.cliente.js
@@ -272,6 +289,11 @@ human-firewall-backend/
         │   │   ├── periodo.js
         │   │   └── programacion.js
         │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   ├── desempeno.repositorio.js
+        │   │   │   ├── exportaciones.repositorio.js
+        │   │   │   ├── organizacional.repositorio.js
+        │   │   │   └── programados.repositorio.js
         │   │   └── client/
         │   │       ├── gamificacion.cliente.js
         │   │       ├── notificaciones.cliente.js
@@ -299,6 +321,10 @@ human-firewall-backend/
             │   ├── anomalia.js
             │   └── registro.js
             ├── infrastructure/
+            │   ├── persistence/
+            │   │   ├── anomalias.repositorio.js
+            │   │   ├── auditoria.repositorio.js
+            │   │   └── logs.repositorio.js
             │   └── client/
             │       ├── gamificacion.cliente.js
             │       └── identidad.cliente.js
@@ -318,7 +344,7 @@ Como leerlo, comparado con el ejemplo del material:
 | `controller/ProductController.java` | `controller/*.controller.js` (+ `*.routes.js` y `dto.js`) |
 | `application/ProductService.java` | `application/*.service.js` |
 | `domain/Product.java`, `ProductStatus.java` | `domain/*.js` (reglas y estados del negocio) |
-| `infrastructure/persistence/ProductRepository.java` | `infrastructure/persistence/*.repositorio.js` |
+| `infrastructure/persistence/ProductRepository.java` | `infrastructure/persistence/*.repositorio.js` (todo el SQL del servicio, con su esquema) |
 | `infrastructure/client/InventoryClient` | `infrastructure/client/<otro>.cliente.js` |
 | `config/application.yml` | `config/configuracion.js` |
 | `ProductApplication.java` | `index.js` |

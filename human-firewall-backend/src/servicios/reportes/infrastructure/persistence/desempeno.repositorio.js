@@ -11,7 +11,7 @@
 const db = require('../../../../compartido/config/db');
 
 /** Tablas contra las que se valida la existencia de un id de filtro. */
-const TABLA_DE_REFERENCIA = { equipo: 'teams', curso: 'courses' };
+const TABLA_DE_REFERENCIA = { equipo: 'identidad.teams', curso: 'cursos.courses' };
 
 /** true si existe el equipo o curso con ese id. */
 async function existeReferencia(tipo, id) {
@@ -60,7 +60,7 @@ function construirFiltroUsuarios(filtros) {
     if (filtros.courseId) {
         params.push(filtros.courseId);
         condiciones.push(
-            `EXISTS (SELECT 1 FROM course_assignments ca
+            `EXISTS (SELECT 1 FROM cursos.course_assignments ca
                       WHERE ca.user_id = u.id AND ca.course_id = $${params.length})`
         );
     }
@@ -80,9 +80,9 @@ function construirFiltroUsuarios(filtros) {
                        AND ($${iTo}::timestamptz IS NULL OR x.${columna} < ($${iTo}::timestamptz + interval '1 day')))`;
 
         condiciones.push(`(
-            ${enRango('points_ledger', 'created_at')}
-            OR ${enRango('quiz_attempts', 'created_at')}
-            OR ${enRango('lesson_progress', 'completed_at')}
+            ${enRango('gamificacion.points_ledger', 'created_at')}
+            OR ${enRango('evaluaciones.quiz_attempts', 'created_at')}
+            OR ${enRango('cursos.lesson_progress', 'completed_at')}
         )`);
     }
 
@@ -93,7 +93,7 @@ function construirFiltroUsuarios(filtros) {
 async function contarUsuarios(filtros) {
     const { where, params } = construirFiltroUsuarios(filtros);
     const { rows } = await db.query(
-        `SELECT COUNT(*)::int AS total FROM users u WHERE ${where}`,
+        `SELECT COUNT(*)::int AS total FROM identidad.users u WHERE ${where}`,
         params
     );
     return rows[0].total;
@@ -107,8 +107,8 @@ async function usuariosDePagina(filtros, { limit, offset }) {
     const { where, params } = construirFiltroUsuarios(filtros);
     const { rows } = await db.query(
         `SELECT u.id, u.email, u.role, u.team_id, t.name AS equipo, u.created_at
-           FROM users u
-           LEFT JOIN teams t ON t.id = u.team_id
+           FROM identidad.users u
+           LEFT JOIN identidad.teams t ON t.id = u.team_id
           WHERE ${where}
           ORDER BY u.total_points DESC, u.id ASC
           LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -124,11 +124,11 @@ async function usuariosDePagina(filtros, { limit, offset }) {
 async function ultimaActividad(userIds) {
     const { rows } = await db.query(
         `SELECT user_id, MAX(momento) AS ultima FROM (
-             SELECT user_id, created_at   AS momento FROM points_ledger   WHERE user_id = ANY($1::int[])
+             SELECT user_id, created_at   AS momento FROM gamificacion.points_ledger   WHERE user_id = ANY($1::int[])
              UNION ALL
-             SELECT user_id, created_at   AS momento FROM quiz_attempts   WHERE user_id = ANY($1::int[])
+             SELECT user_id, created_at   AS momento FROM evaluaciones.quiz_attempts   WHERE user_id = ANY($1::int[])
              UNION ALL
-             SELECT user_id, completed_at AS momento FROM lesson_progress WHERE user_id = ANY($1::int[])
+             SELECT user_id, completed_at AS momento FROM cursos.lesson_progress WHERE user_id = ANY($1::int[])
          ) actividad
          GROUP BY user_id`,
         [userIds]
@@ -152,9 +152,9 @@ async function agregadoPorEquipo(filtros) {
                 COALESCE(SUM(pl.points), 0)::int AS puntos,
                 ROUND(COALESCE(SUM(pl.points), 0)::numeric
                       / NULLIF(COUNT(DISTINCT u.id), 0), 1)::float AS promedio_puntos
-           FROM users u
-           LEFT JOIN teams t ON t.id = u.team_id
-           LEFT JOIN points_ledger pl
+           FROM identidad.users u
+           LEFT JOIN identidad.teams t ON t.id = u.team_id
+           LEFT JOIN gamificacion.points_ledger pl
                   ON pl.user_id = u.id
                  AND ($${idxFrom}::timestamptz IS NULL OR pl.created_at >= $${idxFrom}::timestamptz)
                  AND ($${idxTo}::timestamptz IS NULL OR pl.created_at < ($${idxTo}::timestamptz + interval '1 day'))
@@ -173,9 +173,9 @@ async function agregadoPorCurso(filtros) {
         `SELECT c.id AS course_id, c.title AS curso,
                 COUNT(DISTINCT u.id)::int AS usuarios,
                 COUNT(DISTINCT CASE WHEN ca.status = 'completed' THEN u.id END)::int AS completados
-           FROM users u
-           JOIN course_assignments ca ON ca.user_id = u.id
-           JOIN courses c ON c.id = ca.course_id
+           FROM identidad.users u
+           JOIN cursos.course_assignments ca ON ca.user_id = u.id
+           JOIN cursos.courses c ON c.id = ca.course_id
           WHERE ${where}
           GROUP BY c.id, c.title
           ORDER BY usuarios DESC, c.title`,
@@ -186,13 +186,13 @@ async function agregadoPorCurso(filtros) {
 
 /** Equipos activos, para el panel de filtros. */
 async function equiposActivos() {
-    const { rows } = await db.query(`SELECT id, name FROM teams WHERE is_active = true ORDER BY name`);
+    const { rows } = await db.query(`SELECT id, name FROM identidad.teams WHERE is_active = true ORDER BY name`);
     return rows;
 }
 
 /** Cursos, para el panel de filtros. */
 async function cursos() {
-    const { rows } = await db.query(`SELECT id, title FROM courses ORDER BY title`);
+    const { rows } = await db.query(`SELECT id, title FROM cursos.courses ORDER BY title`);
     return rows;
 }
 

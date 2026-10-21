@@ -13,7 +13,7 @@ const q = (tx) => tx || db;
 
 async function insertar(userId, eventName, aviso) {
     const { rows } = await db.query(
-        `INSERT INTO notifications (user_id, event_name, title, body, payload, dedupe_key)
+        `INSERT INTO notificaciones.notifications (user_id, event_name, title, body, payload, dedupe_key)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (dedupe_key) DO NOTHING
          RETURNING id, user_id, title, body, created_at`,
@@ -26,7 +26,7 @@ async function insertar(userId, eventName, aviso) {
 /** El correo del aviso salio. */
 async function marcarCorreoEnviado(notificacion) {
     return db.query(
-            `UPDATE notifications SET email_status = 'sent' WHERE id = $1`,
+            `UPDATE notificaciones.notifications SET email_status = 'sent' WHERE id = $1`,
             [notificacion.id]
         );
 }
@@ -35,7 +35,7 @@ async function marcarCorreoEnviado(notificacion) {
 async function buscarParaReenvio(id, dedupeKey) {
     const { rows } = await db.query(
         `SELECT id, user_id, title, body, email_status
-           FROM notifications
+           FROM notificaciones.notifications
           WHERE ($1::bigint IS NOT NULL AND id = $1::bigint)
              OR ($2::text   IS NOT NULL AND dedupe_key = $2::text)
           LIMIT 1`,
@@ -47,14 +47,14 @@ async function buscarParaReenvio(id, dedupeKey) {
 /** El reintento del correo salio: limpia el error anterior. */
 async function marcarCorreoReenviado(notificacion) {
     return db.query(
-            `UPDATE notifications SET email_status = 'sent', email_error = NULL WHERE id = $1`,
+            `UPDATE notificaciones.notifications SET email_status = 'sent', email_error = NULL WHERE id = $1`,
             [notificacion.id]
         );
 }
 
 async function marcarCorreoFallido(err, notificacion) {
     return db.query(
-            `UPDATE notifications SET email_status = 'failed', email_error = $1 WHERE id = $2`,
+            `UPDATE notificaciones.notifications SET email_status = 'failed', email_error = $1 WHERE id = $2`,
             [String(err.message).slice(0, 500), notificacion.id]
         );
 }
@@ -63,7 +63,7 @@ async function marcarCorreoFallido(err, notificacion) {
 async function bandejaDe(userId, soloNoLeidas, limit) {
     const { rows } = await db.query(
         `SELECT id, event_name, title, body, payload, email_status, read_at, created_at
-           FROM notifications
+           FROM notificaciones.notifications
           WHERE user_id = $1
             AND ($2::boolean = false OR read_at IS NULL)
           ORDER BY created_at DESC, id DESC
@@ -77,7 +77,7 @@ async function bandejaDe(userId, soloNoLeidas, limit) {
 async function contarNoLeidas(userId) {
     const { rows } = await db.query(
         `SELECT COUNT(*)::int AS no_leidas
-           FROM notifications WHERE user_id = $1 AND read_at IS NULL`,
+           FROM notificaciones.notifications WHERE user_id = $1 AND read_at IS NULL`,
         [userId]
     );
     return rows;
@@ -86,7 +86,7 @@ async function contarNoLeidas(userId) {
 /** Marca un aviso propio como leido (solo si no lo estaba). */
 async function marcarLeida(notificationId, userId) {
     const { rows } = await db.query(
-        `UPDATE notifications
+        `UPDATE notificaciones.notifications
             SET read_at = now()
           WHERE id = $1 AND user_id = $2 AND read_at IS NULL
           RETURNING id, read_at`,

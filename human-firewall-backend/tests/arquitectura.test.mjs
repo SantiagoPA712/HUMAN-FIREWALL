@@ -65,7 +65,7 @@ for (const nombre of NOMBRES) {
         faltan.length === 0, `(faltan: ${faltan.join(', ')})`);
 
     const m = manifiestos[nombre];
-    const campos = ['nombre', 'responsabilidad', 'prefijos', 'tablas', 'publica', 'consume', 'dependeDe',
+    const campos = ['nombre', 'responsabilidad', 'prefijos', 'esquemas', 'tablas', 'publica', 'consume', 'dependeDe',
                     'lecturasCompartidas', 'escriturasCompartidas', 'procesos'];
     check(`${nombre}: el manifiesto declara todos sus campos`, m && campos.every(c => m[c] !== undefined));
 
@@ -193,6 +193,26 @@ for (const t of ['event_outbox', 'schema_migrations']) dueno.set(t, 'compartido'
 
 check('ninguna tabla esta declarada en dos servicios', repetidas.length === 0, lista(repetidas));
 
+// Un esquema de PostgreSQL por servicio (migracion 090): cada tabla declarada
+// vive en uno de los esquemas del servicio, y ningun esquema es de dos servicios.
+const fueraDeSuEsquema = NOMBRES.flatMap(n => manifiestos[n].tablas
+    .filter(t => !manifiestos[n].esquemas.includes(t.split('.')[0]) || !t.includes('.'))
+    .map(t => `${n}: ${t}`));
+check('cada tabla del manifiesto vive en el esquema de su servicio', fueraDeSuEsquema.length === 0, lista(fueraDeSuEsquema));
+
+const duenoDeEsquema = new Map();
+const esquemasRepetidos = [];
+for (const n of NOMBRES) for (const e of manifiestos[n].esquemas) {
+    if (duenoDeEsquema.has(e)) esquemasRepetidos.push(`${e}: ${duenoDeEsquema.get(e)} y ${n}`);
+    duenoDeEsquema.set(e, n);
+}
+check('cada esquema es de un solo servicio', esquemasRepetidos.length === 0, lista(esquemasRepetidos));
+
+const sinEsquema = [];
+for (const f of todos) for (const t of [...f.lecturas, ...f.escrituras]) if (!t.includes('.')) sinEsquema.push(`${t} (${f.relativo})`);
+check('todo el SQL de los servicios nombra las tablas con su esquema (identidad.users)', sinEsquema.length === 0,
+    lista([...new Set(sinEsquema)]));
+
 const huerfanas = new Set();
 for (const f of todos) for (const t of [...f.lecturas, ...f.escrituras]) if (!dueno.has(t)) huerfanas.add(`${t} (${f.relativo})`);
 check('toda tabla usada en el SQL tiene un servicio dueno', huerfanas.size === 0, lista([...huerfanas]));
@@ -233,7 +253,7 @@ check('no quedan lecturas declaradas que el codigo ya no hace', declaracionesVie
 
 const escriturasDeclaradas = NOMBRES.flatMap(n => manifiestos[n].escriturasCompartidas.map(d => `${n}->${d.tabla}`));
 check('la unica escritura compartida es la cache de puntos y nivel en users',
-    JSON.stringify(escriturasDeclaradas) === JSON.stringify(['gamificacion->users']), `(${escriturasDeclaradas})`);
+    JSON.stringify(escriturasDeclaradas) === JSON.stringify(['gamificacion->identidad.users']), `(${escriturasDeclaradas})`);
 
 // =====================================================================
 console.log('\n--- EVENTOS: EL MANIFIESTO DICE LA VERDAD ---');

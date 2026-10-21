@@ -16,6 +16,9 @@ Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura
 | Umbrales de nivel | la tabla `levels_config` |
 | Reaccionar a un evento nuevo | `registrarHandlers()` del servicio de aplicacion que corresponda, y agregarlo a `consume` del manifiesto |
 | Una consulta de un endpoint | `infrastructure/persistence/gamificacion.repositorio.js` |
+| Una consulta de puntos, niveles, recompensas o recomendaciones | `infrastructure/persistence/puntos`, `niveles`, `recompensas` o `recomendaciones.repositorio.js` |
+| Una regla pura (calculo de nivel, de puntos, areas de oportunidad) | `domain/nivel.js`, `domain/puntos.js`, `domain/recomendacion.js`, `domain/recompensa.js` |
+| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE gamificacion.<tabla>` y declararla en `manifiesto.js` |
 
 ## Reglas que no hay que romper
 

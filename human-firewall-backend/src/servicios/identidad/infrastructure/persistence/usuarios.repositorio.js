@@ -21,50 +21,50 @@ async function existe(userId) {
     const id = Number(userId);
     if (!Number.isInteger(id) || id <= 0) return false;
     // rows.length y no rowCount: PGlite (la base de las pruebas) no expone rowCount.
-    const { rows } = await db.query('SELECT 1 FROM users WHERE id = $1', [id]);
+    const { rows } = await db.query('SELECT 1 FROM identidad.users WHERE id = $1', [id]);
     return rows.length > 0;
 }
 
 /** Fila completa por correo exacto (login y Google). */
 async function buscarPorCorreo(email) {
-    const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const { rows } = await db.query('SELECT * FROM identidad.users WHERE email = $1', [email]);
     return rows[0] || null;
 }
 
 /** { id, is_active } de la cuenta con ese correo, sin distinguir mayusculas. */
 async function cuentaPorCorreo(email, tx) {
     const { rows } = await q(tx).query(
-        'SELECT id, is_active FROM users WHERE lower(email) = $1',
+        'SELECT id, is_active FROM identidad.users WHERE lower(email) = $1',
         [email]
     );
     return rows[0] || null;
 }
 
 async function listar() {
-    const { rows } = await db.query('SELECT id, email, role FROM users');
+    const { rows } = await db.query('SELECT id, email, role FROM identidad.users');
     return rows;
 }
 
 async function estadoActual(userId) {
-    const { rows } = await db.query('SELECT id, role, is_active FROM users WHERE id = $1', [userId]);
+    const { rows } = await db.query('SELECT id, role, is_active FROM identidad.users WHERE id = $1', [userId]);
     return rows[0] || null;
 }
 
 async function correoDe(userId) {
     if (!userId) return null;
-    const { rows } = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
+    const { rows } = await db.query('SELECT email FROM identidad.users WHERE id = $1', [userId]);
     return rows[0]?.email || null;
 }
 
 async function idPorCorreo(email) {
-    const { rows } = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    const { rows } = await db.query('SELECT id FROM identidad.users WHERE email = $1', [email]);
     return rows[0]?.id || null;
 }
 
 /** Datos de contacto para notificar: id, correo, idioma y nombre. */
 async function contactoDe(userId) {
     const { rows } = await db.query(
-        'SELECT id, email, language, full_name FROM users WHERE id = $1',
+        'SELECT id, email, language, full_name FROM identidad.users WHERE id = $1',
         [userId]
     );
     return rows[0] || null;
@@ -78,8 +78,8 @@ async function contactoDe(userId) {
 async function responsablesRhDe(userId) {
     const { rows: delEquipo } = await db.query(
         `SELECT rh.id
-           FROM users empleado
-           JOIN users rh ON rh.team_id = empleado.team_id
+           FROM identidad.users empleado
+           JOIN identidad.users rh ON rh.team_id = empleado.team_id
           WHERE empleado.id = $1
             AND empleado.team_id IS NOT NULL
             AND rh.role = 'rh'
@@ -90,19 +90,19 @@ async function responsablesRhDe(userId) {
     if (delEquipo.length > 0) return delEquipo.map(r => r.id);
 
     const { rows: todos } = await db.query(
-        `SELECT id FROM users WHERE role = 'rh' AND is_active = true AND id <> $1`,
+        `SELECT id FROM identidad.users WHERE role = 'rh' AND is_active = true AND id <> $1`,
         [userId]
     );
     return todos.map(r => r.id);
 }
 
 async function activosConRol(rol) {
-    const { rows } = await db.query('SELECT id FROM users WHERE role = $1 AND is_active = true', [rol]);
+    const { rows } = await db.query('SELECT id FROM identidad.users WHERE role = $1 AND is_active = true', [rol]);
     return rows.map(r => r.id);
 }
 
 async function estaActivo(userId) {
-    const { rows } = await db.query('SELECT 1 FROM users WHERE id = $1 AND is_active = true', [userId]);
+    const { rows } = await db.query('SELECT 1 FROM identidad.users WHERE id = $1 AND is_active = true', [userId]);
     return rows.length > 0;
 }
 
@@ -117,8 +117,8 @@ const COLUMNAS_PERFIL = `u.id, u.email, u.role, u.full_name, u.phone, u.language
 async function leerPerfil(userId, { bloquear = false } = {}, tx) {
     const { rows } = await q(tx).query(
         `SELECT ${COLUMNAS_PERFIL}
-           FROM users u
-           LEFT JOIN teams t ON t.id = u.team_id
+           FROM identidad.users u
+           LEFT JOIN identidad.teams t ON t.id = u.team_id
           WHERE u.id = $1
           ${bloquear ? 'FOR UPDATE OF u' : ''}`,
         [userId]
@@ -135,7 +135,7 @@ async function actualizarPerfil(userId, cambios, tx) {
         sets.push(`${columna} = $${params.length}`);
     }
     await q(tx).query(
-        `UPDATE users SET ${sets.join(', ')}, updated_at = now() WHERE id = $1`,
+        `UPDATE identidad.users SET ${sets.join(', ')}, updated_at = now() WHERE id = $1`,
         params
     );
 }
@@ -147,7 +147,7 @@ async function actualizarPerfil(userId, cambios, tx) {
 /** Alta de una cuenta con correo y contrasena. */
 async function insertar({ email, passwordHash, role = 'employee', fullName = null, language = null, isActive = true }, tx) {
     const { rows } = await q(tx).query(
-        `INSERT INTO users (email, password, role, full_name, language, is_active)
+        `INSERT INTO identidad.users (email, password, role, full_name, language, is_active)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id, email, role, full_name, language`,
         [email, passwordHash, role, fullName, language, isActive]
@@ -158,7 +158,7 @@ async function insertar({ email, passwordHash, role = 'employee', fullName = nul
 /** Alta de una cuenta que entra por Google (sin contrasena). */
 async function insertarConGoogle({ email, oauthId }) {
     const { rows } = await db.query(
-        `INSERT INTO users (email, role, oauth_provider, oauth_id)
+        `INSERT INTO identidad.users (email, role, oauth_provider, oauth_id)
          VALUES ($1, 'employee', 'google', $2) RETURNING *`,
         [email, oauthId]
     );
@@ -167,24 +167,24 @@ async function insertarConGoogle({ email, oauthId }) {
 
 async function vincularGoogle(userId, oauthId) {
     await db.query(
-        "UPDATE users SET oauth_provider = 'google', oauth_id = $1 WHERE id = $2",
+        "UPDATE identidad.users SET oauth_provider = 'google', oauth_id = $1 WHERE id = $2",
         [oauthId, userId]
     );
 }
 
 async function sumarIntentoFallido(userId) {
     await db.query(
-        'UPDATE users SET failed_attempts = COALESCE(failed_attempts, 0) + 1 WHERE id = $1',
+        'UPDATE identidad.users SET failed_attempts = COALESCE(failed_attempts, 0) + 1 WHERE id = $1',
         [userId]
     );
 }
 
 async function reiniciarIntentos(userId) {
-    await db.query('UPDATE users SET failed_attempts = 0 WHERE id = $1', [userId]);
+    await db.query('UPDATE identidad.users SET failed_attempts = 0 WHERE id = $1', [userId]);
 }
 
 async function actualizarContrasena(userId, passwordHash, tx) {
-    await q(tx).query('UPDATE users SET password = $1 WHERE id = $2', [passwordHash, userId]);
+    await q(tx).query('UPDATE identidad.users SET password = $1 WHERE id = $2', [passwordHash, userId]);
 }
 
 /** UPDATE de rol y/o estado. Devuelve { id, role, is_active } o null. */
@@ -197,7 +197,7 @@ async function actualizar(userId, cambios) {
     }
     params.push(userId);
     const { rows } = await db.query(
-        `UPDATE users SET ${campos.join(', ')} WHERE id = $${params.length}
+        `UPDATE identidad.users SET ${campos.join(', ')} WHERE id = $${params.length}
          RETURNING id, role, is_active`,
         params
     );
@@ -207,8 +207,8 @@ async function actualizar(userId, cambios) {
 /** Baja logica. Devuelve { estaba_activo } o null si no existe. */
 async function desactivar(userId) {
     const { rows } = await db.query(
-        `UPDATE users u SET is_active = false
-           FROM (SELECT id, is_active FROM users WHERE id = $1) previo
+        `UPDATE identidad.users u SET is_active = false
+           FROM (SELECT id, is_active FROM identidad.users WHERE id = $1) previo
           WHERE u.id = previo.id
       RETURNING previo.is_active AS estaba_activo`,
         [userId]

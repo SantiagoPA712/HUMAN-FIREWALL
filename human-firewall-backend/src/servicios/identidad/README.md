@@ -18,6 +18,10 @@ y el contrato navegable en `/api/docs`.
 | Una consulta nueva sobre `users` | `infrastructure/persistence/usuarios.repositorio.js` |
 | Que otro servicio pueda preguntar algo de una cuenta | exponerlo en `index.js`; el otro servicio lo usa desde su `infrastructure/client/identidad.cliente.js` |
 | Registrar una accion critica en data.logs | `infrastructure/client/seguridad.cliente.js` -> `registrarAccion()` |
+| Una consulta de invitaciones o de recuperacion de contrasena | `infrastructure/persistence/invitaciones.repositorio.js` / `recuperacion.repositorio.js` |
+| Una regla de invitaciones (vigencia, estados, reenvio) | `domain/invitacion.js` |
+| Una variable de entorno (vigencias, Google) | `config/configuracion.js` |
+| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE identidad.<tabla>` y declararla en `manifiesto.js` |
 
 ## Reglas que no hay que romper
 

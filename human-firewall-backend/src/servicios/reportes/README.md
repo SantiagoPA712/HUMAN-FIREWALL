@@ -17,9 +17,13 @@ frontend; antes estaban dentro de `gamification.routes.js`.
 | Quiero... | Toco |
 |-----------|------|
 | Un filtro nuevo del reporte | `application/reports.service.js` -> `validarFiltros()` y su esquema en `controller/dto.js` |
-| Un tipo de reporte programado | `application/scheduledReports.service.js` (`TIPOS`) |
+| Un tipo de reporte programado | `domain/programacion.js` (`TIPOS`) y su generacion en `application/scheduledReports.service.js` |
 | Un KPI organizacional | `application/orgReports.service.js` (`KPIS`) |
 | Avisar a alguien | `infrastructure/client/notificaciones.cliente.js` |
+| Una consulta | `infrastructure/persistence/desempeno`, `organizacional`, `exportaciones` o `programados.repositorio.js` (los WHERE dinamicos se arman ahi) |
+| Periodos, frecuencias, formatos o la variacion entre periodos | `domain/periodo.js` y `domain/programacion.js` |
+| Limites e intervalos (`REPORT_*`, `ORG_KPI_*`) | `config/configuracion.js` |
+| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE reportes.<tabla>` y declararla en `manifiesto.js` |
 
 ## Reglas que no hay que romper
 

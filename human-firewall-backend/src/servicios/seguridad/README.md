@@ -20,6 +20,10 @@ contrasenas y tokens, y nunca hace fallar la accion original.
 | Un tipo de accion o modulo nuevo en data.logs | `application/dataLogs.service.js` -> `ACCIONES` / `MODULOS` |
 | Un umbral de anomalia | la tabla `anomaly_rules` |
 | Un tipo de ajuste manual | `application/audit.service.js` (el ajuste se aplica por el cliente de gamificacion) |
+| Una consulta | `infrastructure/persistence/anomalias`, `auditoria` o `logs.repositorio.js` |
+| Que datos se enmascaran en los logs | `domain/registro.js` |
+| Retencion, tamano de pagina, intervalo del job (`LOGS_*`, `ANOMALY_*`) | `config/configuracion.js` |
+| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE seguridad.<tabla>` y declararla en `manifiesto.js` |
 
 ## Reglas que no hay que romper
 

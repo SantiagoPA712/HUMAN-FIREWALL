@@ -6,7 +6,9 @@ module.exports = {
         'progreso por leccion, cierre del curso al completar la ultima leccion y aviso de ' +
         'fechas limite proximas.',
     prefijos: ['/api/courses'],
-    tablas: ['courses', 'course_contents', 'course_assignments', 'lesson_progress'],
+    // Esquemas de PostgreSQL del servicio (migracion 090). Sus tablas viven ahi.
+    esquemas: ['cursos'],
+    tablas: ['cursos.courses', 'cursos.course_contents', 'cursos.course_assignments', 'cursos.lesson_progress'],
     publica: ['course.assigned', 'lesson.completed', 'course.completed', 'course.deadline_approaching'],
     consume: [],
     dependeDe: [],

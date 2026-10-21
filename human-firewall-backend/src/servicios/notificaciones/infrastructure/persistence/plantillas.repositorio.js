@@ -15,7 +15,7 @@ const q = (tx) => tx || db;
 async function plantillaActiva(tipo, lang) {
     const { rows } = await db.query(
             `SELECT id, notification_type, language, version, subject, body_html, body_text
-               FROM email_templates
+               FROM notificaciones.email_templates
               WHERE notification_type = $1 AND language = $2 AND is_active
               LIMIT 1`,
             [tipo, lang]

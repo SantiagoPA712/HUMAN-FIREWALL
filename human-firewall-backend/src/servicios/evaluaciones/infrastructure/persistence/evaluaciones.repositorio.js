@@ -23,12 +23,12 @@ async function listarSimulaciones({ userId, esGestor, cursosPermitidos }) {
     const { rows } = await db.query(
         `SELECT s.id, s.title, s.description, s.difficulty, s.course_id,
                 COUNT(st.id)::int AS pasos,
-                EXISTS (SELECT 1 FROM quiz_attempts q
+                EXISTS (SELECT 1 FROM evaluaciones.quiz_attempts q
                          WHERE q.user_id = $1
                            AND q.quiz_type = 'simulation'
                            AND q.quiz_ref = s.id::varchar) AS intentada
-           FROM simulations s
-           LEFT JOIN simulation_steps st ON st.simulation_id = s.id
+           FROM evaluaciones.simulations s
+           LEFT JOIN evaluaciones.simulation_steps st ON st.simulation_id = s.id
           WHERE $2::boolean = true
              OR s.course_id IS NULL
              OR s.course_id = ANY($3::int[])
@@ -42,7 +42,7 @@ async function listarSimulaciones({ userId, esGestor, cursosPermitidos }) {
 
 async function insertarSimulacion({ title, description, difficulty, createdBy }) {
     const { rows } = await db.query(
-        'INSERT INTO simulations (title, description, difficulty, created_by) VALUES ($1, $2, $3, $4) RETURNING *',
+        'INSERT INTO evaluaciones.simulations (title, description, difficulty, created_by) VALUES ($1, $2, $3, $4) RETURNING *',
         [title, description, difficulty, createdBy]
     );
     return rows[0];
@@ -50,7 +50,7 @@ async function insertarSimulacion({ title, description, difficulty, createdBy })
 
 async function insertarPaso({ simulationId, scenarioText, orderIdx }) {
     const { rows } = await db.query(
-        'INSERT INTO simulation_steps (simulation_id, scenario_text, order_idx) VALUES ($1, $2, $3) RETURNING *',
+        'INSERT INTO evaluaciones.simulation_steps (simulation_id, scenario_text, order_idx) VALUES ($1, $2, $3) RETURNING *',
         [simulationId, scenarioText, orderIdx]
     );
     return rows[0];
@@ -58,7 +58,7 @@ async function insertarPaso({ simulationId, scenarioText, orderIdx }) {
 
 async function insertarOpcion({ stepId, optionText, isCorrect, pointsAwarded, feedbackText }) {
     const { rows } = await db.query(
-        `INSERT INTO simulation_options (step_id, option_text, is_correct, points_awarded, feedback_text)
+        `INSERT INTO evaluaciones.simulation_options (step_id, option_text, is_correct, points_awarded, feedback_text)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
         [stepId, optionText, isCorrect, pointsAwarded, feedbackText]
     );
@@ -66,31 +66,31 @@ async function insertarOpcion({ stepId, optionText, isCorrect, pointsAwarded, fe
 }
 
 async function buscarSimulacion(simulationId) {
-    const { rows } = await db.query('SELECT * FROM simulations WHERE id = $1', [simulationId]);
+    const { rows } = await db.query('SELECT * FROM evaluaciones.simulations WHERE id = $1', [simulationId]);
     return rows[0] || null;
 }
 
 async function listarPasos(simulationId) {
     const { rows } = await db.query(
-        'SELECT * FROM simulation_steps WHERE simulation_id = $1 ORDER BY order_idx ASC',
+        'SELECT * FROM evaluaciones.simulation_steps WHERE simulation_id = $1 ORDER BY order_idx ASC',
         [simulationId]
     );
     return rows;
 }
 
 async function listarOpcionesDePaso(stepId) {
-    const { rows } = await db.query('SELECT * FROM simulation_options WHERE step_id = $1', [stepId]);
+    const { rows } = await db.query('SELECT * FROM evaluaciones.simulation_options WHERE step_id = $1', [stepId]);
     return rows;
 }
 
 async function buscarOpcion(optionId) {
-    const { rows } = await db.query('SELECT * FROM simulation_options WHERE id = $1', [optionId]);
+    const { rows } = await db.query('SELECT * FROM evaluaciones.simulation_options WHERE id = $1', [optionId]);
     return rows[0] || null;
 }
 
 async function simulacionDePaso(stepId) {
     const { rows } = await db.query(
-        'SELECT s.simulation_id FROM simulation_steps s WHERE s.id = $1',
+        'SELECT s.simulation_id FROM evaluaciones.simulation_steps s WHERE s.id = $1',
         [stepId]
     );
     return rows[0] ? rows[0].simulation_id : null;
@@ -100,8 +100,8 @@ async function simulacionDePaso(stepId) {
 async function opcionesDeSimulacion(simulationId) {
     const { rows } = await db.query(
         `SELECT o.id, o.step_id, o.is_correct, o.points_awarded
-           FROM simulation_options o
-           JOIN simulation_steps s ON s.id = o.step_id
+           FROM evaluaciones.simulation_options o
+           JOIN evaluaciones.simulation_steps s ON s.id = o.step_id
           WHERE s.simulation_id = $1`,
         [simulationId]
     );
@@ -113,14 +113,14 @@ async function opcionesDeSimulacion(simulationId) {
 // ---------------------------------------------------------------------
 
 async function buscarDesafio(challengeId, ejecutor) {
-    const { rows } = await q(ejecutor).query('SELECT * FROM challenges WHERE id = $1', [challengeId]);
+    const { rows } = await q(ejecutor).query('SELECT * FROM evaluaciones.challenges WHERE id = $1', [challengeId]);
     return rows[0] || null;
 }
 
 /** Marca el desafio como ganado. Devuelve false si ya estaba ganado. */
 async function marcarDesafioGanado(userId, challengeId, ejecutor) {
     const { rows } = await q(ejecutor).query(
-        `INSERT INTO user_challenge_results (user_id, challenge_id, won)
+        `INSERT INTO evaluaciones.user_challenge_results (user_id, challenge_id, won)
          VALUES ($1, $2, true)
          ON CONFLICT (user_id, challenge_id) DO NOTHING
          RETURNING id`,
@@ -145,9 +145,9 @@ async function marcarDesafioGanado(userId, challengeId, ejecutor) {
  */
 async function registrarIntento({ userId, quizRef, quizType, courseId, score, passingScore, passed }, ejecutor) {
     const { rows } = await q(ejecutor).query(
-        `INSERT INTO quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
+        `INSERT INTO evaluaciones.quiz_attempts (user_id, quiz_ref, quiz_type, course_id, score, passing_score, passed, attempt_no)
          VALUES ($1::int, $2::varchar, $3::varchar, $4::int, $5::int, $6::int, $7::boolean,
-                 (SELECT COUNT(*) + 1 FROM quiz_attempts
+                 (SELECT COUNT(*) + 1 FROM evaluaciones.quiz_attempts
                    WHERE user_id = $1::int AND quiz_ref = $2::varchar))
          RETURNING id, attempt_no`,
         [userId, String(quizRef), quizType, courseId || null, score, passingScore, passed]
@@ -158,7 +158,7 @@ async function registrarIntento({ userId, quizRef, quizType, courseId, score, pa
 async function contarEvaluacionesAprobadas(userId) {
     const { rows } = await db.query(
         `SELECT COUNT(DISTINCT quiz_ref)::int AS valor
-           FROM quiz_attempts
+           FROM evaluaciones.quiz_attempts
           WHERE user_id = $1 AND passed = true`,
         [userId]
     );
@@ -168,7 +168,7 @@ async function contarEvaluacionesAprobadas(userId) {
 /** Resultados de los ultimos intentos, del mas reciente al mas viejo. */
 async function ultimosResultados(userId, limite = 100) {
     const { rows } = await db.query(
-        `SELECT passed FROM quiz_attempts
+        `SELECT passed FROM evaluaciones.quiz_attempts
           WHERE user_id = $1
           ORDER BY created_at DESC, id DESC
           LIMIT $2`,
@@ -178,12 +178,12 @@ async function ultimosResultados(userId, limite = 100) {
 }
 
 async function nombreDeDesafio(quizRef) {
-    const { rows } = await db.query('SELECT name FROM challenges WHERE id = $1', [String(quizRef)]);
+    const { rows } = await db.query('SELECT name FROM evaluaciones.challenges WHERE id = $1', [String(quizRef)]);
     return rows[0]?.name || null;
 }
 
 async function tituloDeSimulacion(simulationId) {
-    const { rows } = await db.query('SELECT title FROM simulations WHERE id = $1', [simulationId]);
+    const { rows } = await db.query('SELECT title FROM evaluaciones.simulations WHERE id = $1', [simulationId]);
     return rows[0]?.title || null;
 }
 

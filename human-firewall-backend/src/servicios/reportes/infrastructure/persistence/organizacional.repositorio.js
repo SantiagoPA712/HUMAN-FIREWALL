@@ -21,11 +21,11 @@ const q = (tx) => tx || db;
  * siendo participacion.
  */
 const TUVO_ACTIVIDAD = `(
-    EXISTS (SELECT 1 FROM points_ledger p
+    EXISTS (SELECT 1 FROM gamificacion.points_ledger p
              WHERE p.user_id = u.id AND p.created_at >= $1::timestamptz AND p.created_at < $2::timestamptz)
- OR EXISTS (SELECT 1 FROM quiz_attempts q
+ OR EXISTS (SELECT 1 FROM evaluaciones.quiz_attempts q
              WHERE q.user_id = u.id AND q.created_at >= $1::timestamptz AND q.created_at < $2::timestamptz)
- OR EXISTS (SELECT 1 FROM lesson_progress l
+ OR EXISTS (SELECT 1 FROM cursos.lesson_progress l
              WHERE l.user_id = u.id AND l.completed_at >= $1::timestamptz AND l.completed_at < $2::timestamptz)
 )`;
 
@@ -51,7 +51,7 @@ async function participacionPorArea(inicio, fin) {
                 GROUPING(u.team_id)::int AS total_org,
                 COUNT(*)::int AS padron,
                 COUNT(*) FILTER (WHERE ${TUVO_ACTIVIDAD})::int AS activos
-           FROM users u
+           FROM identidad.users u
           WHERE u.is_active = true
           ${AGRUPACION}`,
         [inicio, fin]
@@ -64,8 +64,8 @@ async function puntosPorUsuarioHasta(fin) {
     return db.query(
             `SELECT u.id, u.team_id,
                     COALESCE(SUM(pl.points), 0)::int AS puntos
-               FROM users u
-               LEFT JOIN points_ledger pl
+               FROM identidad.users u
+               LEFT JOIN gamificacion.points_ledger pl
                       ON pl.user_id = u.id AND pl.created_at < $1::timestamptz
               WHERE u.is_active = true
               GROUP BY u.id, u.team_id`,
@@ -80,8 +80,8 @@ async function cursosCompletadosPorArea(inicio, fin) {
                 GROUPING(u.team_id)::int AS total_org,
                 COUNT(ca.id)::int AS cursos,
                 COUNT(DISTINCT ca.user_id)::int AS personas
-           FROM users u
-           LEFT JOIN course_assignments ca
+           FROM identidad.users u
+           LEFT JOIN cursos.course_assignments ca
                   ON ca.user_id = u.id
                  AND ca.status = 'completed'
                  AND ca.completed_at >= $1::timestamptz
@@ -97,20 +97,20 @@ async function cursosCompletadosPorArea(inicio, fin) {
 async function engagementPorArea(inicio, fin) {
     const { rows } = await db.query(
         `WITH acciones AS (
-             SELECT user_id FROM points_ledger
+             SELECT user_id FROM gamificacion.points_ledger
               WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz
              UNION ALL
-             SELECT user_id FROM quiz_attempts
+             SELECT user_id FROM evaluaciones.quiz_attempts
               WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz
              UNION ALL
-             SELECT user_id FROM lesson_progress
+             SELECT user_id FROM cursos.lesson_progress
               WHERE completed_at >= $1::timestamptz AND completed_at < $2::timestamptz
          )
          SELECT u.team_id AS area_id,
                 GROUPING(u.team_id)::int AS total_org,
                 COUNT(a.user_id)::int    AS acciones,
                 COUNT(DISTINCT u.id)::int AS padron
-           FROM users u
+           FROM identidad.users u
            LEFT JOIN acciones a ON a.user_id = u.id
           WHERE u.is_active = true
           ${AGRUPACION}`,
@@ -122,7 +122,7 @@ async function engagementPorArea(inicio, fin) {
 /** Guarda un snapshot de KPI (historial: no se pisa). */
 async function insertarSnapshot(periodo, m) {
     return db.query(
-            `INSERT INTO org_kpi_snapshots (period, area_id, kpi_type, value, metadata)
+            `INSERT INTO reportes.org_kpi_snapshots (period, area_id, kpi_type, value, metadata)
              VALUES ($1, $2, $3, $4, $5)`,
             [periodo, m.areaId, m.kpi, m.valor, JSON.stringify(m.metadata || {})]
         );
@@ -133,7 +133,7 @@ async function snapshotsDe(periodo, areaId) {
     const { rows } = await db.query(
         `SELECT DISTINCT ON (kpi_type)
                 kpi_type, value, metadata, calculated_at
-           FROM org_kpi_snapshots
+           FROM reportes.org_kpi_snapshots
           WHERE period = $1 AND area_id IS NOT DISTINCT FROM $2
           ORDER BY kpi_type, calculated_at DESC, id DESC`,
         [periodo, areaId]
@@ -144,7 +144,7 @@ async function snapshotsDe(periodo, areaId) {
 /** Area (equipo) por id. */
 async function buscarArea(id) {
     const { rows } = await db.query(
-        'SELECT id, name, is_active FROM teams WHERE id = $1',
+        'SELECT id, name, is_active FROM identidad.teams WHERE id = $1',
         [id]
     );
     return rows;
@@ -153,7 +153,7 @@ async function buscarArea(id) {
 /** Areas (equipos) activas. */
 async function areasActivas() {
     const { rows } = await db.query(
-        'SELECT id, name FROM teams WHERE is_active = true ORDER BY name'
+        'SELECT id, name FROM identidad.teams WHERE is_active = true ORDER BY name'
     );
     return rows;
 }
@@ -162,7 +162,7 @@ async function areasActivas() {
 async function tendenciaDe(kpi, areaId, hastaPeriodo, limite) {
     const { rows } = await db.query(
         `SELECT DISTINCT ON (period) period, value, calculated_at
-           FROM org_kpi_snapshots
+           FROM reportes.org_kpi_snapshots
           WHERE kpi_type = $1
             AND area_id IS NOT DISTINCT FROM $2
             AND period <= $3
@@ -176,7 +176,7 @@ async function tendenciaDe(kpi, areaId, hastaPeriodo, limite) {
 /** Bitacora de consultas del reporte organizacional. */
 async function registrarConsulta(userId, periodo, compararCon, areaId, parametros) {
     return db.query(
-        `INSERT INTO org_report_access_log
+        `INSERT INTO reportes.org_report_access_log
             (requested_by, period, compare_to, area_id, params)
          VALUES ($1, $2, $3, $4, $5)`,
         [userId, periodo, compararCon, areaId ?? null, JSON.stringify(parametros)]

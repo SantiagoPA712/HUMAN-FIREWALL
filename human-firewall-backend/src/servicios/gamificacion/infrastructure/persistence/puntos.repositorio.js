@@ -14,7 +14,7 @@ const q = (tx) => tx || db;
 async function reglaActiva(code) {
     const { rows } = await db.query(
         `SELECT code, source_type, points_mode, points, allow_repeat, is_active
-           FROM points_rules
+           FROM gamificacion.points_rules
           WHERE code = $1 AND is_active = true`,
         [code]
     );
@@ -27,7 +27,7 @@ async function reglaActiva(code) {
  */
 async function insertarMovimiento({ userId, sourceType, sourceId, points, ruleCode, idempotencyKey }, tx) {
     const { rows } = await q(tx).query(
-        `INSERT INTO points_ledger (user_id, source_type, source_id, points, rule_code, idempotency_key)
+        `INSERT INTO gamificacion.points_ledger (user_id, source_type, source_id, points, rule_code, idempotency_key)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (idempotency_key) DO NOTHING
          RETURNING id, user_id, source_type, source_id, points, rule_code, created_at`,
@@ -43,8 +43,8 @@ async function insertarMovimiento({ userId, sourceType, sourceId, points, ruleCo
  */
 async function recalcularTotalEnCache(userId, tx) {
     await q(tx).query(
-        `UPDATE users
-            SET total_points = (SELECT COALESCE(SUM(points), 0) FROM points_ledger WHERE user_id = $1)
+        `UPDATE identidad.users
+            SET total_points = (SELECT COALESCE(SUM(points), 0) FROM gamificacion.points_ledger WHERE user_id = $1)
           WHERE id = $1`,
         [userId]
     );
@@ -54,7 +54,7 @@ async function recalcularTotalEnCache(userId, tx) {
 async function yaCobroEvaluacion(userId, quizRef) {
     // rows.length y no rowCount: PGlite (el motor de las pruebas) no expone rowCount.
     const { rows } = await db.query(
-        `SELECT 1 FROM points_ledger
+        `SELECT 1 FROM gamificacion.points_ledger
           WHERE user_id = $1 AND source_type = 'quiz' AND source_id = $2
           LIMIT 1`,
         [userId, String(quizRef)]
@@ -64,7 +64,7 @@ async function yaCobroEvaluacion(userId, quizRef) {
 
 async function existeClave(idempotencyKey) {
     const { rows } = await db.query(
-        `SELECT 1 FROM points_ledger WHERE idempotency_key = $1 LIMIT 1`,
+        `SELECT 1 FROM gamificacion.points_ledger WHERE idempotency_key = $1 LIMIT 1`,
         [idempotencyKey]
     );
     return rows.length > 0;
@@ -77,7 +77,7 @@ async function totalesPorUsuarios(userIds, { from = null, to = null } = {}) {
                 COALESCE(SUM(points), 0)::int AS total,
                 COUNT(*)::int                 AS movimientos,
                 MAX(created_at)               AS ultimo
-           FROM points_ledger
+           FROM gamificacion.points_ledger
           WHERE user_id = ANY($1::int[])
             AND ($2::timestamptz IS NULL OR created_at >= $2::timestamptz)
             -- El "to" se recibe como fecha (2026-03-01) y se interpreta como
@@ -94,7 +94,7 @@ async function totalesPorUsuarios(userIds, { from = null, to = null } = {}) {
 async function resumenDe(userId) {
     const { rows } = await db.query(
         `SELECT total_points, movimientos, ultimo_movimiento
-           FROM v_user_points WHERE user_id = $1`,
+           FROM gamificacion.v_user_points WHERE user_id = $1`,
         [userId]
     );
     return rows[0] || null;
@@ -104,7 +104,7 @@ async function resumenDe(userId) {
 async function movimientosDe(userId, { limit, offset }) {
     const { rows } = await db.query(
         `SELECT id, source_type, source_id, points, rule_code, created_at
-           FROM points_ledger
+           FROM gamificacion.points_ledger
           WHERE user_id = $1
           ORDER BY created_at DESC, id DESC
           LIMIT $2 OFFSET $3`,

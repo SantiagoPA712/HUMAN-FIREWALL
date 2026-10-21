@@ -26,6 +26,25 @@ Para que los numeros no choquen, cada integrante tiene su propio rango:
 | Santi      | 001 - 019 | Puntos automaticos + Recompensas   |
 | Companero  | 020 - 039 | (sus dos historias)                |
 | Comunes    | 090 - 099 | Cambios acordados entre los dos    |
+| Todos      | 100 en adelante | Migraciones posteriores a los esquemas por servicio (ver abajo) |
+
+## Un esquema por servicio (desde la 090)
+
+La migracion `090_esquemas_por_servicio.sql` movio cada tabla al esquema de
+PostgreSQL de su microservicio (`identidad.users`, `cursos.courses`,
+`gamificacion.points_ledger`...). La tabla completa esta en
+`docs/arquitectura/README.md`, seccion 6.
+
+Para las migraciones nuevas:
+
+- Numeralas **desde la 100** (cualquier integrante): asi corren despues de la
+  090 tambien en una base nueva, cuando los esquemas ya existen.
+- Usa siempre el nombre con esquema: `CREATE TABLE IF NOT EXISTS
+  cursos.course_tags (...)`, `ALTER TABLE identidad.users ADD COLUMN ...`.
+  Una tabla creada sin esquema cae en `public`, y la prueba de arquitectura
+  no la acepta.
+- La tabla nueva se declara en el `manifiesto.js` del servicio, con su
+  esquema.
 
 ## Reglas
 

@@ -27,7 +27,7 @@ async function crearAdmin() {
         const hashed = await hashPassword(password);
 
         const { rows } = await db.query(
-            "INSERT INTO users (email, password, role) VALUES ($1, $2, 'admin') RETURNING id, email",
+            "INSERT INTO identidad.users (email, password, role) VALUES ($1, $2, 'admin') RETURNING id, email",
             [email, hashed]
         );
 

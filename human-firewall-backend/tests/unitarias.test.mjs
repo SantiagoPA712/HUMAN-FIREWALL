@@ -86,6 +86,30 @@ check('un valor que no es texto no cumple (y no revienta)', !usuario.cumplePolit
 check('los roles son los del CHECK de la base', usuario.ROLES.length === 6 && usuario.ROLES.includes('manager'));
 
 // =====================================================================
+console.log('\n--- DOMINIO DE CURSOS, REPORTES Y SEGURIDAD (seccion 11) ---');
+// ---------------------------------------------------------------------
+
+const curso = require_('./servicios/cursos/domain/curso');
+check('crearCurso valida que haya titulo', (() => { try { curso.crearCurso({ title: '  ' }, 1); return false; }
+    catch (e) { return e instanceof curso.ReglaDeCurso && e.campo === 'title'; } })());
+check('crearCurso rechaza un titulo de mas de 255', (() => { try { curso.crearCurso({ title: 'x'.repeat(256) }, 1); return false; }
+    catch (e) { return e.campo === 'title'; } })());
+check('crearCurso devuelve los datos con el instructor', curso.crearCurso({ title: 'Phishing' }, 7).instructorId === 7);
+check('fechaLimite: vacia es "sin fecha" y una invalida es error', curso.fechaLimite('') === null &&
+    (() => { try { curso.fechaLimite('pasado manana'); return false; } catch (e) { return e.campo === 'due_date'; } })());
+check('porcentajeDeAvance no divide por cero', curso.porcentajeDeAvance(0, 0) === 0 && curso.porcentajeDeAvance(1, 3) === 33);
+check('solo admin e instructor ven todo el catalogo', curso.veTodoElCatalogo('admin') && !curso.veTodoElCatalogo('employee'));
+
+const periodo = require_('./servicios/reportes/domain/periodo');
+check('periodoAnterior cruza el anio', periodo.periodoAnterior('2026-01') === '2025-12');
+check('calcularVariacion con base 0 no inventa un porcentaje', periodo.calcularVariacion(0, 5).variacion === null);
+check('calcularVariacion positiva', periodo.calcularVariacion(50, 75).variacion_porcentaje === 50);
+
+const registro = require_('./servicios/seguridad/domain/registro');
+const limpio = registro.enmascarar({ email: 'a@b.com', password: 'secreta', nota: 'eyJa.eyJb.c' });
+check('enmascarar oculta contrasenas y tokens pero deja el resto', limpio.password === registro.REDACTADO &&
+    limpio.nota === registro.REDACTADO && limpio.email === 'a@b.com');
+
 console.log('\n--- FORMATO COMUN DE ERRORES ---');
 // =====================================================================
 

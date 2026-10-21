@@ -19,7 +19,7 @@ const q = (tx) => tx || db;
 async function bloquearVencida(ahora, tx) {
     const { rows } = await q(tx).query(
         `SELECT id, name, report_type, frequency, format, params, next_run_at
-           FROM report_schedules
+           FROM reportes.report_schedules
           WHERE is_active = true AND next_run_at <= $1::timestamptz
           ORDER BY next_run_at
           FOR UPDATE SKIP LOCKED
@@ -32,7 +32,7 @@ async function bloquearVencida(ahora, tx) {
 /** Adelanta next_run_at y marca last_run_at, en la misma transaccion que el encolado. */
 async function adelantar(id, proxima, ahora, tx) {
     await q(tx).query(
-        `UPDATE report_schedules
+        `UPDATE reportes.report_schedules
             SET next_run_at = $2, last_run_at = $3, updated_at = now()
           WHERE id = $1`,
         [id, proxima.toISOString(), ahora.toISOString()]
@@ -65,7 +65,7 @@ async function actualizarProgramacion(id, valores) {
 
     params.push(id);
     const { rows } = await db.query(
-        `UPDATE report_schedules
+        `UPDATE reportes.report_schedules
             SET ${campos.join(', ')}, updated_at = now()
           WHERE id = $${params.length}
           RETURNING *`,
@@ -91,8 +91,8 @@ async function historico({ scheduleId = null, limite = 50 } = {}) {
                 h.file_location, h.row_count, h.generated_at, h.duration_ms,
                 h.error_summary, h.log_reference,
                 s.name AS schedule_name, s.frequency
-           FROM report_history h
-           LEFT JOIN report_schedules s ON s.id = h.schedule_id
+           FROM reportes.report_history h
+           LEFT JOIN reportes.report_schedules s ON s.id = h.schedule_id
            ${where}
           ORDER BY h.generated_at DESC, h.id DESC
           LIMIT $${params.length}`,
@@ -104,7 +104,7 @@ async function historico({ scheduleId = null, limite = 50 } = {}) {
 /** Generacion exitosa ya registrada para esa programacion y periodo (idempotencia). */
 async function exitoDelPeriodo(scheduleId, periodo) {
     const { rows } = await db.query(
-        `SELECT id, status FROM report_history
+        `SELECT id, status FROM reportes.report_history
           WHERE schedule_id = $1 AND period = $2 AND status = 'success'`,
         [scheduleId, periodo]
     );
@@ -114,7 +114,7 @@ async function exitoDelPeriodo(scheduleId, periodo) {
 /** Historial: generacion exitosa con su archivo. */
 async function registrarExito(scheduleId, tipo, periodo, params, fileName, filas, arranque) {
     const { rows } = await db.query(
-            `INSERT INTO report_history
+            `INSERT INTO reportes.report_history
                 (schedule_id, type, period, params_used, status, file_location, row_count, duration_ms)
              VALUES ($1, $2, $3, $4, 'success', $5, $6, $7)
              ON CONFLICT (schedule_id, period) WHERE status = 'success' DO NOTHING
@@ -128,7 +128,7 @@ async function registrarExito(scheduleId, tipo, periodo, params, fileName, filas
 /** Historial: generacion fallida con resumen y referencia al log. */
 async function registrarFallo(scheduleId, tipo, periodo, params, resumen, referencia, arranque) {
     const { rows } = await db.query(
-        `INSERT INTO report_history
+        `INSERT INTO reportes.report_history
             (schedule_id, type, period, params_used, status, error_summary, log_reference, duration_ms)
          VALUES ($1, $2, $3, $4, 'error', $5, $6, $7)
          RETURNING id, schedule_id, type, period, status, generated_at`,
@@ -142,8 +142,8 @@ async function registrarFallo(scheduleId, tipo, periodo, params, resumen, refere
 async function rolesSuscritos(historyId) {
     return db.query(
             `SELECT COALESCE(s.subscriber_roles, ARRAY[]::text[]) AS roles
-               FROM report_history h
-               LEFT JOIN report_schedules s ON s.id = h.schedule_id
+               FROM reportes.report_history h
+               LEFT JOIN reportes.report_schedules s ON s.id = h.schedule_id
               WHERE h.id = $1`,
             [historyId]
           );
@@ -152,9 +152,9 @@ async function rolesSuscritos(historyId) {
 /** Un aviso por cada usuario activo con alguno de esos roles. */
 async function encolarAvisos(historyId, kind, MAX_INTENTOS_AVISO, roles) {
     const { rows } = await db.query(
-        `INSERT INTO report_notifications (history_id, user_id, kind, max_attempts)
+        `INSERT INTO reportes.report_notifications (history_id, user_id, kind, max_attempts)
          SELECT $1, u.id, $2, $3
-           FROM users u
+           FROM identidad.users u
           WHERE u.role = ANY($4::text[]) AND u.is_active = true
          ON CONFLICT (history_id, user_id) DO NOTHING
          RETURNING id, user_id`,
@@ -170,9 +170,9 @@ async function avisosPendientes(limite) {
                 h.type, h.period, h.status, h.error_summary, h.log_reference,
                 h.schedule_id, h.generated_at,
                 s.name AS schedule_name
-           FROM report_notifications n
-           JOIN report_history h ON h.id = n.history_id
-           LEFT JOIN report_schedules s ON s.id = h.schedule_id
+           FROM reportes.report_notifications n
+           JOIN reportes.report_history h ON h.id = n.history_id
+           LEFT JOIN reportes.report_schedules s ON s.id = h.schedule_id
           WHERE n.status = 'pending' AND n.next_attempt_at <= now()
           ORDER BY n.next_attempt_at
           LIMIT $1`,
@@ -184,7 +184,7 @@ async function avisosPendientes(limite) {
 /** Aviso entregado. */
 async function marcarAvisoEnviado(fila) {
     return db.query(
-                `UPDATE report_notifications
+                `UPDATE reportes.report_notifications
                     SET status = 'sent', attempts = attempts + 1, sent_at = now(), last_error = NULL
                   WHERE id = $1`,
                 [fila.id]
@@ -194,7 +194,7 @@ async function marcarAvisoEnviado(fila) {
 /** Aviso fallido: reintento con backoff o 'failed' si se agoto. */
 async function reprogramarAviso(fila, estado, intentos, error, espera) {
     return db.query(
-                `UPDATE report_notifications
+                `UPDATE reportes.report_notifications
                     SET status = $2,
                         attempts = $3,
                         last_error = $4,
@@ -210,10 +210,10 @@ async function listarProgramaciones() {
         `SELECT s.id, s.name, s.report_type, s.frequency, s.format, s.params,
                 s.subscriber_roles, s.is_active, s.next_run_at, s.last_run_at,
                 s.created_at, s.updated_at,
-                (SELECT COUNT(*)::int FROM report_history h WHERE h.schedule_id = s.id) AS generados,
-                (SELECT MAX(h.generated_at) FROM report_history h
+                (SELECT COUNT(*)::int FROM reportes.report_history h WHERE h.schedule_id = s.id) AS generados,
+                (SELECT MAX(h.generated_at) FROM reportes.report_history h
                   WHERE h.schedule_id = s.id AND h.status = 'success') AS ultimo_exitoso
-           FROM report_schedules s
+           FROM reportes.report_schedules s
           ORDER BY s.is_active DESC, s.next_run_at`
     );
     return rows;
@@ -224,7 +224,7 @@ async function buscarProgramacion(id) {
     const { rows } = await db.query(
         `SELECT id, name, report_type, frequency, format, params,
                 subscriber_roles, is_active, next_run_at
-           FROM report_schedules
+           FROM reportes.report_schedules
           WHERE id = $1`,
         [id]
     );
@@ -234,7 +234,7 @@ async function buscarProgramacion(id) {
 /** Alta de una programacion. */
 async function insertarProgramacion(valores, userId) {
     const { rows } = await db.query(
-        `INSERT INTO report_schedules
+        `INSERT INTO reportes.report_schedules
             (name, report_type, frequency, format, params, subscriber_roles, next_run_at, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()), $8)
          RETURNING *`,
@@ -248,7 +248,7 @@ async function insertarProgramacion(valores, userId) {
 /** Generacion del historial (para descargar su archivo). */
 async function generacionDe(historyId) {
     const { rows } = await db.query(
-        `SELECT id, file_location, status, type, period FROM report_history WHERE id = $1`,
+        `SELECT id, file_location, status, type, period FROM reportes.report_history WHERE id = $1`,
         [historyId]
     );
     return rows;

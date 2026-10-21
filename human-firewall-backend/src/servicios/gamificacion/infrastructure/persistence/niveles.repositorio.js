@@ -15,7 +15,7 @@ const q = (tx) => tx || db;
 async function escalera() {
     const { rows } = await db.query(
         `SELECT level, name, description, icon_url, min_points
-           FROM levels_config
+           FROM gamificacion.levels_config
           WHERE is_active = true
           ORDER BY min_points ASC, level ASC`
     );
@@ -25,7 +25,7 @@ async function escalera() {
 /** Total acumulado del usuario, leido del historial (vista) y no de la cache. */
 async function puntosDe(userId) {
     const { rows } = await db.query(
-        `SELECT COALESCE(total_points, 0) AS total FROM v_user_points WHERE user_id = $1`,
+        `SELECT COALESCE(total_points, 0) AS total FROM gamificacion.v_user_points WHERE user_id = $1`,
         [userId]
     );
     // Un usuario sin ningun movimiento no aparece en la vista: tiene 0 puntos.
@@ -36,7 +36,7 @@ async function puntosDe(userId) {
 async function historialDe(userId) {
     const { rows } = await db.query(
         `SELECT level, level_name, min_points, points_at, reached_at
-           FROM user_level_history
+           FROM gamificacion.user_level_history
           WHERE user_id = $1
           ORDER BY level DESC`,
         [userId]
@@ -47,7 +47,7 @@ async function historialDe(userId) {
 /** Registra que alcanzo un nivel. true si es nuevo, false si ya estaba. */
 async function registrarNivelAlcanzado({ userId, nivel, puntos }, tx) {
     const { rows } = await q(tx).query(
-        `INSERT INTO user_level_history (user_id, level, level_name, min_points, points_at)
+        `INSERT INTO gamificacion.user_level_history (user_id, level, level_name, min_points, points_at)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (user_id, level) DO NOTHING
          RETURNING level`,
@@ -63,7 +63,7 @@ async function registrarNivelAlcanzado({ userId, nivel, puntos }, tx) {
  */
 async function guardarNivelEnCache(userId, nivel, tx) {
     await q(tx).query(
-        `UPDATE users SET level = $1 WHERE id = $2 AND level IS DISTINCT FROM $1`,
+        `UPDATE identidad.users SET level = $1 WHERE id = $2 AND level IS DISTINCT FROM $1`,
         [nivel, userId]
     );
 }

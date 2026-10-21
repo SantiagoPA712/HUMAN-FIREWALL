@@ -23,7 +23,7 @@ Version del contrato publico: **1.1.0**. Contrato navegable en `/api/docs`.
 Cuentas de usuario, autenticacion (correo/contrasena y Google), recuperacion de contrasena, roles, perfil propio, equipos e invitaciones.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/identidad/`
-- **Tablas propias:** `users`, `password_reset_tokens`, `user_invitations`, `user_invitation_events`, `teams`
+- **Tablas propias:** `identidad.users`, `identidad.password_reset_tokens`, `identidad.user_invitations`, `identidad.user_invitation_events`, `identidad.teams`
 - **Publica:** `user.registered`, `user.password_changed`, `user.invited`
 - **Consume:** -
 - **Depende de (por contrato interno):** seguridad, notificaciones
@@ -115,7 +115,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Catalogo de cursos y lecciones, asignacion de cursos a usuarios, progreso por leccion, cierre del curso al completar la ultima leccion y aviso de fechas limite proximas.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/cursos/`
-- **Tablas propias:** `courses`, `course_contents`, `course_assignments`, `lesson_progress`
+- **Tablas propias:** `cursos.courses`, `cursos.course_contents`, `cursos.course_assignments`, `cursos.lesson_progress`
 - **Publica:** `course.assigned`, `lesson.completed`, `course.completed`, `course.deadline_approaching`
 - **Consume:** -
 - **Depende de (por contrato interno):** -
@@ -160,7 +160,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 **domain/** — Domain: entidades y reglas de negocio
 
-- `domain/curso.js` — Reglas del dominio de cursos.
+- `domain/curso.js` — Curso (servicio de cursos).
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
@@ -177,7 +177,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal y el historial de intentos de evaluacion con su puntaje calculado en el servidor.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/evaluaciones/`
-- **Tablas propias:** `simulations`, `simulation_steps`, `simulation_options`, `simulation_results`, `challenges`, `user_challenge_results`, `quiz_attempts`
+- **Tablas propias:** `evaluaciones.simulations`, `evaluaciones.simulation_steps`, `evaluaciones.simulation_options`, `evaluaciones.simulation_results`, `evaluaciones.challenges`, `evaluaciones.user_challenge_results`, `evaluaciones.quiz_attempts`
 - **Publica:** `simulation.decision_made`, `simulation.completed`, `quiz.approved`, `quiz.failed`
 - **Consume:** -
 - **Depende de (por contrato interno):** cursos, gamificacion
@@ -245,7 +245,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking y recomendaciones de refuerzo segun el desempeno.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/gamificacion/`
-- **Tablas propias:** `points_ledger`, `points_rules`, `v_user_points`, `rewards_catalog`, `user_rewards`, `badges`, `user_badges`, `levels_config`, `user_level_history`, `recommendation_rules`, `user_recommendations`
+- **Tablas propias:** `gamificacion.points_ledger`, `gamificacion.points_rules`, `gamificacion.v_user_points`, `gamificacion.rewards_catalog`, `gamificacion.user_rewards`, `gamificacion.badges`, `gamificacion.user_badges`, `gamificacion.levels_config`, `gamificacion.user_level_history`, `gamificacion.recommendation_rules`, `gamificacion.user_recommendations`
 - **Publica:** `points_assigned`, `level_up`, `reward_granted`
 - **Consume:** `lesson.completed`, `quiz.approved`, `course.completed`, `simulation.decision_made`, `simulation.completed`, `points_assigned`
 - **Depende de (por contrato interno):** identidad, cursos, evaluaciones, seguridad
@@ -255,10 +255,10 @@ Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking
 
 | Tipo | Tablas | Dueno | Motivo |
 |------|--------|-------|--------|
-| lee | `users` | identidad | El ranking ordena por las columnas de cache total_points y level, que vive en users y mantiene este mismo servicio (ver escriturasCompartidas). |
-| lee | `quiz_attempts`, `challenges`, `simulations` | evaluaciones | El resumen de desempeno y las recomendaciones agregan el historial de intentos en una sola consulta. Es una proyeccion de lectura: nunca escribe en esas tablas. |
-| lee | `courses`, `course_contents`, `course_assignments`, `lesson_progress` | cursos | Mismo caso: el avance por curso del resumen de desempeno se calcula con un JOIN. |
-| escribe | `users` (total_points, level) | identidad | Cache desnormalizada del total y del nivel. La fuente de verdad es points_ledger; identidad no escribe nunca estas dos columnas. |
+| lee | `identidad.users` | identidad | El ranking ordena por las columnas de cache total_points y level, que vive en users y mantiene este mismo servicio (ver escriturasCompartidas). |
+| lee | `evaluaciones.quiz_attempts`, `evaluaciones.challenges`, `evaluaciones.simulations` | evaluaciones | El resumen de desempeno y las recomendaciones agregan el historial de intentos en una sola consulta. Es una proyeccion de lectura: nunca escribe en esas tablas. |
+| lee | `cursos.courses`, `cursos.course_contents`, `cursos.course_assignments`, `cursos.lesson_progress` | cursos | Mismo caso: el avance por curso del resumen de desempeno se calcula con un JOIN. |
+| escribe | `identidad.users` (total_points, level) | identidad | Cache desnormalizada del total y del nivel. La fuente de verdad es points_ledger; identidad no escribe nunca estas dos columnas. |
 
 ### Endpoints
 
@@ -336,7 +336,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Avisos in-app, notificacion de resultados (con alerta a RH en cursos criticos), preferencias por canal y cola de correo con plantillas versionadas e idioma.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/notificaciones/`
-- **Tablas propias:** `notifications`, `notification_deliveries`, `notification_preferences`, `email_jobs`, `email_job_attempts`, `email_notification_types`, `email_preferences`, `email_templates`
+- **Tablas propias:** `notificaciones.notifications`, `notificaciones.notification_deliveries`, `notificaciones.notification_preferences`, `notificaciones.email_jobs`, `notificaciones.email_job_attempts`, `notificaciones.email_notification_types`, `notificaciones.email_preferences`, `notificaciones.email_templates`
 - **Publica:** -
 - **Consume:** `user.registered`, `level_up`, `reward_granted`, `quiz.approved`, `quiz.failed`, `course.completed`, `simulation.completed`, `course.assigned`, `course.deadline_approaching`, `user.password_changed`, `user.invited`
 - **Depende de (por contrato interno):** identidad, cursos, evaluaciones
@@ -416,7 +416,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos programados con su historico y consolidado organizacional para gerencia.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/reportes/`
-- **Tablas propias:** `report_exports`, `report_schedules`, `report_history`, `report_notifications`, `org_kpi_snapshots`, `org_report_access_log`
+- **Tablas propias:** `reportes.report_exports`, `reportes.report_schedules`, `reportes.report_history`, `reportes.report_notifications`, `reportes.org_kpi_snapshots`, `reportes.org_report_access_log`
 - **Publica:** `report.export_requested`, `report.scheduled_run`, `report.auto_generated`
 - **Consume:** `report.export_requested`, `report.scheduled_run`, `report.auto_generated`
 - **Depende de (por contrato interno):** gamificacion, notificaciones, seguridad
@@ -426,10 +426,10 @@ Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos progr
 
 | Tipo | Tablas | Dueno | Motivo |
 |------|--------|-------|--------|
-| lee | `users`, `teams` | identidad | Servicio de lectura analitica: los reportes agregan por persona y por equipo en SQL. Solo lee; no escribe nunca fuera de sus tablas. |
-| lee | `points_ledger` | gamificacion | Los snapshots organizacionales se recalculan por un job sobre el historial de puntos. |
-| lee | `quiz_attempts` | evaluaciones | Tasa de aprobacion por periodo y por equipo. |
-| lee | `courses`, `course_assignments`, `lesson_progress` | cursos | Avance y cumplimiento de cursos por periodo y por equipo. |
+| lee | `identidad.users`, `identidad.teams` | identidad | Servicio de lectura analitica: los reportes agregan por persona y por equipo en SQL. Solo lee; no escribe nunca fuera de sus tablas. |
+| lee | `gamificacion.points_ledger` | gamificacion | Los snapshots organizacionales se recalculan por un job sobre el historial de puntos. |
+| lee | `evaluaciones.quiz_attempts` | evaluaciones | Tasa de aprobacion por periodo y por equipo. |
+| lee | `cursos.courses`, `cursos.course_assignments`, `cursos.lesson_progress` | cursos | Avance y cumplimiento de cursos por periodo y por equipo. |
 
 ### Endpoints
 
@@ -503,7 +503,7 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y registro centralizado e inmutable de acciones criticas (data.logs).
 
 - **Carpeta:** `human-firewall-backend/src/servicios/seguridad/`
-- **Tablas propias:** `anomaly_rules`, `anomaly_events`, `anomaly_status_history`, `audit_log`, `data.logs`, `data.logs_purges`, `activity_logs`
+- **Tablas propias:** `seguridad.anomaly_rules`, `seguridad.anomaly_events`, `seguridad.anomaly_status_history`, `seguridad.audit_log`, `data.logs`, `data.logs_purges`, `seguridad.activity_logs`
 - **Publica:** `audit.log_recorded`
 - **Consume:** `points_assigned`, `audit.log_recorded`
 - **Depende de (por contrato interno):** identidad, gamificacion
@@ -513,8 +513,8 @@ Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y regist
 
 | Tipo | Tablas | Dueno | Motivo |
 |------|--------|-------|--------|
-| lee | `points_ledger` | gamificacion | La deteccion de anomalias analiza ventanas de movimientos del historial de puntos. Solo lee: los ajustes manuales se aplican por el contrato de gamificacion. |
-| lee | `users` | identidad | Los listados del panel muestran el correo del actor y del afectado con un JOIN. |
+| lee | `gamificacion.points_ledger` | gamificacion | La deteccion de anomalias analiza ventanas de movimientos del historial de puntos. Solo lee: los ajustes manuales se aplican por el contrato de gamificacion. |
+| lee | `identidad.users` | identidad | Los listados del panel muestran el correo del actor y del afectado con un JOIN. |
 
 ### Endpoints
 

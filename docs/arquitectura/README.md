@@ -47,7 +47,9 @@ coordinacion de despliegues.
   |        |   contrato interno (index.js)   |   eventos (event_outbox)    |
   +--------|---------------------------------|-----------------------------+
            v                                 v
-                         PostgreSQL (un esquema, un dueno por tabla)
+          PostgreSQL: una base, un esquema por servicio
+          (identidad.*, cursos.*, evaluaciones.*, gamificacion.*,
+           notificaciones.*, reportes.*, seguridad.* + data.*)
 ```
 
 ---
@@ -191,12 +193,25 @@ human-firewall-backend/src/
 | **contract/** | El OpenAPI de la API publica del servicio | Logica |
 
 Ningun controlador tiene SQL ni usa un repositorio: todos pasan por
-`application/`. En identidad y cursos todo el SQL ya esta en
-`infrastructure/persistence/`. En los servicios de aplicacion mas grandes
-(puntos, recompensas, notificaciones, reportes, seguridad) parte del SQL sigue
-dentro del servicio de aplicacion; moverlo a repositorios es el paso
-siguiente. La regla para el codigo nuevo es: **el SQL nuevo va en un
-repositorio de `infrastructure/persistence/`.**
+`application/`. Y `application/` tampoco tiene SQL ni importa el pool de
+conexiones: **todo el SQL de los siete servicios esta en
+`infrastructure/persistence/`**, con un repositorio por agregado
+(`usuarios.repositorio.js`, `puntos.repositorio.js`, `logs.repositorio.js`...).
+Cuando un caso de uso necesita una transaccion (por ejemplo, otorgar puntos y
+publicar `points_assigned` juntos), application la abre con
+`compartido/config/transaccion.js` y le pasa el cliente `tx` a los
+repositorios:
+
+```js
+// application/points.service.js
+return conTransaccion(async (tx) => {
+    const movimiento = await repo.insertarMovimiento({ ... }, tx);
+    if (!movimiento) return null;                 // ya se habia otorgado
+    await repo.recalcularTotalEnCache(userId, tx);
+    await eventBus.publish(EVENTOS.POINTS_ASSIGNED, { ... }, tx);
+    return movimiento;
+});
+```
 
 ---
 
@@ -208,6 +223,9 @@ alguien las rompe, la prueba dice en que archivo.
 1. **Ningun controlador ni archivo de rutas importa la base** ni tiene SQL,
    y no usa repositorios ni otros servicios: delega en `application/`.
 2. **El dominio no importa nada fuera del dominio** y no tiene SQL.
+   **Application no importa el pool ni tiene SQL**: el SQL esta solo en
+   `infrastructure/persistence/`, siempre con el esquema
+   (`identidad.users`).
 3. **Cada servicio tiene controller, application, domain, infrastructure y
    `config/configuracion.js`**, y las variables de entorno se leen solo en su
    `config/` (o en `compartido/config`).
@@ -279,9 +297,41 @@ Cada servicio monta su propio router; ninguna URL cambio.
 
 ## 6. Datos
 
-Todos los servicios comparten una base PostgreSQL (es un solo despliegue),
-pero cada tabla tiene **un dueno**: el unico servicio que la escribe y el
-que decide su forma. La lista esta en el `manifiesto.js` de cada servicio y en
+**Una base PostgreSQL, un esquema por servicio** (migracion
+`090_esquemas_por_servicio.sql`). Es el punto medio entre "una base
+compartida sin limites" y "una base por servicio": el sistema se despliega
+como un solo proceso, pero los datos de cada microservicio estan separados en
+la base y no solo en el codigo.
+
+| Esquema | Servicio | Tablas |
+|---------|----------|--------|
+| `identidad` | identidad | users, teams, password_reset_tokens, user_invitations, user_invitation_events |
+| `cursos` | cursos | courses, course_contents, course_assignments, lesson_progress |
+| `evaluaciones` | evaluaciones | simulations, simulation_steps, simulation_options, simulation_results, challenges, user_challenge_results, quiz_attempts |
+| `gamificacion` | gamificacion | points_ledger, points_rules, v_user_points (vista), rewards_catalog, user_rewards, levels_config, user_level_history, recommendation_rules, user_recommendations |
+| `notificaciones` | notificaciones | notifications, notification_deliveries, notification_preferences, email_jobs, email_job_attempts, email_notification_types, email_preferences, email_templates |
+| `reportes` | reportes | report_exports, report_schedules, report_history, report_notifications, org_kpi_snapshots, org_report_access_log |
+| `seguridad` y `data` | seguridad | anomaly_rules, anomaly_events, anomaly_status_history, audit_log, activity_logs; data.logs, data.logs_purges |
+| `public` | plataforma | event_outbox (bus de eventos), schema_migrations (runner) |
+
+Como se usa:
+
+- Los repositorios escriben **siempre** el nombre calificado:
+  `SELECT ... FROM identidad.users`. Asi se lee de que servicio es cada dato
+  que toca una consulta, y la prueba de arquitectura lo comprueba.
+- Cada `manifiesto.js` declara sus `esquemas` y sus `tablas` con esquema. La
+  prueba falla si una tabla no vive en el esquema de su servicio, si dos
+  servicios declaran el mismo esquema o si una consulta usa una tabla sin
+  esquema.
+- La migracion 090 fija el `search_path` de la base (y `db.js` lo repite al
+  conectar) con todos los esquemas, como red de seguridad para SQL sin
+  calificar: las migraciones viejas, las funciones de los triggers y las
+  consultas a mano siguen funcionando.
+- Mover las tablas no copia ni borra datos: `ALTER TABLE ... SET SCHEMA` solo
+  cambia el esquema; indices, llaves foraneas y secuencias van con la tabla.
+
+Cada tabla tiene **un dueno**: el unico servicio que la escribe y el que
+decide su forma. La lista esta en el `manifiesto.js` de cada servicio y en
 [`SERVICIOS.md`](SERVICIOS.md).
 
 Cuando esta HU empezo habia servicios escribiendo en tablas ajenas. Se
@@ -299,15 +349,18 @@ los conteos que usan las recompensas, la existencia de un usuario.
 
 Quedan **excepciones declaradas**, cada una con su motivo en el manifiesto:
 
-- **Escritura:** `users.total_points` y `users.level`, cache que mantiene
-  gamificacion (la fuente de verdad es `points_ledger`).
+- **Escritura:** `identidad.users.total_points` y `identidad.users.level`,
+  cache que mantiene gamificacion (la fuente de verdad es
+  `gamificacion.points_ledger`).
 - **Lecturas analiticas:** reportes agrega datos de varios servicios en SQL;
   gamificacion arma el resumen de desempeno con un JOIN a intentos y cursos;
   seguridad analiza ventanas de `points_ledger` y muestra correos con un JOIN.
 
 Son lecturas, nunca escrituras, y la prueba de arquitectura impide que
-aparezca una nueva sin declararla. Si algun dia se separa la base, cada una
-se reemplaza por una proyeccion propia alimentada por eventos.
+aparezca una nueva sin declararla. Con los esquemas, el siguiente paso hacia
+una base por servicio es mecanico: cada esquema se lleva a su propia base y
+cada una de estas lecturas se reemplaza por una proyeccion propia alimentada
+por eventos.
 
 ---
 
@@ -470,7 +523,8 @@ notificaciones a su propio proceso:
 2. Los eventos que consume dejan de leerse del outbox local y pasan por un
    broker (RabbitMQ, SNS/SQS); el patron outbox se mantiene del lado de quien
    publica.
-3. Sus tablas pasan a su propia base; sus lecturas de tablas ajenas ya son
+3. Su esquema (`notificaciones.*`) pasa entero a su propia base
+   (`pg_dump --schema=notificaciones`); sus lecturas de tablas ajenas ya son
    llamadas por contrato, asi que no hay JOINs que romper.
 4. El contrato publico (`contract/openapi.js`) no cambia; delante de los
    servicios va un API Gateway que enruta por prefijo, la tabla de la seccion 5.

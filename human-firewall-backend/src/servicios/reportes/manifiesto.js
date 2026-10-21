@@ -5,29 +5,31 @@ module.exports = {
         'Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos ' +
         'programados con su historico y consolidado organizacional para gerencia.',
     prefijos: ['/api/gamification/reports'],
+    // Esquemas de PostgreSQL del servicio (migracion 090). Sus tablas viven ahi.
+    esquemas: ['reportes'],
     tablas: [
-        'report_exports', 'report_schedules', 'report_history', 'report_notifications',
-        'org_kpi_snapshots', 'org_report_access_log'
+        'reportes.report_exports', 'reportes.report_schedules', 'reportes.report_history', 'reportes.report_notifications',
+        'reportes.org_kpi_snapshots', 'reportes.org_report_access_log'
     ],
     publica: ['report.export_requested', 'report.scheduled_run', 'report.auto_generated'],
     consume: ['report.export_requested', 'report.scheduled_run', 'report.auto_generated'],
     dependeDe: ['gamificacion', 'notificaciones', 'seguridad'],
     lecturasCompartidas: [
         {
-            tablas: ['users', 'teams'], servicio: 'identidad',
+            tablas: ['identidad.users', 'identidad.teams'], servicio: 'identidad',
             motivo: 'Servicio de lectura analitica: los reportes agregan por persona y por equipo ' +
                     'en SQL. Solo lee; no escribe nunca fuera de sus tablas.'
         },
         {
-            tablas: ['points_ledger'], servicio: 'gamificacion',
+            tablas: ['gamificacion.points_ledger'], servicio: 'gamificacion',
             motivo: 'Los snapshots organizacionales se recalculan por un job sobre el historial de puntos.'
         },
         {
-            tablas: ['quiz_attempts'], servicio: 'evaluaciones',
+            tablas: ['evaluaciones.quiz_attempts'], servicio: 'evaluaciones',
             motivo: 'Tasa de aprobacion por periodo y por equipo.'
         },
         {
-            tablas: ['courses', 'course_assignments', 'lesson_progress'], servicio: 'cursos',
+            tablas: ['cursos.courses', 'cursos.course_assignments', 'cursos.lesson_progress'], servicio: 'cursos',
             motivo: 'Avance y cumplimiento de cursos por periodo y por equipo.'
         }
     ],

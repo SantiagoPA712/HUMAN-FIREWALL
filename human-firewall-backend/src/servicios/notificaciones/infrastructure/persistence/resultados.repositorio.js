@@ -15,7 +15,7 @@ const q = (tx) => tx || db;
 /** Preferencias por canal (in_app, email) del usuario. */
 async function canalesDe(userId) {
     const { rows } = await db.query(
-        'SELECT channel, enabled FROM notification_preferences WHERE user_id = $1',
+        'SELECT channel, enabled FROM notificaciones.notification_preferences WHERE user_id = $1',
         [userId]
     );
     return rows;
@@ -24,7 +24,7 @@ async function canalesDe(userId) {
 /** UPSERT de la preferencia de un canal. */
 async function guardarCanal(userId, canal, habilitado) {
     return db.query(
-            `INSERT INTO notification_preferences (user_id, channel, enabled)
+            `INSERT INTO notificaciones.notification_preferences (user_id, channel, enabled)
              VALUES ($1, $2, $3)
              ON CONFLICT (user_id, channel)
              DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`,
@@ -44,7 +44,7 @@ const COLUMNA_DE_FECHA = {
 async function insertarEntrega(notificationId, canal, estado, error) {
     const columnaFecha = COLUMNA_DE_FECHA[estado];
     const { rows } = await db.query(
-        `INSERT INTO notification_deliveries (notification_id, channel, status, error, ${columnaFecha})
+        `INSERT INTO notificaciones.notification_deliveries (notification_id, channel, status, error, ${columnaFecha})
          VALUES ($1, $2, $3, $4, now())
          ON CONFLICT (notification_id, channel) DO NOTHING
          RETURNING id, channel, status`,
@@ -56,7 +56,7 @@ async function insertarEntrega(notificationId, canal, estado, error) {
 /** Id del aviso con esa clave de deduplicacion. */
 async function idPorDedupe(dedupeKey) {
     const { rows } = await db.query(
-        'SELECT id FROM notifications WHERE dedupe_key = $1', [dedupeKey]
+        'SELECT id FROM notificaciones.notifications WHERE dedupe_key = $1', [dedupeKey]
     );
     return rows;
 }
@@ -75,10 +75,10 @@ async function centroDe(userId, EVENTOS_DE_RESULTADO, soloNoLeidas, limit) {
                     ) FILTER (WHERE d.id IS NOT NULL),
                     '[]'
                 ) AS canales
-           FROM notifications n
-           JOIN notification_deliveries app
+           FROM notificaciones.notifications n
+           JOIN notificaciones.notification_deliveries app
              ON app.notification_id = n.id AND app.channel = 'in_app'
-           LEFT JOIN notification_deliveries d ON d.notification_id = n.id
+           LEFT JOIN notificaciones.notification_deliveries d ON d.notification_id = n.id
           WHERE n.user_id = $1
             AND n.event_name = ANY($2::text[])
             AND ($3::boolean = false OR app.status <> 'leida')
@@ -94,8 +94,8 @@ async function centroDe(userId, EVENTOS_DE_RESULTADO, soloNoLeidas, limit) {
 async function contarResultadosNoLeidos(userId, EVENTOS_DE_RESULTADO) {
     return db.query(
         `SELECT COUNT(*)::int AS no_leidas
-           FROM notifications n
-           JOIN notification_deliveries app
+           FROM notificaciones.notifications n
+           JOIN notificaciones.notification_deliveries app
              ON app.notification_id = n.id AND app.channel = 'in_app'
           WHERE n.user_id = $1
             AND n.event_name = ANY($2::text[])
@@ -107,7 +107,7 @@ async function contarResultadosNoLeidos(userId, EVENTOS_DE_RESULTADO) {
 /** Marca como leidos todos los avisos de resultado del usuario. */
 async function marcarResultadosLeidos(userId, EVENTOS_DE_RESULTADO) {
     const { rows } = await db.query(
-        `UPDATE notifications
+        `UPDATE notificaciones.notifications
             SET read_at = now()
           WHERE user_id = $1
             AND event_name = ANY($2::text[])
@@ -121,9 +121,9 @@ async function marcarResultadosLeidos(userId, EVENTOS_DE_RESULTADO) {
 /** Pasa a 'leida' la entrega in-app de esos avisos. */
 async function marcarEntregasLeidas(userId, EVENTOS_DE_RESULTADO) {
     const { rows } = await db.query(
-        `UPDATE notification_deliveries d
+        `UPDATE notificaciones.notification_deliveries d
             SET status = 'leida', read_at = now()
-           FROM notifications n
+           FROM notificaciones.notifications n
           WHERE d.notification_id = n.id
             AND n.user_id = $1
             AND n.event_name = ANY($2::text[])

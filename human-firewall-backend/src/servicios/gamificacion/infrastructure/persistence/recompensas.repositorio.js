@@ -12,7 +12,7 @@ const q = (tx) => tx || db;
 /** Puntos acumulados (vista v_user_points). */
 async function puntosTotales(userId) {
     const { rows } = await db.query(
-        `SELECT COALESCE(total_points, 0) AS valor FROM v_user_points WHERE user_id = $1`,
+        `SELECT COALESCE(total_points, 0) AS valor FROM gamificacion.v_user_points WHERE user_id = $1`,
         [userId]
     );
     return rows[0]?.valor || 0;
@@ -22,7 +22,7 @@ async function puntosTotales(userId) {
 async function catalogoActivo() {
     const { rows } = await db.query(
         `SELECT id, name, description, icon_url, condition_type, condition_params, is_repeatable
-           FROM rewards_catalog
+           FROM gamificacion.rewards_catalog
           WHERE is_active = true
           ORDER BY id`
     );
@@ -35,7 +35,7 @@ async function catalogoActivo() {
  */
 async function insertarOtorgada({ userId, recompensa, sourceType, sourceId, snapshot, dedupeKey }, tx) {
     const { rows } = await q(tx).query(
-        `INSERT INTO user_rewards
+        `INSERT INTO gamificacion.user_rewards
             (user_id, reward_id, reward_name, reward_description, reward_icon_url,
              source_type, source_id, condition_snapshot, dedupe_key)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -63,7 +63,7 @@ async function resumenPorUsuarios(userIds, { from = null, to = null } = {}) {
                 COUNT(*)::int                    AS total,
                 ARRAY_AGG(reward_name ORDER BY earned_at DESC) AS nombres,
                 MAX(earned_at)                   AS ultima
-           FROM user_rewards
+           FROM gamificacion.user_rewards
           WHERE user_id = ANY($1::int[])
             AND ($2::timestamptz IS NULL OR earned_at >= $2::timestamptz)
             AND ($3::timestamptz IS NULL OR earned_at < ($3::timestamptz + interval '1 day'))
@@ -78,7 +78,7 @@ async function obtenidasPor(userId) {
     const { rows } = await db.query(
         `SELECT id, reward_id, reward_name, reward_description, reward_icon_url,
                 source_type, source_id, condition_snapshot, earned_at
-           FROM user_rewards
+           FROM gamificacion.user_rewards
           WHERE user_id = $1
           ORDER BY earned_at DESC`,
         [userId]

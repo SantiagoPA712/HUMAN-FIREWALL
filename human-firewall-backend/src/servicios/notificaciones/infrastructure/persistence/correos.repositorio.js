@@ -18,7 +18,7 @@ const q = (tx) => tx || db;
  */
 async function bloquearSiguientePendiente(tx) {
     const { rows } = await q(tx).query(
-        `SELECT id FROM email_jobs
+        `SELECT id FROM notificaciones.email_jobs
           WHERE status = 'pending' AND next_attempt_at <= now()
           ORDER BY next_attempt_at, id
           FOR UPDATE SKIP LOCKED
@@ -34,7 +34,7 @@ async function bloquearSiguientePendiente(tx) {
  */
 async function marcarProcesando(id, tx) {
     const { rows } = await q(tx).query(
-        `UPDATE email_jobs
+        `UPDATE notificaciones.email_jobs
             SET status = 'processing', attempts = attempts + 1, next_attempt_at = now()
           WHERE id = $1
           RETURNING id, user_id, notification_type, notification_id, to_email,
@@ -46,7 +46,7 @@ async function marcarProcesando(id, tx) {
 /** Tipo de correo del catalogo (email_notification_types). */
 async function tipoDeCorreo(tipo) {
     const { rows } = await db.query(
-        'SELECT code, is_critical, description FROM email_notification_types WHERE code = $1',
+        'SELECT code, is_critical, description FROM notificaciones.email_notification_types WHERE code = $1',
         [tipo]
     );
     return rows;
@@ -56,9 +56,9 @@ async function tipoDeCorreo(tipo) {
 async function preferenciaDeCorreo(userId, tipo) {
     const { rows } = await db.query(
         `SELECT
-            COALESCE((SELECT enabled FROM notification_preferences
+            COALESCE((SELECT enabled FROM notificaciones.notification_preferences
                        WHERE user_id = $1 AND channel = 'email'), true) AS canal,
-            COALESCE((SELECT enabled FROM email_preferences
+            COALESCE((SELECT enabled FROM notificaciones.email_preferences
                        WHERE user_id = $1 AND notification_type = $2), true) AS tipo`,
         [userId, tipo]
     );
@@ -70,8 +70,8 @@ async function preferenciasPorTipo(userId) {
     const { rows } = await db.query(
         `SELECT t.code, t.is_critical, t.description,
                 COALESCE(p.enabled, true) AS enabled
-           FROM email_notification_types t
-           LEFT JOIN email_preferences p
+           FROM notificaciones.email_notification_types t
+           LEFT JOIN notificaciones.email_preferences p
                   ON p.notification_type = t.code AND p.user_id = $1
           WHERE t.user_configurable
           ORDER BY t.is_critical DESC, t.code`,
@@ -83,7 +83,7 @@ async function preferenciasPorTipo(userId) {
 /** Preferencia del canal de correo en general. */
 async function canalDeCorreo(userId) {
     return db.query(
-        `SELECT enabled FROM notification_preferences WHERE user_id = $1 AND channel = 'email'`,
+        `SELECT enabled FROM notificaciones.notification_preferences WHERE user_id = $1 AND channel = 'email'`,
         [userId]
     );
 }
@@ -91,7 +91,7 @@ async function canalDeCorreo(userId) {
 /** Tipos de correo que el usuario puede activar o desactivar. */
 async function tiposConfigurables() {
     const { rows } = await db.query(
-            'SELECT code, is_critical FROM email_notification_types WHERE user_configurable'
+            'SELECT code, is_critical FROM notificaciones.email_notification_types WHERE user_configurable'
         );
     return rows;
 }
@@ -99,7 +99,7 @@ async function tiposConfigurables() {
 /** UPSERT de la preferencia de un tipo de correo. */
 async function guardarPreferencia(userId, tipo, valor) {
     return db.query(
-            `INSERT INTO email_preferences (user_id, notification_type, enabled)
+            `INSERT INTO notificaciones.email_preferences (user_id, notification_type, enabled)
              VALUES ($1, $2, $3)
              ON CONFLICT (user_id, notification_type)
              DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`,
@@ -110,7 +110,7 @@ async function guardarPreferencia(userId, tipo, valor) {
 /** Registra un job 'undeliverable' (destinatario sin correo valido). Idempotente por dedupe_key. */
 async function encolarNoEntregable(userId, tipo, dedupeKey, notificationId, usuario, idiomaPedido) {
     const { rows } = await db.query(
-            `INSERT INTO email_jobs
+            `INSERT INTO notificaciones.email_jobs
                  (user_id, notification_type, dedupe_key, notification_id, to_email,
                   language, status, max_attempts, last_error, finished_at)
              VALUES ($1, $2, $3, $4, $5, $6, 'undeliverable', 0, $7, now())
@@ -125,7 +125,7 @@ async function encolarNoEntregable(userId, tipo, dedupeKey, notificationId, usua
 /** Encola un correo ya renderizado. Idempotente por dedupe_key. */
 async function encolar(userId, tipo, dedupeKey, notificationId, usuario, plantilla, contenido, MAX_INTENTOS) {
     const { rows } = await db.query(
-        `INSERT INTO email_jobs
+        `INSERT INTO notificaciones.email_jobs
              (user_id, notification_type, dedupe_key, notification_id, to_email, language,
               template_id, template_version, subject, body_html, body_text, max_attempts)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -143,7 +143,7 @@ async function reflejarEntrega(job, estado, error) {
     // La columna de fecha depende del resultado; no viene del usuario.
     const columna = estado === 'entregada' ? 'delivered_at' : 'failed_at';
     return db.query(
-        `INSERT INTO notification_deliveries (notification_id, channel, status, error, ${columna})
+        `INSERT INTO notificaciones.notification_deliveries (notification_id, channel, status, error, ${columna})
          VALUES ($1, 'email', $2, $3, now())
          ON CONFLICT (notification_id, channel) DO UPDATE
             SET status = EXCLUDED.status,
@@ -157,7 +157,7 @@ async function reflejarEntrega(job, estado, error) {
 /** Historial de intentos de un job (uno por numero de intento). */
 async function registrarIntento(job, resultado, codigo, detalle) {
     return db.query(
-        `INSERT INTO email_job_attempts (job_id, attempt_no, outcome, error_code, error_detail)
+        `INSERT INTO notificaciones.email_job_attempts (job_id, attempt_no, outcome, error_code, error_detail)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (job_id, attempt_no) DO NOTHING`,
         [job.id, job.attempts, resultado, codigo, detalle]
@@ -167,7 +167,7 @@ async function registrarIntento(job, resultado, codigo, detalle) {
 /** Job sin SMTP configurado: queda en 'skipped'. */
 async function marcarOmitido(job) {
     return db.query(
-            `UPDATE email_jobs SET status = 'skipped', finished_at = now() WHERE id = $1`,
+            `UPDATE notificaciones.email_jobs SET status = 'skipped', finished_at = now() WHERE id = $1`,
             [job.id]
         );
 }
@@ -175,7 +175,7 @@ async function marcarOmitido(job) {
 /** Job enviado. */
 async function marcarEnviado(job) {
     return db.query(
-            `UPDATE email_jobs
+            `UPDATE notificaciones.email_jobs
                 SET status = 'sent', sent_at = now(), finished_at = now(), last_error = NULL
               WHERE id = $1`,
             [job.id]
@@ -185,7 +185,7 @@ async function marcarEnviado(job) {
 /** Job fallido definitivo. */
 async function marcarFallido(job, detalle) {
     return db.query(
-                `UPDATE email_jobs
+                `UPDATE notificaciones.email_jobs
                     SET status = 'failed', last_error = $2, finished_at = now()
                   WHERE id = $1`,
                 [job.id, detalle]
@@ -195,7 +195,7 @@ async function marcarFallido(job, detalle) {
 /** Vuelve a 'pending' con backoff (segundos de espera). */
 async function reprogramar(job, detalle, espera) {
     return db.query(
-                `UPDATE email_jobs
+                `UPDATE notificaciones.email_jobs
                     SET status = 'pending', last_error = $2,
                         next_attempt_at = now() + ($3 || ' seconds')::interval
                   WHERE id = $1`,
@@ -206,7 +206,7 @@ async function reprogramar(job, detalle, espera) {
 /** Devuelve a 'pending' los jobs que quedaron en 'processing' mas de N minutos. */
 async function devolverHuerfanos(MINUTOS_JOB_HUERFANO) {
     const { rows } = await db.query(
-        `UPDATE email_jobs
+        `UPDATE notificaciones.email_jobs
             SET status = 'pending'
           WHERE status = 'processing'
             AND next_attempt_at < now() - ($1 || ' minutes')::interval
@@ -219,7 +219,7 @@ async function devolverHuerfanos(MINUTOS_JOB_HUERFANO) {
 /** Cantidad de jobs por estado. */
 async function contarPorEstado() {
     const { rows } = await db.query(
-        'SELECT status, COUNT(*)::int AS total FROM email_jobs GROUP BY status'
+        'SELECT status, COUNT(*)::int AS total FROM notificaciones.email_jobs GROUP BY status'
     );
     return rows;
 }
@@ -236,8 +236,8 @@ async function jobsConProblemas() {
                     ) ORDER BY a.attempt_no) FILTER (WHERE a.id IS NOT NULL),
                     '[]'
                 ) AS intentos
-           FROM email_jobs j
-           LEFT JOIN email_job_attempts a ON a.job_id = j.id
+           FROM notificaciones.email_jobs j
+           LEFT JOIN notificaciones.email_job_attempts a ON a.job_id = j.id
           WHERE j.status IN ('failed', 'undeliverable')
           GROUP BY j.id
           ORDER BY j.id DESC

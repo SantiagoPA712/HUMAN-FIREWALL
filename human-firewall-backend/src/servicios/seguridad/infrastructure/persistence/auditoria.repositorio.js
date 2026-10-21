@@ -13,7 +13,7 @@ const q = (tx) => tx || db;
 /** Escribe una entrada de auditoria. previous_value y new_value se guardan como JSON. */
 async function insertar({ actorId, targetUserId, changeType, previousValue, newValue, reason }, tx) {
     const { rows } = await q(tx).query(
-        `INSERT INTO audit_log
+        `INSERT INTO seguridad.audit_log
             (actor_id, target_user_id, change_type, previous_value, new_value, reason)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id, actor_id, target_user_id, change_type, reason, created_at`,
@@ -39,7 +39,7 @@ function filtroDeAuditoria({ actorId = null, targetUserId = null, changeType = n
 
 async function contar(filtros) {
     const { where, params } = filtroDeAuditoria(filtros);
-    const { rows } = await db.query(`SELECT COUNT(*)::int AS total FROM audit_log l ${where}`, params);
+    const { rows } = await db.query(`SELECT COUNT(*)::int AS total FROM seguridad.audit_log l ${where}`, params);
     return rows[0].total;
 }
 
@@ -50,9 +50,9 @@ async function pagina(filtros, { limit, offset }) {
         `SELECT l.id, l.change_type, l.previous_value, l.new_value, l.reason, l.created_at,
                 l.actor_id,  a.email AS actor_email,
                 l.target_user_id, t.email AS target_email
-           FROM audit_log l
-           JOIN users a ON a.id = l.actor_id
-           LEFT JOIN users t ON t.id = l.target_user_id
+           FROM seguridad.audit_log l
+           JOIN identidad.users a ON a.id = l.actor_id
+           LEFT JOIN identidad.users t ON t.id = l.target_user_id
            ${where}
           ORDER BY l.created_at DESC, l.id DESC
           LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,

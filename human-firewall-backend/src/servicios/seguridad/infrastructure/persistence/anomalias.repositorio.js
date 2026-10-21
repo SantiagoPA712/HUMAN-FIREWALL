@@ -27,7 +27,7 @@ function filtroDeAnomalias({ status = null, severity = null, userId = null }) {
 async function contarAnomalias(filtros) {
     const { where, params } = filtroDeAnomalias(filtros);
     const { rows } = await db.query(
-        `SELECT COUNT(*)::int AS total FROM anomaly_events a ${where}`, params
+        `SELECT COUNT(*)::int AS total FROM seguridad.anomaly_events a ${where}`, params
     );
     return rows[0].total;
 }
@@ -41,8 +41,8 @@ async function paginaDeAnomalias(filtros, { limit, offset }) {
                 (a.evidence->>'total_en_ventana')::int AS total_en_ventana,
                 (a.evidence->>'umbral')::int            AS umbral,
                 jsonb_array_length(a.evidence->'movimientos') AS movimientos
-           FROM anomaly_events a
-           JOIN users u ON u.id = a.user_id
+           FROM seguridad.anomaly_events a
+           JOIN identidad.users u ON u.id = a.user_id
            ${where}
           ORDER BY
                 -- Lo grave y sin revisar primero: es el orden en que el area
@@ -59,13 +59,13 @@ async function paginaDeAnomalias(filtros, { limit, offset }) {
 
 /** Lee y bloquea (FOR UPDATE) una anomalia. */
 async function bloquearAnomalia(id, tx) {
-    const { rows } = await q(tx).query('SELECT id, status FROM anomaly_events WHERE id = $1 FOR UPDATE', [id]);
+    const { rows } = await q(tx).query('SELECT id, status FROM seguridad.anomaly_events WHERE id = $1 FOR UPDATE', [id]);
     return rows[0] || null;
 }
 
 async function actualizarEstado(id, nuevoEstado, tx) {
     const { rows } = await q(tx).query(
-        `UPDATE anomaly_events SET status = $2 WHERE id = $1
+        `UPDATE seguridad.anomaly_events SET status = $2 WHERE id = $1
          RETURNING id, status`,
         [id, nuevoEstado]
     );
@@ -75,7 +75,7 @@ async function actualizarEstado(id, nuevoEstado, tx) {
 /** Historial de cambios de estado (va en la misma transaccion que el UPDATE). */
 async function registrarCambioDeEstado({ anomalyId, anterior, nuevoEstado, userId, nota }, tx) {
     await q(tx).query(
-        `INSERT INTO anomaly_status_history
+        `INSERT INTO seguridad.anomaly_status_history
             (anomaly_id, previous_status, new_status, changed_by, note)
          VALUES ($1, $2, $3, $4, $5)`,
         [anomalyId, anterior, nuevoEstado, userId, nota]
@@ -85,7 +85,7 @@ async function registrarCambioDeEstado({ anomalyId, anterior, nuevoEstado, userI
 async function reglasActivas() {
     const { rows } = await db.query(
         `SELECT code, description, rule_type, window_minutes, max_points, severity
-           FROM anomaly_rules
+           FROM seguridad.anomaly_rules
           WHERE is_active = true
           ORDER BY max_points DESC`
     );
@@ -96,7 +96,7 @@ async function reglasActivas() {
 async function movimientosEnVentana(userId, ventanaMinutos, hasta) {
     const { rows } = await db.query(
         `SELECT id, source_type, source_id, points, rule_code, created_at
-           FROM points_ledger
+           FROM gamificacion.points_ledger
           WHERE user_id = $1
             AND created_at >  COALESCE($3::timestamptz, now()) - ($2 || ' minutes')::interval
             AND created_at <= COALESCE($3::timestamptz, now())
@@ -109,7 +109,7 @@ async function movimientosEnVentana(userId, ventanaMinutos, hasta) {
 /** Registra una anomalia. Idempotente por dedupe_key. */
 async function insertarAnomalia(userId, regla, evidencia, disparadorId, dedupeKey) {
     const { rows } = await db.query(
-        `INSERT INTO anomaly_events
+        `INSERT INTO seguridad.anomaly_events
             (user_id, rule_triggered, evidence, severity, source_id, dedupe_key)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (dedupe_key) DO NOTHING
@@ -124,7 +124,7 @@ async function insertarAnomalia(userId, regla, evidencia, disparadorId, dedupeKe
 async function usuariosConMovimientosRecientes(lookback) {
     const { rows } = await db.query(
         `SELECT DISTINCT user_id
-           FROM points_ledger
+           FROM gamificacion.points_ledger
           WHERE created_at > now() - ($1 || ' minutes')::interval`,
         [String(lookback)]
     );
@@ -135,7 +135,7 @@ async function usuariosConMovimientosRecientes(lookback) {
 async function resumenPorEstadoYSeveridad() {
     const { rows } = await db.query(
         `SELECT status, severity, COUNT(*)::int AS total
-           FROM anomaly_events GROUP BY status, severity`
+           FROM seguridad.anomaly_events GROUP BY status, severity`
     );
     return rows;
 }
@@ -147,9 +147,9 @@ async function buscarAnomalia(id) {
                 a.severity, a.status, a.source_id, a.detected_at,
                 r.description AS regla_descripcion,
                 r.window_minutes, r.max_points
-           FROM anomaly_events a
-           JOIN users u ON u.id = a.user_id
-           LEFT JOIN anomaly_rules r ON r.code = a.rule_triggered
+           FROM seguridad.anomaly_events a
+           JOIN identidad.users u ON u.id = a.user_id
+           LEFT JOIN seguridad.anomaly_rules r ON r.code = a.rule_triggered
           WHERE a.id = $1`,
         [id]
     );
@@ -161,8 +161,8 @@ async function historialDeEstados(id) {
     return db.query(
             `SELECT h.previous_status, h.new_status, h.note, h.changed_at,
                     u.email AS changed_by_email
-               FROM anomaly_status_history h
-               JOIN users u ON u.id = h.changed_by
+               FROM seguridad.anomaly_status_history h
+               JOIN identidad.users u ON u.id = h.changed_by
               WHERE h.anomaly_id = $1
               ORDER BY h.changed_at DESC`,
             [id]
@@ -173,7 +173,7 @@ async function historialDeEstados(id) {
 async function lineaDeTiempo(afectadoId) {
     return db.query(
             `SELECT id, source_type, source_id, points, rule_code, created_at
-               FROM points_ledger
+               FROM gamificacion.points_ledger
               WHERE user_id = $1
               ORDER BY created_at DESC
               LIMIT 50`,
@@ -186,8 +186,8 @@ async function ajustesManuales(afectadoId) {
     return db.query(
             `SELECT l.change_type, l.previous_value, l.new_value, l.reason,
                     l.created_at, a.email AS actor_email
-               FROM audit_log l
-               JOIN users a ON a.id = l.actor_id
+               FROM seguridad.audit_log l
+               JOIN identidad.users a ON a.id = l.actor_id
               WHERE l.target_user_id = $1
               ORDER BY l.created_at DESC
               LIMIT 20`,

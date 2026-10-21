@@ -12,7 +12,9 @@ module.exports = {
         'Cuentas de usuario, autenticacion (correo/contrasena y Google), ' +
         'recuperacion de contrasena, roles, perfil propio, equipos e invitaciones.',
     prefijos: ['/api/auth', '/api/users', '/api/sso', '/api/invitations'],
-    tablas: ['users', 'password_reset_tokens', 'user_invitations', 'user_invitation_events', 'teams'],
+    // Esquemas de PostgreSQL del servicio (migracion 090). Sus tablas viven ahi.
+    esquemas: ['identidad'],
+    tablas: ['identidad.users', 'identidad.password_reset_tokens', 'identidad.user_invitations', 'identidad.user_invitation_events', 'identidad.teams'],
     publica: ['user.registered', 'user.password_changed', 'user.invited'],
     consume: [],
     dependeDe: ['seguridad', 'notificaciones'],

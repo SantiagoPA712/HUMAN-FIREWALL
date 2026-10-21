@@ -19,7 +19,7 @@ const db = require('../../../../compartido/config/db');
 async function ranking(limite = 10) {
     const { rows } = await db.query(
         `SELECT id, email, total_points, level
-           FROM users
+           FROM identidad.users
           WHERE is_active = true
           ORDER BY total_points DESC
           LIMIT $1`,
@@ -29,7 +29,7 @@ async function ranking(limite = 10) {
 }
 
 async function estadoDe(userId) {
-    const { rows } = await db.query('SELECT total_points, level FROM users WHERE id = $1', [userId]);
+    const { rows } = await db.query('SELECT total_points, level FROM identidad.users WHERE id = $1', [userId]);
     return rows[0] || null;
 }
 
@@ -38,7 +38,7 @@ async function insigniasDe(userId) {
     const { rows } = await db.query(
         `SELECT reward_name AS name, reward_description AS description,
                 reward_icon_url AS icon_url, earned_at
-           FROM user_rewards
+           FROM gamificacion.user_rewards
           WHERE user_id = $1
           ORDER BY earned_at DESC`,
         [userId]
@@ -48,7 +48,7 @@ async function insigniasDe(userId) {
 
 async function insertarRecompensa({ name, description, iconUrl, conditionType, umbral, isRepeatable }) {
     const { rows } = await db.query(
-        `INSERT INTO rewards_catalog
+        `INSERT INTO gamificacion.rewards_catalog
             (name, description, icon_url, condition_type, condition_params, is_repeatable, points_required)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
@@ -58,7 +58,7 @@ async function insertarRecompensa({ name, description, iconUrl, conditionType, u
 }
 
 async function buscarRecompensa(id) {
-    const { rows } = await db.query('SELECT * FROM rewards_catalog WHERE id = $1', [id]);
+    const { rows } = await db.query('SELECT * FROM gamificacion.rewards_catalog WHERE id = $1', [id]);
     return rows[0] || null;
 }
 
@@ -66,7 +66,7 @@ async function catalogoPublico() {
     const { rows } = await db.query(
         `SELECT id, name, description, icon_url, condition_type,
                 condition_params, is_repeatable
-           FROM rewards_catalog
+           FROM gamificacion.rewards_catalog
           WHERE is_active = true
           ORDER BY condition_type, id`
     );
@@ -76,13 +76,13 @@ async function catalogoPublico() {
 async function reglasActivas() {
     const { rows } = await db.query(
         `SELECT code, source_type, points_mode, points, allow_repeat, description
-           FROM points_rules WHERE is_active = true ORDER BY source_type`
+           FROM gamificacion.points_rules WHERE is_active = true ORDER BY source_type`
     );
     return rows;
 }
 
 async function contarRecompensasDe(userId) {
-    const { rows } = await db.query('SELECT COUNT(*)::int AS n FROM user_rewards WHERE user_id = $1', [userId]);
+    const { rows } = await db.query('SELECT COUNT(*)::int AS n FROM gamificacion.user_rewards WHERE user_id = $1', [userId]);
     return rows[0].n;
 }
 
