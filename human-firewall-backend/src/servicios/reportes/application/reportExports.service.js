@@ -27,6 +27,7 @@
  */
 
 const fs = require('fs');
+const config = require('../config/configuracion');
 const path = require('path');
 const crypto = require('crypto');
 
@@ -36,7 +37,7 @@ const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const reportsService = require('./reports.service');
 
 /** Umbral configurable. Por encima de esto, la exportacion se encola. */
-const LIMITE_SINCRONO = Number(process.env.REPORT_EXPORT_SYNC_LIMIT) || 5000;
+const LIMITE_SINCRONO = config.limiteDeExportacionSincrona;
 
 /** Donde quedan los archivos generados. Fuera del control de versiones. */
 const { DIR_STORAGE } = require('../../../compartido/config/rutas');

@@ -2,7 +2,7 @@
 
 Simulaciones (pasos, opciones, decisiones), desafios del portal y el
 historial de intentos (`quiz_attempts`). El puntaje se calcula SIEMPRE en el
-servidor, con las reglas de `dominio/puntaje.js`.
+servidor, con las reglas de `domain/puntaje.js`.
 
 Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura/SERVICIOS.md#evaluaciones).
 
@@ -14,10 +14,10 @@ lo que hace es registrar un intento.
 
 | Quiero... | Toco |
 |-----------|------|
-| Cambiar como se calcula el puntaje o el minimo para aprobar | `dominio/puntaje.js` (funciones puras, con prueba unitaria en `tests/unitarias.test.mjs`) |
-| Un caso de uso nuevo | `aplicacion/simulaciones.service.js` o `aplicacion/desafios.service.js` |
-| Una consulta | `infraestructura/evaluaciones.repositorio.js` |
-| Saber los cursos asignados de alguien | `infraestructura/clientes/cursos.cliente.js` (no leer `course_assignments`) |
+| Cambiar como se calcula el puntaje o el minimo para aprobar | `domain/puntaje.js` (funciones puras, con prueba unitaria en `tests/unitarias.test.mjs`) |
+| Un caso de uso nuevo | `application/simulaciones.service.js` o `application/desafios.service.js` |
+| Una consulta | `infrastructure/persistence/evaluaciones.repositorio.js` |
+| Saber los cursos asignados de alguien | `infrastructure/client/cursos.cliente.js` (no leer `course_assignments`) |
 
 ## Eventos
 

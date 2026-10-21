@@ -1,13 +1,13 @@
 /**
  * Controlador HTTP de usuarios (/api/users).
  *
- * Capa de presentacion: el SQL que tenia paso a
- * infraestructura/usuarios.repositorio.js y los roles e idiomas validos a
- * dominio/usuario.js.
+ * Capa Controller / API: recibe la peticion y delega en
+ * application/user.service.js. El SQL esta en
+ * infrastructure/persistence/usuarios.repositorio.js y los roles e idiomas
+ * validos en domain/usuario.js.
  */
 
 const userService = require('../application/user.service');
-const usuarios = require('../infrastructure/persistence/usuarios.repositorio');
 const {
     ROLES: ROLES_VALIDOS,
     IDIOMAS: IDIOMAS_VALIDOS,
@@ -89,7 +89,7 @@ exports.updateUser = async (req, res) => {
             return res.status(400).json({ msg: 'Parametros invalidos', errores });
         }
 
-        const antes = await usuarios.estadoActual(id);
+        const antes = await userService.getEstado(id);
         if (!antes) return res.status(404).json({ msg: 'Usuario no encontrado', codigo: 'NO_ENCONTRADO' });
 
         const cambios = {};
@@ -101,7 +101,7 @@ exports.updateUser = async (req, res) => {
             return res.status(200).json({ msg: "Usuario actualizado" });
         }
 
-        const despues = await usuarios.actualizar(id, cambios);
+        const despues = await userService.updateUser(id, cambios);
 
         // Un cambio de rol es su propio tipo de accion (criterio tecnico 1
         // lo nombra aparte): es lo primero que se busca ante una escalada de
@@ -136,7 +136,7 @@ exports.deactivateUser = async (req, res) => {
             return res.status(400).json({ msg: 'Id de usuario invalido' });
         }
 
-        const previo = await usuarios.desactivar(id);
+        const previo = await userService.deactivateUser(id);
         if (!previo) return res.status(404).json({ msg: 'Usuario no encontrado', codigo: 'NO_ENCONTRADO' });
 
         dataLogs.registrarAccion({

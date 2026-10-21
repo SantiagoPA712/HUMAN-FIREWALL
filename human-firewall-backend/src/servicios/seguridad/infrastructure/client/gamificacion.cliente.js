@@ -3,7 +3,7 @@
  *
  * Seguridad audita los ajustes manuales de puntos, niveles e insignias, pero
  * no es duena de esos datos: los ajustes se aplican por este contrato.
- * Ver servicios/evaluaciones/infraestructura/clientes/cursos.cliente.js.
+ * Ver servicios/evaluaciones/infrastructure/client/cursos.cliente.js.
  */
 const gamificacion = () => require('../../../gamificacion/index');
 

@@ -1,14 +1,14 @@
 /**
  * Script que crea una cuenta admin con credenciales tomadas del entorno.
  *
- *     node src/servicios/identidad/infraestructura/seed_admin.js
+ *     node src/servicios/identidad/infrastructure/seed_admin.js
  *
  * Antes el correo y la contrasena estaban escritos en este archivo
  * (AdminPassword123!), o sea publicados en el repositorio. Ahora salen del
  * entorno y no hay ningun valor por defecto: sin ADMIN_PASSWORD no se crea
  * nada.
  *
- *   ADMIN_EMAIL=admin@empresa.com ADMIN_PASSWORD='...' node src/servicios/identidad/infraestructura/seed_admin.js
+ *   ADMIN_EMAIL=admin@empresa.com ADMIN_PASSWORD='...' node src/servicios/identidad/infrastructure/seed_admin.js
  *
  * La cuenta admin de desarrollo la crea la migracion 027; este script es
  * para entornos donde se quiera otra.

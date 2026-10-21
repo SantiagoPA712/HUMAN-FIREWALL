@@ -1,6 +1,6 @@
 /**
  * Cliente del servicio de seguridad, visto desde identidad.
- * Ver servicios/evaluaciones/infraestructura/clientes/cursos.cliente.js.
+ * Ver servicios/evaluaciones/infrastructure/client/cursos.cliente.js.
  */
 const seguridad = () => require('../../../seguridad/index');
 

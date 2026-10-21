@@ -11,11 +11,11 @@ Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura
 
 | Quiero... | Toco |
 |-----------|------|
-| Una regla de puntos | la tabla `points_rules` (es configurable), o `aplicacion/points.service.js` si cambia la logica |
-| Un tipo de condicion de recompensa | `aplicacion/rewards.service.js` -> `CALCULADORES` (si mide datos de otro servicio, por su cliente) |
+| Una regla de puntos | la tabla `points_rules` (es configurable), o `application/points.service.js` si cambia la logica |
+| Un tipo de condicion de recompensa | `application/rewards.service.js` -> `CALCULADORES` (si mide datos de otro servicio, por su cliente) |
 | Umbrales de nivel | la tabla `levels_config` |
 | Reaccionar a un evento nuevo | `registrarHandlers()` del servicio de aplicacion que corresponda, y agregarlo a `consume` del manifiesto |
-| Una consulta de un endpoint | `infraestructura/gamificacion.repositorio.js` |
+| Una consulta de un endpoint | `infrastructure/persistence/gamificacion.repositorio.js` |
 
 ## Reglas que no hay que romper
 

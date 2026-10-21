@@ -1,6 +1,6 @@
 /**
  * Contrato publico (OpenAPI) del servicio de gamificacion.
- * Ver servicios/identidad/contrato/openapi.js para el formato.
+ * Ver servicios/identidad/contract/openapi.js para el formato.
  *
  * Las rutas /{userId} las puede consultar el propio usuario, admin o rh
  * (x-propietario: userId). Cualquier otro rol recibe 403 sin que se consulte

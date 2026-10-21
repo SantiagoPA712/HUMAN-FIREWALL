@@ -42,11 +42,13 @@
  */
 
 const crypto = require('crypto');
+const config = require('../config/configuracion');
 const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { escaparCSV } = require('../../../compartido/utils/csv');
 const identidad = require('../infrastructure/client/identidad.cliente');
+const { CLAVE_SENSIBLE, VALOR_SENSIBLE, REDACTADO, enmascarar } = require('../domain/registro');
 
 // ---------------------------------------------------------------------
 // Catalogos
@@ -91,91 +93,20 @@ const LISTA_MODULOS = Object.values(MODULOS);
 // Configuracion
 // ---------------------------------------------------------------------
 
-/** Lee un entero positivo del entorno, o usa el valor por defecto. */
-function enteroDeEntorno(nombre, porDefecto) {
-    const crudo = process.env[nombre];
-    if (crudo === undefined || crudo === '') return porDefecto;
-
-    const valor = Number.parseInt(crudo, 10);
-    if (!Number.isInteger(valor) || valor <= 0) {
-        console.warn(`[dataLogs] ${nombre}="${crudo}" no es un entero positivo; se usa ${porDefecto}.`);
-        return porDefecto;
-    }
-    return valor;
-}
-
-// Criterio tecnico 7: "si supera el limite configurado (por defecto 50)".
-const TAMANO_PAGINA = enteroDeEntorno('LOGS_PAGE_SIZE', 50);
+const TAMANO_PAGINA = config.tamanoDePaginaDeLogs;
 const TAMANO_PAGINA_MAXIMO = 200;
 
 // Tope de filas de una exportacion. Sin tope, un CSV sin filtros sobre un
 // anio de logs se armaria entero en memoria dentro del request.
-const MAXIMO_EXPORTACION = enteroDeEntorno('LOGS_EXPORT_MAX_ROWS', 50000);
+const MAXIMO_EXPORTACION = config.maximoDeFilasExportadas;
 
 // Criterio tecnico 6: "periodo de retencion definido (ej. 12 meses)".
-const RETENCION_MESES = enteroDeEntorno('LOGS_RETENTION_MONTHS', 12);
-const INTERVALO_RETENCION_MS = enteroDeEntorno('LOGS_RETENTION_INTERVAL_HOURS', 24) * 60 * 60 * 1000;
+const RETENCION_MESES = config.mesesDeRetencion;
+const INTERVALO_RETENCION_MS = config.horasEntrePurgas * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------
 // Enmascarado de datos sensibles (criterio tecnico 5)
 // ---------------------------------------------------------------------
-
-/**
- * Claves cuyo valor nunca se guarda. Se compara contra el NOMBRE del campo,
- * no contra el valor: "password", "newPassword", "reset_token", "api_key",
- * "Authorization"...
- */
-const CLAVE_SENSIBLE = /pass(word)?|pwd|token|secret|authorization|cookie|api[_-]?key|credential|hash/i;
-
-/**
- * Valores que delatan un secreto aunque vengan en un campo con nombre
- * inocente (un JWT o un hash bcrypt pegados en "nota", por ejemplo).
- */
-const VALOR_SENSIBLE = [
-    /^eyJ[\w-]+\.[\w-]+\.[\w-]+$/,   // JWT
-    /^\$2[aby]\$\d{2}\$/              // hash bcrypt
-];
-
-const REDACTADO = '[REDACTED]';
-
-/**
- * Devuelve una copia del valor sin secretos.
- *
- * No borra el campo: lo reemplaza por "[REDACTED]". El criterio pide "un
- * indicador de que el campo cambio", y un campo ausente no dice nada; uno
- * redactado dice "aca hubo una contrasena y cambio".
- *
- * @param {*} valor
- * @param {number} [profundidad]  corta estructuras circulares o absurdas
- */
-function enmascarar(valor, profundidad = 0) {
-    if (valor === null || valor === undefined) return valor ?? null;
-    if (profundidad > 8) return '[TRUNCATED]';
-
-    if (typeof valor === 'string') {
-        return VALOR_SENSIBLE.some(r => r.test(valor)) ? REDACTADO : valor;
-    }
-
-    if (valor instanceof Date) return valor.toISOString();
-
-    if (Array.isArray(valor)) {
-        return valor.map(v => enmascarar(v, profundidad + 1));
-    }
-
-    if (typeof valor === 'object') {
-        const limpio = {};
-        for (const [clave, v] of Object.entries(valor)) {
-            if (v === undefined) continue;
-            limpio[clave] = CLAVE_SENSIBLE.test(clave)
-                ? REDACTADO
-                : enmascarar(v, profundidad + 1);
-        }
-        return limpio;
-    }
-
-    // number, boolean
-    return valor;
-}
 
 // ---------------------------------------------------------------------
 // Contexto del request

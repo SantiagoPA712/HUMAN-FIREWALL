@@ -1,6 +1,6 @@
 /**
  * Cliente del servicio de identidad, visto desde notificaciones.
- * Ver servicios/evaluaciones/infraestructura/clientes/cursos.cliente.js.
+ * Ver servicios/evaluaciones/infrastructure/client/cursos.cliente.js.
  */
 const identidad = () => require('../../../identidad/index');
 

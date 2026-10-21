@@ -1,7 +1,7 @@
 /**
  * Contrato publico (OpenAPI) del servicio de identidad.
  *
- * Los cuerpos de entrada son los mismos objetos de api/esquemas.js que valida
+ * Los cuerpos de entrada son los mismos objetos de controller/dto.js que valida
  * la ruta: si cambia el DTO, cambia el contrato. Las respuestas se describen
  * aca. tests/contratos.test.mjs verifica que cada ruta real este documentada
  * (y al reves), que la seguridad coincida y que las respuestas reales

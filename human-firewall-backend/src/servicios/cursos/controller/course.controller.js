@@ -6,7 +6,7 @@
  * reglas; antes este archivo tenia 14 consultas, ahora no importa la base.
  *
  * La validacion de forma (campos obligatorios, tipos) ya ocurrio en el
- * middleware validar() de la ruta. Ver api/esquemas.js.
+ * middleware validar() de la ruta. Ver controller/dto.js.
  */
 
 const cursos = require('../application/cursos.service');

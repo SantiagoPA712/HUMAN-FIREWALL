@@ -95,7 +95,56 @@ servicio al llamar, no al importar.
 
 ---
 
-## 3. Estructura de carpetas
+## 3. Estructura de carpetas (seccion 11 del material)
+
+La organizacion sigue la seccion **11. Arquitectura de microservicios
+aplicando capas** del material del curso: cada microservicio tiene sus propias
+capas Controller, Application, Domain, Infrastructure y Persistence, su propia
+configuracion y su propia puerta de entrada.
+
+### El ejemplo del material y su equivalente aca
+
+El material lo muestra con un `product-service`. Este es el mismo arbol
+aplicado a uno de nuestros servicios, **cursos**:
+
+```
+product-service/                         cursos/
+|-- controller/                          |-- controller/
+|   `-- ProductController                |   |-- course.routes.js        rutas + middlewares
+|                                        |   |-- course.controller.js    HTTP -> caso de uso
+|                                        |   `-- dto.js                  DTO de entrada (JSON Schema)
+|-- application/                         |-- application/
+|   `-- ProductService                   |   `-- cursos.service.js       casos de uso
+|-- domain/                              |-- domain/
+|   `-- Product                          |   `-- curso.js                reglas: crearCurso, fechaLimite, ...
+|-- infrastructure/                      |-- infrastructure/
+|   |-- persistence/                     |   `-- persistence/
+|   |   `-- ProductRepository            |       `-- cursos.repositorio.js   SQL de sus propias tablas
+|   `-- client/                          |
+|       `-- InventoryClient              |   (evaluaciones/infrastructure/client/cursos.cliente.js
+|                                        |    es el "InventoryClient" de este servicio)
+|-- config/                              |-- config/
+|   `-- application.yml                  |   `-- configuracion.js        variables del servicio
+`-- ProductApplication                   |-- index.js                    puerta de entrada del servicio
+                                         |-- manifiesto.js              ficha: tablas, eventos, dependencias
+                                         `-- contract/openapi.js        contrato de su API
+```
+
+| Capa del material | Carpeta en cada servicio | Que hace |
+|---|---|---|
+| Controller / API | `controller/` | Recibe el HTTP, valida el DTO, delega en application y devuelve la respuesta |
+| Application / Service | `application/` | Coordina los casos de uso: pasos, transaccion, eventos, llamadas a otros servicios |
+| Domain | `domain/` | Reglas y entidades del negocio, como funciones puras (sin base, sin HTTP) |
+| Infrastructure | `infrastructure/client/` | Clientes para hablar con otros microservicios (por su contrato `index.js`) |
+| Persistence | `infrastructure/persistence/` | Repositorios: el SQL de los datos propios del servicio |
+| Configuracion (`application.yml`) | `config/configuracion.js` | Las variables de entorno del servicio, con sus valores por defecto |
+| `ProductApplication` | `index.js` | Punto de entrada: lo unico que otro servicio puede usar |
+
+Los siete servicios (identidad, cursos, evaluaciones, gamificacion,
+notificaciones, reportes y seguridad) tienen las mismas carpetas. El detalle
+archivo por archivo esta en [`SERVICIOS.md`](SERVICIOS.md).
+
+### El arbol completo
 
 ```
 human-firewall-backend/src/
@@ -104,7 +153,7 @@ human-firewall-backend/src/
 |-- server.js               Arranque: valida el entorno, conecta el bus, escucha el puerto
 |
 |-- compartido/             Plataforma transversal. NO depende de ningun servicio.
-|   |-- config/             db.js (pool), entorno.js (variables), rutas.js, migrate.js
+|   |-- config/             db.js (pool), transaccion.js, entorno.js, rutas.js, migrate.js
 |   |-- eventos/            eventBus.js (outbox + worker) y catalogo.js (nombres y payloads)
 |   |-- http/               errores.js (formato comun) y validacion.js (DTO con JSON Schema)
 |   |-- middlewares/        verifyToken, requireRoles, selfOrRoles, rate limit, traceId
@@ -116,41 +165,38 @@ human-firewall-backend/src/
     |-- index.js            Registro: la lista de servicios
     |-- suscriptores.js     Conecta los servicios al bus de eventos
     `-- <servicio>/
-        |-- index.js        Puerta publica (contrato interno). Lo UNICO que otro servicio puede usar
-        |-- manifiesto.js   Ficha: responsabilidad, prefijos, tablas, eventos, dependencias
-        |-- README.md       Donde hacer cada tipo de cambio en este servicio
-        |-- api/            Capa de presentacion
-        |-- aplicacion/     Capa de aplicacion
-        |-- dominio/        Capa de dominio (solo si el servicio tiene reglas puras)
-        |-- infraestructura/  Capa de persistencia e infraestructura
-        |   `-- clientes/   Un cliente por cada servicio del que depende
-        `-- contrato/       openapi.js: contrato publico de la API HTTP
+        |-- controller/                 Controller / API
+        |-- application/                Application / Service
+        |-- domain/                     Domain
+        |-- infrastructure/
+        |   |-- persistence/            Persistence (repositorios)
+        |   `-- client/                 Un cliente por cada servicio del que depende
+        |-- config/configuracion.js     Configuracion del servicio
+        |-- contract/openapi.js         Contrato OpenAPI de su API publica
+        |-- index.js                    Puerta publica (contrato interno)
+        |-- manifiesto.js               Ficha: responsabilidad, prefijos, tablas, eventos
+        `-- README.md                   Donde hacer cada tipo de cambio en este servicio
 ```
 
-No todos los servicios tienen todas las carpetas: `dominio/` existe en
-identidad (politica de contrasenas, roles) y evaluaciones (reglas de
-puntaje), que es donde hay reglas puras que vale la pena aislar.
-
-### Responsabilidad de cada capa
+### Que va en cada capa
 
 | Capa | Que va aca | Que NO va aca |
 |------|-----------|---------------|
-| **api/** (presentacion) | `*.routes.js`: ruta + cadena de middlewares (token -> rol -> DTO -> controlador). `*.controller.js`: traduce HTTP a una llamada de aplicacion y el resultado a una respuesta. `esquemas.js`: los DTO. | SQL, reglas de negocio, llamadas a otros servicios |
-| **aplicacion/** | Casos de uso: que pasos tiene una operacion, que va en transaccion, que evento se publica, a que otro servicio se le pregunta algo | HTTP (`req`, `res`) |
-| **dominio/** | Reglas puras: funciones que reciben datos y devuelven un resultado | Base de datos, bus, HTTP, cualquier `require` fuera del dominio |
-| **infraestructura/** | Repositorios (el SQL), clientes de otros servicios, integraciones (Google, SMTP), scripts | Reglas de negocio |
-| **contrato/** | El OpenAPI de la API publica del servicio | Logica |
-| **compartido/config** | Variables de entorno, conexion, rutas del sistema de archivos | Valores secretos por defecto |
+| **controller/** | `*.routes.js`: ruta + cadena de middlewares (token -> rol -> DTO -> controlador). `*.controller.js`: traduce HTTP a una llamada de application y el resultado a una respuesta. `dto.js`: los DTO. | SQL, reglas de negocio, repositorios, llamadas a otros servicios (salvo el registro de auditoria) |
+| **application/** | Casos de uso: que pasos tiene una operacion, que va en transaccion, que evento se publica, a que otro servicio se le pregunta algo | HTTP (`req`, `res`) |
+| **domain/** | Reglas puras: funciones que reciben datos y devuelven un resultado (`crearCurso`, `calcularProgreso`, `calcularVariacion`, `enmascarar`...) | Base de datos, bus, HTTP, cualquier `require` fuera del dominio |
+| **infrastructure/persistence/** | Repositorios: el SQL | Reglas de negocio |
+| **infrastructure/client/** | Clientes de otros servicios, integraciones (Google) | Reglas de negocio |
+| **config/** | Las variables de entorno del servicio y sus valores por defecto | Secretos escritos en el codigo |
+| **contract/** | El OpenAPI de la API publica del servicio | Logica |
 
-Antes de esta HU, cuatro controladores tenian SQL escrito a mano (course,
-simulation, gamification y user: 47 consultas). Ahora ninguno importa la base.
-
-En los servicios de aplicacion mas grandes (puntos, recompensas,
-notificaciones, reportes) el SQL sigue dentro del servicio de aplicacion: se
-movio solo lo que estaba en la capa equivocada (los controladores), porque
-partir esos archivos en repositorio + servicio era un cambio grande sin
-beneficio inmediato. La regla para el codigo nuevo es: **el SQL nuevo va en un
-repositorio de `infraestructura/`.**
+Ningun controlador tiene SQL ni usa un repositorio: todos pasan por
+`application/`. En identidad y cursos todo el SQL ya esta en
+`infrastructure/persistence/`. En los servicios de aplicacion mas grandes
+(puntos, recompensas, notificaciones, reportes, seguridad) parte del SQL sigue
+dentro del servicio de aplicacion; moverlo a repositorios es el paso
+siguiente. La regla para el codigo nuevo es: **el SQL nuevo va en un
+repositorio de `infrastructure/persistence/`.**
 
 ---
 
@@ -159,19 +205,23 @@ repositorio de `infraestructura/`.**
 Estas reglas las verifica `tests/arquitectura.test.mjs` en cada `npm test`. Si
 alguien las rompe, la prueba dice en que archivo.
 
-1. **Ningun controlador ni archivo de rutas importa la base** ni tiene SQL.
-2. **El dominio no importa nada fuera del dominio.**
-3. **Un servicio llega a otro solo por su `index.js`, y solo desde
-   `infraestructura/clientes/<otro>.cliente.js`.** Nada de
-   `require('../../gamificacion/aplicacion/points.service')`.
-4. **`dependeDe` del manifiesto coincide con los clientes reales.**
-5. **Los clientes resuelven el otro servicio al llamar** (`const x = () => require(...)`),
+1. **Ningun controlador ni archivo de rutas importa la base** ni tiene SQL,
+   y no usa repositorios ni otros servicios: delega en `application/`.
+2. **El dominio no importa nada fuera del dominio** y no tiene SQL.
+3. **Cada servicio tiene controller, application, domain, infrastructure y
+   `config/configuracion.js`**, y las variables de entorno se leen solo en su
+   `config/` (o en `compartido/config`).
+4. **Un servicio llega a otro solo por su `index.js`, y solo desde
+   `infrastructure/client/<otro>.cliente.js`.** Nada de
+   `require('../../gamificacion/application/points.service')`.
+5. **`dependeDe` del manifiesto coincide con los clientes reales.**
+6. **Los clientes resuelven el otro servicio al llamar** (`const x = () => require(...)`),
    para que dos servicios que se usan mutuamente no generen un ciclo de carga.
-6. **`compartido/` no depende de ningun servicio.** Lo que necesita de ellos
+7. **`compartido/` no depende de ningun servicio.** Lo que necesita de ellos
    (sus rutas, sus contratos) se lo pasa quien compone: `app.js`.
-7. **Cada tabla tiene un solo dueno**, nadie escribe en tablas ajenas sin
+8. **Cada tabla tiene un solo dueno**, nadie escribe en tablas ajenas sin
    declararlo, y toda lectura de una tabla ajena esta declarada con su motivo.
-8. **Los eventos que declara cada manifiesto son los que el codigo publica y
+9. **Los eventos que declara cada manifiesto son los que el codigo publica y
    consume**, y cada evento lo publica un solo servicio.
 
 ---
@@ -193,16 +243,16 @@ evento.
 ### Por que el contrato interno pasa por un cliente
 
 ```
-evaluaciones/aplicacion/simulaciones.service.js
+evaluaciones/application/simulaciones.service.js
         |
         v
-evaluaciones/infraestructura/clientes/cursos.cliente.js   <-- unico punto de contacto
+evaluaciones/infrastructure/client/cursos.cliente.js   <-- unico punto de contacto
         |
         v
 cursos/index.js                                         <-- puerta publica de cursos
         |
         v
-cursos/aplicacion/cursos.service.js -> cursos/infraestructura/cursos.repositorio.js
+cursos/application/cursos.service.js -> cursos/infrastructure/persistence/cursos.repositorio.js
 ```
 
 Hoy el cliente es una llamada de funcion en el mismo proceso. Si manana
@@ -278,7 +328,7 @@ que `API_DOCS=true`.
 ### Una sola fuente de verdad para la entrada
 
 El cuerpo y los parametros de cada operacion son **el mismo objeto** que
-valida la ruta (`api/esquemas.js`). No se escriben dos veces, asi que no se
+valida la ruta (`controller/dto.js`). No se escriben dos veces, asi que no se
 pueden desalinear. `x-validacion` dice quien valida: `middleware` (el DTO,
 antes del controlador) o `servicio` (endpoints que ya validaban dentro del
 servicio con mensajes por campo que la pantalla muestra; se publica el
@@ -344,6 +394,9 @@ en el contrato y verificables:
 
 ## 9. Configuracion y secretos
 
+- Cada servicio tiene su `config/configuracion.js` (el `application.yml` del
+  material): ahi estan todas las variables que usa, con su valor por defecto.
+  El resto del servicio pide `config.smtp.host`, no `process.env.SMTP_HOST`.
 - Las variables se leen con `compartido/config/entorno.js`. Las obligatorias
   (`DATABASE_URL`, `JWT_SECRET`) no tienen valor por defecto: sin ellas el
   servidor no arranca y dice cual falta. Antes `JWT_SECRET` caia a la cadena
@@ -381,18 +434,18 @@ npm run test:contratos    # una suite
    de los datos que toca. Ese es el servicio. Si toca datos de dos, el caso de
    uso va en el que *decide*, y el otro se consulta por su contrato o
    reacciona por un evento.
-2. **Entrada.** Define el DTO en `api/esquemas.js`.
-3. **Ruta.** En `api/<x>.routes.js`: `verifyToken(...)`, rol si aplica,
+2. **Entrada.** Define el DTO en `controller/dto.js`.
+3. **Ruta.** En `controller/<x>.routes.js`: `verifyToken(...)`, rol si aplica,
    `validar(esquemas.loNuevo)`, controlador.
 4. **Controlador.** Delgado: toma `req`, llama a la capa de aplicacion,
    responde. Los errores van a `responderError(req, res, error)`.
-5. **Caso de uso.** En `aplicacion/`. Errores del cliente como `ErrorHttp`
+5. **Caso de uso.** En `application/`. Errores del cliente como `ErrorHttp`
    (404, 409, 400). Si publica un evento, el evento va al catalogo y al
    `publica` del manifiesto.
-6. **SQL.** En un repositorio de `infraestructura/`, solo sobre tablas propias.
+6. **SQL.** En un repositorio de `infrastructure/`, solo sobre tablas propias.
    Si necesitas un dato de otro servicio, agrega una funcion a su `index.js`
    y usala desde tu cliente.
-7. **Contrato.** Agrega la operacion en `contrato/openapi.js` (con
+7. **Contrato.** Agrega la operacion en `contract/openapi.js` (con
    `operacion({...})`, reutilizando el DTO). La prueba de contrato falla si
    te olvidas.
 8. **Documentacion.** `npm run docs:arquitectura` y, si cambia un contrato
@@ -419,7 +472,7 @@ notificaciones a su propio proceso:
    publica.
 3. Sus tablas pasan a su propia base; sus lecturas de tablas ajenas ya son
    llamadas por contrato, asi que no hay JOINs que romper.
-4. El contrato publico (`contrato/openapi.js`) no cambia; delante de los
+4. El contrato publico (`contract/openapi.js`) no cambia; delante de los
    servicios va un API Gateway que enruta por prefijo, la tabla de la seccion 5.
 
 Reportes es el servicio mas lejos de poder extraerse, por sus lecturas

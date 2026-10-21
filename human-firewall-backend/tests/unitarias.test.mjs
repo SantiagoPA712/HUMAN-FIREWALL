@@ -5,8 +5,8 @@
  * Son funciones puras o casi: no necesitan base de datos ni servidor, que es
  * justamente lo que se gana al sacar las reglas de los controladores.
  *
- *   - evaluaciones/dominio/puntaje.js   reglas de puntaje
- *   - identidad/dominio/usuario.js      politica de contrasena y catalogos
+ *   - evaluaciones/domain/puntaje.js   reglas de puntaje
+ *   - identidad/domain/usuario.js      politica de contrasena y catalogos
  *   - compartido/http/errores.js        formato comun de errores
  *   - compartido/http/validacion.js     validacion por DTO
  *   - compartido/contratos/operacion.js constructor de operaciones OpenAPI

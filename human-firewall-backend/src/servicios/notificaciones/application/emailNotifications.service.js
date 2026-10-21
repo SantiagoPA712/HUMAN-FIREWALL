@@ -33,12 +33,14 @@
  */
 
 const db = require('../../../compartido/config/db');
+const config = require('../config/configuracion');
 const identidad = require('../infrastructure/client/identidad.cliente');
 const cursos = require('../infrastructure/client/cursos.cliente');
 const { esCorreoValido } = require('../../../compartido/utils/correo');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const plantillas = require('./emailTemplates.service');
+const { CODIGOS_DE_RED, esErrorTransitorio } = require('../domain/entrega');
 
 // ---------------------------------------------------------------------
 // Configuracion
@@ -55,11 +57,6 @@ const TIPOS = {
     // cuenta, asi que no figura en las preferencias de nadie.
     USER_INVITATION:           'user_invitation'
 };
-
-function numeroDeEntorno(nombre, porDefecto) {
-    const valor = Number(process.env[nombre]);
-    return Number.isFinite(valor) && valor > 0 ? valor : porDefecto;
-}
 
 /**
  * Criterio tecnico 3: "reintentar hasta 3 veces con backoff exponencial antes
@@ -85,10 +82,10 @@ const MAX_INTENTOS = MAX_REINTENTOS + 1;
  * holgadamente dentro de los 5 minutos del criterio de aceptacion 1, y un
  * proveedor que se cayo un instante tiene tiempo de volver.
  */
-const BACKOFF_BASE_SEGUNDOS = numeroDeEntorno('EMAIL_RETRY_BASE_SECONDS', 30);
+const BACKOFF_BASE_SEGUNDOS = config.segundosBaseDeReintento;
 
 /** Cada cuanto mira la cola el worker. Es la red de seguridad del despertar inmediato. */
-const INTERVALO_WORKER_MS = numeroDeEntorno('EMAIL_WORKER_INTERVAL_SECONDS', 15) * 1000;
+const INTERVALO_WORKER_MS = config.segundosEntreCorridasDelWorker * 1000;
 
 // La ventana y la frecuencia de las fechas limite proximas
 // (EMAIL_DEADLINE_WINDOW_HOURS, EMAIL_DEADLINE_SCAN_MINUTES) ahora las usa el
@@ -100,7 +97,7 @@ const MINUTOS_JOB_HUERFANO = 10;
 
 /** Contra que se arman los enlaces del correo (criterio de aceptacion 1). */
 function urlBase() {
-    return String(process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    return config.urlBase;
 }
 
 // ---------------------------------------------------------------------
@@ -121,16 +118,16 @@ function obtenerTransporte() {
     if (transporteResuelto) return transporte;
     transporteResuelto = true;
 
-    if (!process.env.SMTP_HOST) return (transporte = null);
+    if (!config.smtp.host) return (transporte = null);
 
     try {
         const nodemailer = require('nodemailer');
         transporte = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: String(process.env.SMTP_SECURE) === 'true',
-            auth: process.env.SMTP_USER
-                ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+            host: config.smtp.host,
+            port: config.smtp.port,
+            secure: config.smtp.secure,
+            auth: config.smtp.user
+                ? { user: config.smtp.user, pass: config.smtp.pass }
                 : undefined,
             // Sin estos topes un servidor que no contesta deja al worker
             // colgado minutos, y el timeout no llegaria nunca a ser un error
@@ -158,30 +155,6 @@ function usarTransporte(nuevo) {
 // ---------------------------------------------------------------------
 
 // esCorreoValido se movio a compartido/utils/correo.js (tambien la usa identidad).
-
-/**
- * Un error es transitorio si reintentar puede servir.
- *
- * El criterio tecnico 3 nombra dos casos: timeout y "error 5xx del
- * proveedor". Ademas se reintentan los codigos SMTP de la familia 4xx que
- * significan "intentalo mas tarde" (421 servicio no disponible, 45x buzon
- * ocupado o sin espacio temporal). Todo lo demas -- destinatario rechazado,
- * credenciales invalidas, mensaje mal formado -- va a fallar igual la
- * proxima vez, y reintentarlo solo demora el diagnostico.
- */
-const CODIGOS_DE_RED = new Set([
-    'ETIMEDOUT', 'ETIMEOUT', 'ECONNECTION', 'ESOCKET',
-    'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN', 'EDNS'
-]);
-
-function esErrorTransitorio(err) {
-    if (!err) return false;
-    if (CODIGOS_DE_RED.has(err.code)) return true;
-
-    const estado = Number(err.responseCode ?? err.statusCode ?? err.status);
-    if (estado >= 500 && estado <= 599) return true;
-    return [421, 450, 451, 452].includes(estado);
-}
 
 /** Detalle tecnico del error, para el log y para email_job_attempts. */
 function detalleTecnico(err) {
@@ -332,7 +305,7 @@ function formatearFecha(valor, idioma) {
     return new Intl.DateTimeFormat(idioma === 'en' ? 'en-US' : 'es-CO', {
         dateStyle: 'long',
         timeStyle: 'short',
-        timeZone: process.env.APP_TIMEZONE || 'America/Bogota'
+        timeZone: config.zonaHoraria
     }).format(fecha);
 }
 
@@ -589,7 +562,7 @@ async function enviar(job) {
 
     try {
         await emisor.sendMail({
-            from: process.env.MAIL_FROM || 'Human Firewall <no-reply@humanfirewall.local>',
+            from: config.remitente,
             to: job.to_email,
             subject: job.subject,
             html: job.body_html,
@@ -813,7 +786,7 @@ function iniciarWorker() {
 
     console.log(
         `[email] worker cada ${INTERVALO_WORKER_MS / 1000} s` +
-        (process.env.SMTP_HOST ? '' : ' -- sin SMTP_HOST: los correos quedan en skipped')
+        (config.smtp.host ? '' : ' -- sin SMTP_HOST: los correos quedan en skipped')
     );
 }
 

@@ -1,29 +1,38 @@
 /**
  * Casos de uso del servicio de cursos.
  *
- * Capa de aplicacion: coordina. Decide que pasos tiene cada caso de uso, en
- * que orden, que va dentro de una transaccion y que evento se publica. El SQL
- * vive en infraestructura/cursos.repositorio.js y el HTTP en api/.
- *
- * Antes toda esta logica estaba dentro de course.controller.js, mezclada con
- * req/res y con 14 consultas escritas a mano.
+ * Capa Application / Service: coordina. Decide que pasos tiene cada caso de
+ * uso, en que orden, que va dentro de una transaccion y que evento se
+ * publica. Las reglas estan en domain/curso.js, el SQL en
+ * infrastructure/persistence/cursos.repositorio.js y el HTTP en controller/.
  */
 
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { ErrorHttp } = require('../../../compartido/http/errores');
-const entorno = require('../../../compartido/config/entorno');
+const { conTransaccion } = require('../../../compartido/config/transaccion');
+const config = require('../config/configuracion');
+const curso = require('../domain/curso');
 const repo = require('../infrastructure/persistence/cursos.repositorio');
 
-const ROLES_GESTORES = ['admin', 'instructor'];
+/** Convierte una regla de dominio rota en un 400 con el campo. */
+function enDominio(fn) {
+    try {
+        return fn();
+    } catch (e) {
+        if (e instanceof curso.ReglaDeCurso) {
+            throw ErrorHttp.validacion([{ campo: e.campo, detalle: e.message }], e.message);
+        }
+        throw e;
+    }
+}
 
 // ---------------------------------------------------------------------
 // Catalogo
 // ---------------------------------------------------------------------
 
-async function crearCurso({ title, description }, instructorId) {
-    return repo.insertarCurso({ title, description, instructorId });
+async function crearCurso(datos, instructorId) {
+    return repo.insertarCurso(enDominio(() => curso.crearCurso(datos, instructorId)));
 }
 
 async function agregarContenido(courseId, { content_type, body, order_idx, points_reward }) {
@@ -32,19 +41,19 @@ async function agregarContenido(courseId, { content_type, body, order_idx, point
         contentType: content_type,
         body,
         orderIdx: order_idx || 0,
-        pointsReward: points_reward || 10
+        pointsReward: points_reward || config.puntosPorDefectoDeLeccion
     });
 }
 
 /** Admin e instructor ven todo el catalogo; el resto, solo lo asignado. */
 async function listarVisiblesPara({ id, role }) {
-    return ROLES_GESTORES.includes(role) ? repo.listarTodos() : repo.listarAsignadosA(id);
+    return curso.veTodoElCatalogo(role) ? repo.listarTodos() : repo.listarAsignadosA(id);
 }
 
 async function obtenerDetalle(courseId) {
-    const curso = await repo.buscarPorId(courseId);
-    if (!curso) throw ErrorHttp.noEncontrado('Curso no encontrado');
-    return { ...curso, contents: await repo.listarContenidos(courseId) };
+    const encontrado = await repo.buscarPorId(courseId);
+    if (!encontrado) throw ErrorHttp.noEncontrado('Curso no encontrado');
+    return { ...encontrado, contents: await repo.listarContenidos(courseId) };
 }
 
 // ---------------------------------------------------------------------
@@ -57,31 +66,22 @@ async function obtenerDetalle(courseId) {
  * manda aca; lo manda notificaciones al consumir el evento.
  */
 async function asignarCurso({ course_id, user_id, due_date }) {
-    const fechaLimite = due_date ? new Date(due_date) : null;
+    const limite = enDominio(() => curso.fechaLimite(due_date));
 
-    const client = await db.connect();
-    try {
-        await client.query('BEGIN');
-
+    return conTransaccion(async (tx) => {
         const asignacion = await repo.insertarAsignacion(
-            { courseId: course_id, userId: user_id, dueDate: fechaLimite }, client
+            { courseId: course_id, userId: user_id, dueDate: limite }, tx
         );
 
         await eventBus.publish(EVENTOS.COURSE_ASSIGNED, {
             userId: asignacion.user_id,
             courseId: asignacion.course_id,
             assignmentId: asignacion.id,
-            dueDate: fechaLimite ? fechaLimite.toISOString() : null
-        }, client);
+            dueDate: limite ? limite.toISOString() : null
+        }, tx);
 
-        await client.query('COMMIT');
         return asignacion;
-    } catch (error) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw error;
-    } finally {
-        client.release();
-    }
+    });
 }
 
 // ---------------------------------------------------------------------
@@ -112,7 +112,7 @@ async function completarLeccion(contentId, userId) {
     const courseId = contenido.course_id;
     let cursoCompletado = false;
 
-    if (await repo.contarLeccionesPendientes(courseId, userId) === 0) {
+    if (curso.cursoTerminado(await repo.contarLeccionesPendientes(courseId, userId))) {
         // Solo se emite si la asignacion paso a completada en esta llamada,
         // para no disparar el evento cada vez que se reabre el curso.
         if (await repo.cerrarAsignacion(courseId, userId)) {
@@ -141,7 +141,7 @@ async function obtenerProgreso(courseId, userId) {
         course_id: courseId,
         total_lecciones: p.total_lecciones,
         completadas: p.completadas,
-        porcentaje: p.total_lecciones > 0 ? Math.round(p.completadas * 100 / p.total_lecciones) : 0,
+        porcentaje: curso.porcentajeDeAvance(p.completadas, p.total_lecciones),
         ids_completados: p.ids_completados
     };
 }
@@ -150,13 +150,9 @@ async function obtenerProgreso(courseId, userId) {
 // Fechas limite proximas (proceso de fondo del servicio)
 // ---------------------------------------------------------------------
 //
-// Vivia en notificaciones, pero lo que hace es leer y marcar asignaciones:
-// datos de este servicio. Ahora cursos publica course.deadline_approaching y
-// notificaciones solo lo consume para mandar el correo. Los nombres de las
-// variables de entorno se conservan para no romper ningun .env existente.
+// Cursos es el dueno de las asignaciones: publica course.deadline_approaching
+// y notificaciones solo lo consume para mandar el correo.
 
-const VENTANA_VENCIMIENTO_HORAS = entorno.numero('EMAIL_DEADLINE_WINDOW_HOURS', 48);
-const INTERVALO_VENCIMIENTOS_MS = entorno.numero('EMAIL_DEADLINE_SCAN_MINUTES', 15) * 60 * 1000;
 let timerVencimientos = null;
 
 /**
@@ -167,12 +163,9 @@ let timerVencimientos = null;
  * @returns {Promise<number>} cuantos avisos se publicaron
  */
 async function buscarVencimientosProximos(ahora = new Date(), maxPorTanda = 100) {
-    const client = await db.connect();
-    try {
-        await client.query('BEGIN');
-
+    return conTransaccion(async (tx) => {
         const asignaciones = await repo.bloquearAsignacionesPorVencer(
-            { desde: ahora, ventanaHoras: VENTANA_VENCIMIENTO_HORAS, limite: maxPorTanda }, client
+            { desde: ahora, ventanaHoras: config.horasDeVentanaVencimiento, limite: maxPorTanda }, tx
         );
 
         for (const a of asignaciones) {
@@ -181,34 +174,25 @@ async function buscarVencimientosProximos(ahora = new Date(), maxPorTanda = 100)
                 courseId: a.course_id,
                 assignmentId: a.id,
                 dueDate: new Date(a.due_date).toISOString()
-            }, client);
+            }, tx);
         }
 
         if (asignaciones.length > 0) {
-            await repo.marcarVencimientoAvisado(asignaciones.map(a => a.id), client);
+            await repo.marcarVencimientoAvisado(asignaciones.map(a => a.id), tx);
         }
-
-        await client.query('COMMIT');
         return asignaciones.length;
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
-    }
+    });
 }
 
 function iniciarRelojDeVencimientos() {
     if (timerVencimientos) return;
+    const minutos = config.minutosEntreBusquedasDeVencimiento;
     timerVencimientos = setInterval(
         () => buscarVencimientosProximos().catch(e => console.error('[cursos] vencimientos:', e.message)),
-        INTERVALO_VENCIMIENTOS_MS
+        minutos * 60 * 1000
     );
     if (timerVencimientos.unref) timerVencimientos.unref();
-    console.log(
-        `[cursos] vencimientos cada ${INTERVALO_VENCIMIENTOS_MS / 60000} min ` +
-        `(ventana ${VENTANA_VENCIMIENTO_HORAS} h)`
-    );
+    console.log(`[cursos] vencimientos cada ${minutos} min (ventana ${config.horasDeVentanaVencimiento} h)`);
 }
 
 function detenerRelojDeVencimientos() {
@@ -222,8 +206,8 @@ function detenerRelojDeVencimientos() {
 /** { id, title, is_critical } de un curso, o null. */
 async function obtenerTitulo(courseId) {
     if (!courseId) return null;
-    const curso = await repo.buscarPorId(Number(courseId));
-    return curso ? { id: curso.id, title: curso.title, is_critical: curso.is_critical === true } : null;
+    const encontrado = await repo.buscarPorId(Number(courseId));
+    return encontrado ? { id: encontrado.id, title: encontrado.title, is_critical: encontrado.is_critical === true } : null;
 }
 
 async function obtenerTitulos(ids) {
@@ -241,7 +225,6 @@ async function marcarCritico(courseId, critico) {
 }
 
 module.exports = {
-    VENTANA_VENCIMIENTO_HORAS,
     crearCurso,
     agregarContenido,
     listarVisiblesPara,
@@ -256,8 +239,8 @@ module.exports = {
     obtenerTitulos,
     obtenerLeccion,
     marcarCritico,
-    idsDeCursosAsignados: repo.idsDeCursosAsignados,
-    contarLeccionesCompletadas: repo.contarLeccionesCompletadas,
-    contarCursosCompletados: repo.contarCursosCompletados,
-    listarConCriticidad: repo.listarConCriticidad
+    idsDeCursosAsignados: (userId) => repo.idsDeCursosAsignados(userId),
+    contarLeccionesCompletadas: (userId) => repo.contarLeccionesCompletadas(userId),
+    contarCursosCompletados: (userId) => repo.contarCursosCompletados(userId),
+    listarConCriticidad: () => repo.listarConCriticidad()
 };

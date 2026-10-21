@@ -1,33 +1,32 @@
 /**
  * Controlador HTTP de gamificacion.
  *
- * Capa de presentacion: ya no importa la base de datos. Las consultas que
- * tenia (18) pasaron a infraestructura/gamificacion.repositorio.js, el
- * "usuario existe" lo responde identidad por su contrato, y los registros de
- * auditoria van por el cliente de seguridad.
+ * Capa Controller (seccion 11 del material): recibe el HTTP y delega en
+ * application/. Las consultas viven en infrastructure/persistence y se piden
+ * por application/gamificacion.service.js; los registros de auditoria van por
+ * el cliente de seguridad.
  *
  * POST /api/gamification/challenge se mudo a evaluaciones
- * (api/desafios.controller.js): registra un intento, y los intentos son de
+ * (controller/desafios.controller.js): registra un intento, y los intentos son de
  * ese servicio. La URL no cambio.
  */
 
-const repo = require('../infrastructure/persistence/gamificacion.repositorio');
+const gamificacion = require('../application/gamificacion.service');
 const pointsService = require('../application/points.service');
 const rewardsService = require('../application/rewards.service');
 const levelsService = require('../application/levels.service');
 const recommendationsService = require('../application/recommendations.service');
-const identidad = require('../infrastructure/client/identidad.cliente');
 const seguridad = require('../infrastructure/client/seguridad.cliente');
 const { responderError, ErrorHttp } = require('../../../compartido/http/errores');
 
 /** 404 si el usuario de la ruta no existe. */
 async function exigirUsuario(userId) {
-    if (!(await identidad.usuarioExiste(userId))) throw ErrorHttp.noEncontrado('Usuario no encontrado');
+    if (!(await gamificacion.usuarioExiste(userId))) throw ErrorHttp.noEncontrado('Usuario no encontrado');
 }
 
 exports.getLeaderboard = async (req, res) => {
     try {
-        res.status(200).json(await repo.ranking(10));
+        res.status(200).json(await gamificacion.ranking(10));
     } catch (error) {
         responderError(req, res, error);
     }
@@ -37,7 +36,7 @@ exports.getMyStatus = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        const estado = await repo.estadoDe(userId);
+        const estado = await gamificacion.estadoDe(userId);
         if (!estado) return res.status(404).json({ msg: "Usuario no encontrado", codigo: 'NO_ENCONTRADO' });
 
         // Los datos salen del snapshot guardado en user_rewards, no del
@@ -45,7 +44,7 @@ exports.getMyStatus = async (req, res) => {
         // elimino despues de otorgarse.
         res.status(200).json({
             gamification: estado,
-            badges: await repo.insigniasDe(userId)
+            badges: await gamificacion.insigniasDe(userId)
         });
     } catch (error) {
         responderError(req, res, error);
@@ -68,7 +67,7 @@ exports.createBadge = async (req, res) => {
         // viejo, pero internamente ya es un parametro de condicion mas.
         const umbral = threshold != null ? threshold : (points_required || 0);
 
-        const creada = await repo.insertarRecompensa({
+        const creada = await gamificacion.insertarRecompensa({
             name, description, iconUrl: icon_url, conditionType: condition_type, umbral, isRepeatable: is_repeatable
         });
 
@@ -124,7 +123,7 @@ exports.assignBadge = async (req, res) => {
             });
         }
 
-        const recompensa = await repo.buscarRecompensa(recompensaId);
+        const recompensa = await gamificacion.buscarRecompensa(recompensaId);
         if (!recompensa) {
             return res.status(404).json({ msg: "Recompensa no encontrada en el catalogo", codigo: 'NO_ENCONTRADO' });
         }
@@ -206,7 +205,7 @@ exports.getUserPoints = async (req, res) => {
  */
 exports.getPointsRules = async (req, res) => {
     try {
-        res.status(200).json(await repo.reglasActivas());
+        res.status(200).json(await gamificacion.reglasActivas());
     } catch (error) {
         responderError(req, res, error);
     }
@@ -334,7 +333,7 @@ exports.getLevelsConfig = async (req, res) => {
  */
 exports.getRewardsCatalog = async (req, res) => {
     try {
-        res.status(200).json(await repo.catalogoPublico());
+        res.status(200).json(await gamificacion.catalogoPublico());
     } catch (error) {
         responderError(req, res, error);
     }

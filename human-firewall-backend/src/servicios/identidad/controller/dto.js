@@ -68,7 +68,7 @@ const actualizarUsuario = {
 const porId = { params: paramsId('id') };
 
 // Solo la forma: los formatos, lo obligatorio y los mensajes para la
-// pantalla los valida dominio/validarPerfil, y los campos fuera de la lista
+// pantalla los valida domain/validarPerfil, y los campos fuera de la lista
 // blanca (role, is_active, email, ...) los rechaza el controlador con 403.
 const actualizarPerfil = {
     body: {

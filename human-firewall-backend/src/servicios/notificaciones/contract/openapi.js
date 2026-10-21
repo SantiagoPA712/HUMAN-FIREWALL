@@ -1,6 +1,6 @@
 /**
  * Contrato publico (OpenAPI) del servicio de notificaciones.
- * Ver servicios/identidad/contrato/openapi.js para el formato.
+ * Ver servicios/identidad/contract/openapi.js para el formato.
  *
  * Ninguna ruta recibe un userId: una notificacion es del dueno y de nadie
  * mas, asi que el id sale siempre del token.

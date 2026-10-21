@@ -11,10 +11,12 @@
  */
 
 const db = require('../../../compartido/config/db');
+const config = require('../config/configuracion');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const cursos = require('../infrastructure/client/cursos.cliente');
 const evaluaciones = require('../infrastructure/client/evaluaciones.cliente');
+const { umbralDe } = require('../domain/recompensa');
 
 /**
  * Calculadores de condicion. Cada uno devuelve el progreso actual del usuario
@@ -53,7 +55,7 @@ const CALCULADORES = {
      * reciente hacia atras. Un intento reprobado corta la racha.
      */
     async quiz_streak(userId) {
-        const resultados = await evaluaciones.ultimosResultados(userId, 100);
+        const resultados = await evaluaciones.ultimosResultados(userId, config.resultadosParaRacha);
 
         let racha = 0;
         for (const aprobado of resultados) {
@@ -73,13 +75,6 @@ async function obtenerCatalogoActivo() {
           ORDER BY id`
     );
     return rows;
-}
-
-/** Umbral configurado para una recompensa. */
-function umbralDe(recompensa) {
-    const params = recompensa.condition_params || {};
-    const valor = Number(params.threshold);
-    return Number.isFinite(valor) ? valor : Infinity;
 }
 
 /**

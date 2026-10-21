@@ -1,6 +1,6 @@
 /**
  * Cliente del servicio de cursos, visto desde gamificacion.
- * Ver servicios/evaluaciones/infraestructura/clientes/cursos.cliente.js.
+ * Ver servicios/evaluaciones/infrastructure/client/cursos.cliente.js.
  */
 const cursos = () => require('../../../cursos/index');
 

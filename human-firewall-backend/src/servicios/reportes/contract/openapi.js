@@ -1,6 +1,6 @@
 /**
  * Contrato publico (OpenAPI) del servicio de reportes.
- * Ver servicios/identidad/contrato/openapi.js para el formato.
+ * Ver servicios/identidad/contract/openapi.js para el formato.
  *
  * En todas las rutas el rol se verifica en el middleware: un 403 sale sin
  * ejecutar ninguna consulta ni persistir nada.

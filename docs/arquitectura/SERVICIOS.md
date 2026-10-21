@@ -66,6 +66,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `index.js` — Servicio de identidad — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de identidad.
 
+**config/** — Configuracion del servicio (equivale al application.yml)
+
+- `config/configuracion.js` — Configuracion del servicio de identidad.
+
 **controller/** — Controller / API: rutas, controladores y DTO
 
 - `controller/auth.controller.js` — Controlador HTTP de autenticacion (/api/auth).
@@ -82,10 +86,12 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `application/auth.service.js` — Casos de uso de autenticacion: login (con bloqueo por intentos) y registro publico como employee, que publica user.registered.
 - `application/invitations.service.js` — Invitaciones de usuarios.
 - `application/recovery.service.js` — Casos de uso de recuperacion de contrasena: generar el token y restablecer la contrasena, que publica user.password_changed.
-- `application/user.service.js` — Casos de uso de cuentas: alta por un admin, listado y perfil propio.
+- `application/sso.service.js` — Caso de uso de ingreso con Google: busca la cuenta por correo y, si no existe, la crea y publica user.registered.
+- `application/user.service.js` — Casos de uso de cuentas: alta por un admin, listado, cambio de rol o estado, baja logica y perfil propio.
 
 **domain/** — Domain: entidades y reglas de negocio
 
+- `domain/invitacion.js` — Reglas del dominio de invitaciones.
 - `domain/usuario.js` — Reglas del dominio de identidad.
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
@@ -93,7 +99,9 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde identidad.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde identidad.
 - `infrastructure/passport.js` — Integracion con Google OAuth (passport).
-- `infrastructure/persistence/usuarios.repositorio.js` — Repositorio de cuentas de usuario.
+- `infrastructure/persistence/invitaciones.repositorio.js` — Repositorio de invitaciones (esquema identidad).
+- `infrastructure/persistence/recuperacion.repositorio.js` — Repositorio de tokens de recuperacion de contrasena (esquema identidad).
+- `infrastructure/persistence/usuarios.repositorio.js` — Repositorio de cuentas de usuario (esquema identidad).
 - `infrastructure/seed_admin.js` — Script que crea una cuenta admin con credenciales tomadas del entorno.
 
 **contract/** — Contrato publico OpenAPI
@@ -136,6 +144,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `index.js` — Servicio de cursos — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de cursos.
 
+**config/** — Configuracion del servicio (equivale al application.yml)
+
+- `config/configuracion.js` — Configuracion del servicio de cursos (equivale al application.yml de la seccion 11).
+
 **controller/** — Controller / API: rutas, controladores y DTO
 
 - `controller/course.controller.js` — Controlador HTTP de cursos.
@@ -145,6 +157,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 **application/** — Application / Service: casos de uso
 
 - `application/cursos.service.js` — Casos de uso del servicio de cursos.
+
+**domain/** — Domain: entidades y reglas de negocio
+
+- `domain/curso.js` — Reglas del dominio de cursos.
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
@@ -190,6 +206,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 - `index.js` — Servicio de evaluaciones — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de evaluaciones.
+
+**config/** — Configuracion del servicio (equivale al application.yml)
+
+- `config/configuracion.js` — Configuracion del servicio de evaluaciones (equivale al application.yml de la seccion 11 del material).
 
 **controller/** — Controller / API: rutas, controladores y DTO
 
@@ -268,6 +288,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `index.js` — Servicio de gamificacion — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de gamificacion.
 
+**config/** — Configuracion del servicio (equivale al application.yml)
+
+- `config/configuracion.js` — Configuracion del servicio de gamificacion (equivale al application.yml de la seccion 11 del material).
+
 **controller/** — Controller / API: rutas, controladores y DTO
 
 - `controller/dto.js` — DTO del servicio de gamificacion.
@@ -276,10 +300,18 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 **application/** — Application / Service: casos de uso
 
+- `application/gamificacion.service.js` — Consultas de gamificacion que pide el controller (ranking, estado del usuario, catalogo, reglas).
 - `application/levels.service.js` — Servicio de niveles.
 - `application/points.service.js` — Servicio de asignacion automatica de puntos.
 - `application/recommendations.service.js` — Motor de recomendaciones y resumen de desempeno.
 - `application/rewards.service.js` — Motor de evaluacion de recompensas.
+
+**domain/** — Domain: entidades y reglas de negocio
+
+- `domain/nivel.js` — Niveles (servicio de gamificacion).
+- `domain/puntos.js` — Puntos (servicio de gamificacion).
+- `domain/recomendacion.js` — Recomendaciones (servicio de gamificacion).
+- `domain/recompensa.js` — Recompensas (servicio de gamificacion).
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
@@ -334,6 +366,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `index.js` — Servicio de notificaciones — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de notificaciones.
 
+**config/** — Configuracion del servicio (equivale al application.yml)
+
+- `config/configuracion.js` — Configuracion del servicio de notificaciones (equivale al application.yml de la seccion 11 del material).
+
 **controller/** — Controller / API: rutas, controladores y DTO
 
 - `controller/dto.js` — DTO del servicio de notificaciones.
@@ -348,6 +384,12 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `application/emailTemplates.service.js` — Plantillas de correo versionadas (criterio tecnico 2 de la HU de notificaciones por correo).
 - `application/notifications.service.js` — Servicio de notificaciones.
 - `application/resultNotifications.service.js` — Notificacion de resultados de evaluaciones y simulaciones.
+
+**domain/** — Domain: entidades y reglas de negocio
+
+- `domain/entrega.js` — Entrega de correos (servicio de notificaciones).
+- `domain/notificacion.js` — Notificaciones (servicio de notificaciones).
+- `domain/plantilla.js` — Plantillas de correo (servicio de notificaciones).
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
@@ -408,6 +450,10 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 - `index.js` — Servicio de reportes — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de reportes.
 
+**config/** — Configuracion del servicio (equivale al application.yml)
+
+- `config/configuracion.js` — Configuracion del servicio de reportes (equivale al application.yml de la seccion 11 del material).
+
 **controller/** — Controller / API: rutas, controladores y DTO
 
 - `controller/dto.js` — Esquemas de entrada del servicio de reportes.
@@ -422,6 +468,11 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 - `application/reportExports.service.js` — Exportacion de reportes a CSV y PDF.
 - `application/reports.service.js` — Reportes de desempeno para RH.
 - `application/scheduledReports.service.js` — Reportes automaticos periodicos.
+
+**domain/** — Domain: entidades y reglas de negocio
+
+- `domain/periodo.js` — Periodos de reporte (servicio de reportes).
+- `domain/programacion.js` — Programacion de reportes (servicio de reportes).
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
@@ -479,6 +530,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `index.js` — Servicio de seguridad — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de seguridad.
 
+**config/** — Configuracion del servicio (equivale al application.yml)
+
+- `config/configuracion.js` — Configuracion del servicio de seguridad (equivale al application.yml de la seccion 11 del material).
+
 **controller/** — Controller / API: rutas, controladores y DTO
 
 - `controller/ajustes.routes.js` — Ajuste manual de puntos, nivel o insignias, montado en /api/gamification/users.
@@ -493,6 +548,11 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `application/anomalies.service.js` — Deteccion de anomalias en la asignacion de puntos.
 - `application/audit.service.js` — Auditoria de ajustes manuales.
 - `application/dataLogs.service.js` — Registro centralizado de logs de auditoria (data.logs).
+
+**domain/** — Domain: entidades y reglas de negocio
+
+- `domain/anomalia.js` — Anomalias (servicio de seguridad).
+- `domain/registro.js` — Registro de actividad (servicio de seguridad).
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 

@@ -11,9 +11,9 @@ Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura
 
 | Quiero... | Toco |
 |-----------|------|
-| Un endpoint nuevo | `api/course.routes.js` + `api/course.controller.js` (sin SQL), DTO en `api/esquemas.js`, operacion en `contrato/openapi.js` |
-| Una regla del caso de uso (que pasa al completar, que se publica) | `aplicacion/cursos.service.js` |
-| Una consulta | `infraestructura/cursos.repositorio.js` |
+| Un endpoint nuevo | `controller/course.routes.js` + `controller/course.controller.js` (sin SQL), DTO en `controller/dto.js`, operacion en `contract/openapi.js` |
+| Una regla del caso de uso (que pasa al completar, que se publica) | `application/cursos.service.js` |
+| Una consulta | `infrastructure/persistence/cursos.repositorio.js` |
 | Que otro servicio consulte cursos | exponerlo en `index.js` |
 
 ## Eventos

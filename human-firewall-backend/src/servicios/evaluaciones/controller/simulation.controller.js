@@ -2,7 +2,7 @@
  * Controlador HTTP de simulaciones.
  *
  * Capa de presentacion: sin SQL y sin reglas. El calculo del puntaje esta en
- * dominio/puntaje.js y la coordinacion en aplicacion/simulaciones.service.js.
+ * domain/puntaje.js y la coordinacion en application/simulaciones.service.js.
  */
 
 const simulaciones = require('../application/simulaciones.service');

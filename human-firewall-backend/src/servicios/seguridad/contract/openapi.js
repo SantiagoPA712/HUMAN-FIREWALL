@@ -1,6 +1,6 @@
 /**
  * Contrato publico (OpenAPI) del servicio de seguridad.
- * Ver servicios/identidad/contrato/openapi.js para el formato.
+ * Ver servicios/identidad/contract/openapi.js para el formato.
  *
  * Todas las rutas verifican el rol en el middleware: un 401/403 sale sin
  * ejecutar ninguna consulta. data.logs es inmutable por la API: cualquier

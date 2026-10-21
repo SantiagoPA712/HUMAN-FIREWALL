@@ -19,7 +19,7 @@ import en from './en.js';
  * Diccionarios cargados.
  *
  * El codigo tiene que coincidir con el de `users.language` en el backend
- * (dominio/usuario.js). La lista de idiomas que el usuario PUEDE elegir no
+ * (domain/usuario.js). La lista de idiomas que el usuario PUEDE elegir no
  * sale de aca sino de GET /api/users/idiomas: esto es solo "para que idiomas
  * tenemos textos".
  */

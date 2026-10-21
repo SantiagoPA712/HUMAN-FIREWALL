@@ -26,12 +26,14 @@
  */
 
 const db = require('../../../compartido/config/db');
+const config = require('../config/configuracion');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
+const { ESTADOS } = require('../domain/anomalia');
 
 /** Cada cuanto corre el job de respaldo. Configurable (criterio tecnico 6). */
 const INTERVALO_JOB_MS =
-    (Number(process.env.ANOMALY_JOB_INTERVAL_MINUTES) || 15) * 60 * 1000;
+    config.minutosEntreRevisionesDeAnomalias * 60 * 1000;
 
 let temporizador = null;
 
@@ -372,9 +374,6 @@ async function obtenerAnomalia(id) {
         ajustes_manuales: ajustes.rows
     };
 }
-
-/** Estados validos (criterio tecnico 5). */
-const ESTADOS = ['pending', 'reviewed', 'dismissed'];
 
 /**
  * Cambia el estado de una anomalia dejando traza.

@@ -1,6 +1,6 @@
 /**
  * Contrato publico (OpenAPI) del servicio de evaluaciones.
- * Ver servicios/identidad/contrato/openapi.js para el formato.
+ * Ver servicios/identidad/contract/openapi.js para el formato.
  */
 
 const { operacion } = require('../../../compartido/contratos/operacion');

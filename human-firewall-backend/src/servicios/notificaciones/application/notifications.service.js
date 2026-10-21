@@ -17,6 +17,7 @@
  */
 
 const db = require('../../../compartido/config/db');
+const config = require('../config/configuracion');
 const identidad = require('../infrastructure/client/identidad.cliente');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
@@ -37,7 +38,7 @@ function obtenerTransporte() {
     if (transporteResuelto) return transporte;
     transporteResuelto = true;
 
-    if (!process.env.SMTP_HOST) {
+    if (!config.smtp.host) {
         console.log('[notifications] sin SMTP_HOST: los avisos quedan solo en la aplicacion');
         return (transporte = null);
     }
@@ -45,11 +46,11 @@ function obtenerTransporte() {
     try {
         const nodemailer = require('nodemailer');
         transporte = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: String(process.env.SMTP_SECURE) === 'true',
-            auth: process.env.SMTP_USER
-                ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+            host: config.smtp.host,
+            port: config.smtp.port,
+            secure: config.smtp.secure,
+            auth: config.smtp.user
+                ? { user: config.smtp.user, pass: config.smtp.pass }
                 : undefined
         });
     } catch (err) {
@@ -166,7 +167,7 @@ async function notificar(eventName, aviso, userId) {
         if (!destinatario) throw new Error(`el usuario ${userId} no tiene correo`);
 
         await emisor.sendMail({
-            from: process.env.MAIL_FROM || 'Human Firewall <no-reply@humanfirewall.local>',
+            from: config.remitente,
             to: destinatario,
             subject: aviso.title,
             text: aviso.body
@@ -230,7 +231,7 @@ async function reenviarCorreo({ id = null, dedupeKey = null } = {}) {
         if (!destinatario) throw new Error(`el usuario ${notificacion.user_id} no tiene correo`);
 
         await emisor.sendMail({
-            from: process.env.MAIL_FROM || 'Human Firewall <no-reply@humanfirewall.local>',
+            from: config.remitente,
             to: destinatario,
             subject: notificacion.title,
             text: notificacion.body

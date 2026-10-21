@@ -13,6 +13,7 @@ const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const cursos = require('../infrastructure/client/cursos.cliente');
+const { calcularPuntos } = require('../domain/puntos');
 
 /** Lee una regla activa del catalogo. */
 async function obtenerRegla(code) {
@@ -23,15 +24,6 @@ async function obtenerRegla(code) {
         [code]
     );
     return rows[0] || null;
-}
-
-/** Calcula cuantos puntos otorga una regla para un puntaje dado. */
-function calcularPuntos(regla, score) {
-    if (regla.points_mode === 'by_score') {
-        const s = Math.max(0, Math.min(100, Number(score) || 0));
-        return Math.round(regla.points * s / 100);
-    }
-    return regla.points;
 }
 
 /**

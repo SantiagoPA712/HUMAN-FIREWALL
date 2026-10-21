@@ -33,39 +33,25 @@
  */
 
 const crypto = require('crypto');
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
+const { conTransaccion } = require('../../../compartido/config/transaccion');
 const { esCorreoValido } = require('../../../compartido/utils/correo');
+const { hashPassword } = require('../../../compartido/utils/hash');
+const { generateToken } = require('../../../compartido/utils/token');
+const config = require('../config/configuracion');
+const dominio = require('../domain/invitacion');
+const invitaciones = require('../infrastructure/persistence/invitaciones.repositorio');
 const usuarios = require('../infrastructure/persistence/usuarios.repositorio');
 // data.logs es de seguridad y la bandeja de avisos de notificaciones: se
 // llega a los dos por su contrato, no importando sus archivos internos.
 const dataLogs = require('../infrastructure/client/seguridad.cliente');
 const notificaciones = require('../infrastructure/client/notificaciones.cliente');
-const { hashPassword } = require('../../../compartido/utils/hash');
-const { generateToken } = require('../../../compartido/utils/token');
 
-/** Roles que se pueden invitar. Mismos valores que el CHECK de la migracion 035. */
-const ROLES_INVITABLES = ['employee', 'instructor', 'rh'];
-
-const IDIOMAS = ['es', 'en'];
+const { ROLES_INVITABLES, ESTADOS, RECHAZOS } = dominio;
 
 /** Criterio tecnico 1: "expiracion configurable (ej. 72 horas)". */
-function horasDeVigencia() {
-    const valor = Number(process.env.INVITATION_EXPIRY_HOURS);
-    return Number.isFinite(valor) && valor > 0 ? valor : 72;
-}
-
-/** Misma regla que el registro publico (auth.controller). */
-const REGLA_CONTRASENA = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
-
-/** Estados de la base -> lo que ve el panel (criterio de aceptacion 1). */
-const ESTADOS = {
-    pending:   'pendiente',
-    accepted:  'aceptada',
-    expired:   'expirada',
-    cancelled: 'cancelada'
-};
+const horasDeVigencia = () => config.horasDeVigenciaInvitacion;
 
 // ---------------------------------------------------------------------
 // Utilidades
@@ -77,10 +63,6 @@ function errorHttp(codigo, cuerpo) {
     error.codigo = codigo;
     error.cuerpo = cuerpo;
     return error;
-}
-
-function normalizarEmail(email) {
-    return typeof email === 'string' ? email.trim().toLowerCase() : '';
 }
 
 function generarToken() {
@@ -114,19 +96,6 @@ function publica(fila) {
 }
 
 /**
- * Agrega una fila al historial (criterio tecnico 4). Copia correo, rol y admin
- * que la genero: el historial se tiene que poder leer solo.
- */
-async function registrarEvento(cliente, inv, accion, actorId = null, ocurrio = null) {
-    await cliente.query(
-        `INSERT INTO user_invitation_events
-             (invitation_id, action, actor_user_id, invited_by, email, role, occurred_at)
-         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()))`,
-        [inv.id, accion, actorId, inv.invited_by, inv.email, inv.role, ocurrio]
-    );
-}
-
-/**
  * Log central de auditoria (data.logs). Nunca lanza.
  *
  * @param {number} [actorId]  quien hizo el cambio si no es el usuario del
@@ -153,21 +122,6 @@ function auditar(req, accion, inv, extra = {}, actorId = undefined) {
 /** Senal interna: el UPDATE de aceptar no encontro la invitacion vigente. */
 const YA_NO_VIGENTE = new Error('la invitacion dejo de estar vigente');
 
-async function enTransaccion(fn) {
-    const cliente = await db.connect();
-    try {
-        await cliente.query('BEGIN');
-        const resultado = await fn(cliente);
-        await cliente.query('COMMIT');
-        return resultado;
-    } catch (err) {
-        await cliente.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        cliente.release();
-    }
-}
-
 /**
  * Pasa a 'expired' las pendientes cuyo plazo ya paso, y deja constancia con la
  * hora en que vencieron (no la hora en que alguien lo noto).
@@ -177,28 +131,17 @@ async function enTransaccion(fn) {
  * igual, porque aceptar exige expires_at > now().
  */
 async function marcarVencidas() {
-    return enTransaccion(async (cliente) => {
-        const { rows } = await cliente.query(
-            `UPDATE user_invitations
-                SET status = 'expired', expired_at = expires_at, updated_at = now()
-              WHERE status = 'pending' AND expires_at <= now()
-              RETURNING *`
-        );
-        for (const inv of rows) {
-            await registrarEvento(cliente, inv, 'expired', null, inv.expires_at);
+    return conTransaccion(async (tx) => {
+        const vencidas = await invitaciones.marcarVencidas(tx);
+        for (const inv of vencidas) {
+            await invitaciones.registrarEvento(inv, 'expired', null, inv.expires_at, tx);
         }
-        return rows.length;
+        return vencidas.length;
     });
 }
 
-async function correoDeUsuario(userId) {
-    if (!userId) return null;
-    const { rows } = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
-    return rows[0]?.email || null;
-}
-
 /** Encola el correo de invitacion, dentro de la transaccion que la crea o reenvia. */
-async function publicarInvitacion(cliente, inv, token) {
+async function publicarInvitacion(tx, inv, token) {
     await eventBus.publish(EVENTOS.USER_INVITED, {
         invitationId: Number(inv.id),
         email: inv.email,
@@ -207,9 +150,9 @@ async function publicarInvitacion(cliente, inv, token) {
         token,
         expiresAt: new Date(inv.expires_at).toISOString(),
         invitedBy: inv.invited_by,
-        invitedByEmail: await correoDeUsuario(inv.invited_by),
+        invitedByEmail: await usuarios.correoDe(inv.invited_by),
         sendNo: inv.send_count
-    }, cliente);
+    }, tx);
 }
 
 /**
@@ -217,12 +160,9 @@ async function publicarInvitacion(cliente, inv, token) {
  * pendiente. Devuelve el conflicto, o null si se puede invitar.
  */
 async function conflictoPara(email, { excepto = null } = {}) {
-    const { rows: cuentas } = await db.query(
-        'SELECT id, is_active FROM users WHERE lower(email) = $1',
-        [email]
-    );
-    if (cuentas[0]) {
-        return cuentas[0].is_active === false
+    const cuenta = await usuarios.cuentaPorCorreo(email);
+    if (cuenta) {
+        return cuenta.is_active === false
             ? {
                 msg: 'Ya existe una cuenta desactivada con ese correo. Reactivala desde la gestion de usuarios en lugar de invitar.',
                 estado_actual: 'cuenta_inactiva'
@@ -230,17 +170,13 @@ async function conflictoPara(email, { excepto = null } = {}) {
             : { msg: 'Ya existe una cuenta activa con ese correo.', estado_actual: 'cuenta_activa' };
     }
 
-    const { rows: pendientes } = await db.query(
-        `SELECT id, expires_at FROM user_invitations
-          WHERE email = $1 AND status = 'pending' AND ($2::bigint IS NULL OR id <> $2)`,
-        [email, excepto]
-    );
-    if (pendientes[0]) {
+    const pendiente = await invitaciones.pendientePorCorreo(email, excepto);
+    if (pendiente) {
         return {
             msg: 'Ese correo ya tiene una invitacion pendiente. Podes reenviarla o cancelarla.',
             estado_actual: 'invitacion_pendiente',
-            invitacion_id: Number(pendientes[0].id),
-            expires_at: pendientes[0].expires_at
+            invitacion_id: Number(pendiente.id),
+            expires_at: pendiente.expires_at
         };
     }
 
@@ -263,16 +199,8 @@ function esDuplicado(err) {
  * @throws  400 datos invalidos, 409 correo con cuenta o invitacion pendiente
  */
 async function invitar({ email, role, language = null }, { adminId, req = null } = {}) {
-    const correo = normalizarEmail(email);
-    const errores = [];
-
-    if (!esCorreoValido(correo)) errores.push({ campo: 'email', detalle: 'Correo invalido.' });
-    if (!ROLES_INVITABLES.includes(role)) {
-        errores.push({ campo: 'role', detalle: `Rol invalido. Se puede invitar a: ${ROLES_INVITABLES.join(', ')}.` });
-    }
-    if (language !== null && language !== undefined && language !== '' && !IDIOMAS.includes(language)) {
-        errores.push({ campo: 'language', detalle: `Idioma invalido. Validos: ${IDIOMAS.join(', ')}.` });
-    }
+    const correo = dominio.normalizarEmail(email);
+    const errores = dominio.validarInvitacion({ correo, role, language }, esCorreoValido);
     if (errores.length > 0) throw errorHttp(400, { msg: 'Parametros invalidos', errores });
 
     // Una invitacion vencida no bloquea una nueva: primero se cierra.
@@ -285,15 +213,13 @@ async function invitar({ email, role, language = null }, { adminId, req = null }
 
     let inv;
     try {
-        inv = await enTransaccion(async (cliente) => {
-            const { rows: [creada] } = await cliente.query(
-                `INSERT INTO user_invitations (email, role, language, token_hash, expires_at, invited_by)
-                 VALUES ($1, $2, $3, $4, now() + ($5 || ' hours')::interval, $6)
-                 RETURNING *`,
-                [correo, role, language || null, hash, String(horasDeVigencia()), adminId]
-            );
-            await registrarEvento(cliente, creada, 'created', adminId);
-            await publicarInvitacion(cliente, creada, token);
+        inv = await conTransaccion(async (tx) => {
+            const creada = await invitaciones.insertar({
+                email: correo, role, language: language || null,
+                tokenHash: hash, horasDeVigencia: horasDeVigencia(), invitedBy: adminId
+            }, tx);
+            await invitaciones.registrarEvento(creada, 'created', adminId, null, tx);
+            await publicarInvitacion(tx, creada, token);
             return creada;
         });
     } catch (err) {
@@ -316,9 +242,7 @@ async function invitar({ email, role, language = null }, { adminId, req = null }
 async function listar({ estado = null } = {}) {
     await marcarVencidas();
 
-    const status = estado
-        ? Object.entries(ESTADOS).find(([, es]) => es === estado)?.[0]
-        : null;
+    const status = estado ? dominio.estadoDesdeNombre(estado) : null;
     if (estado && !status) {
         throw errorHttp(400, {
             msg: 'Parametros invalidos',
@@ -326,34 +250,29 @@ async function listar({ estado = null } = {}) {
         });
     }
 
-    const { rows } = await db.query(
-        `SELECT i.*, u.email AS invited_by_email,
-                COALESCE(
-                    json_agg(json_build_object(
-                        'accion', e.action, 'actor_id', e.actor_user_id, 'en', e.occurred_at
-                    ) ORDER BY e.occurred_at, e.id) FILTER (WHERE e.id IS NOT NULL),
-                    '[]'
-                ) AS historial
-           FROM user_invitations i
-           LEFT JOIN users u ON u.id = i.invited_by
-           LEFT JOIN user_invitation_events e ON e.invitation_id = i.id
-          WHERE ($1::text IS NULL OR i.status = $1)
-          GROUP BY i.id, u.email
-          ORDER BY i.created_at DESC, i.id DESC
-          LIMIT 200`,
-        [status]
-    );
+    const filas = await invitaciones.listar(status);
 
-    const { rows: conteo } = await db.query(
-        'SELECT status, COUNT(*)::int AS total FROM user_invitations GROUP BY status'
-    );
     const resumen = { pendiente: 0, aceptada: 0, expirada: 0, cancelada: 0 };
-    for (const c of conteo) resumen[ESTADOS[c.status]] = c.total;
+    for (const c of await invitaciones.contarPorEstado()) resumen[ESTADOS[c.status]] = c.total;
 
     return {
         resumen,
-        invitaciones: rows.map(r => ({ ...publica(r), historial: r.historial }))
+        invitaciones: filas.map(r => ({ ...publica(r), historial: r.historial }))
     };
+}
+
+/** La invitacion bloqueada para cambiarla, o el error que corresponde. */
+async function bloquearModificable(id, accion, tx) {
+    const actual = await invitaciones.bloquear(id, tx);
+    if (!actual) throw errorHttp(404, { msg: 'Invitacion no encontrada' });
+
+    if (!dominio.sePuedeReenviarOCancelar(actual.status)) {
+        throw errorHttp(409, {
+            msg: `La invitacion esta ${ESTADOS[actual.status]} y no se puede ${accion}.`,
+            estado_actual: ESTADOS[actual.status]
+        });
+    }
+    return actual;
 }
 
 /**
@@ -370,37 +289,15 @@ async function reenviar(id, { adminId, req = null } = {}) {
 
     let inv;
     try {
-        inv = await enTransaccion(async (cliente) => {
-            const { rows: [actual] } = await cliente.query(
-                'SELECT * FROM user_invitations WHERE id = $1 FOR UPDATE', [id]
-            );
-            if (!actual) throw errorHttp(404, { msg: 'Invitacion no encontrada' });
-
-            if (!['pending', 'expired'].includes(actual.status)) {
-                throw errorHttp(409, {
-                    msg: `La invitacion esta ${ESTADOS[actual.status]} y no se puede reenviar.`,
-                    estado_actual: ESTADOS[actual.status]
-                });
-            }
+        inv = await conTransaccion(async (tx) => {
+            const actual = await bloquearModificable(id, 'reenviar', tx);
 
             const conflicto = await conflictoPara(actual.email, { excepto: actual.id });
             if (conflicto) throw errorHttp(409, conflicto);
 
-            const { rows: [nueva] } = await cliente.query(
-                `UPDATE user_invitations
-                    SET token_hash = $2,
-                        expires_at = now() + ($3 || ' hours')::interval,
-                        status = 'pending',
-                        send_count = send_count + 1,
-                        resend_requested_at = NULL,
-                        expired_at = NULL,
-                        updated_at = now()
-                  WHERE id = $1
-                  RETURNING *`,
-                [id, hash, String(horasDeVigencia())]
-            );
-            await registrarEvento(cliente, nueva, 'resent', adminId);
-            await publicarInvitacion(cliente, nueva, token);
+            const nueva = await invitaciones.renovar(id, { tokenHash: hash, horasDeVigencia: horasDeVigencia() }, tx);
+            await invitaciones.registrarEvento(nueva, 'resent', adminId, null, tx);
+            await publicarInvitacion(tx, nueva, token);
             return nueva;
         });
     } catch (err) {
@@ -421,27 +318,10 @@ async function reenviar(id, { adminId, req = null } = {}) {
 async function cancelar(id, { adminId, req = null } = {}) {
     await marcarVencidas();
 
-    const inv = await enTransaccion(async (cliente) => {
-        const { rows: [actual] } = await cliente.query(
-            'SELECT * FROM user_invitations WHERE id = $1 FOR UPDATE', [id]
-        );
-        if (!actual) throw errorHttp(404, { msg: 'Invitacion no encontrada' });
-
-        if (!['pending', 'expired'].includes(actual.status)) {
-            throw errorHttp(409, {
-                msg: `La invitacion esta ${ESTADOS[actual.status]} y no se puede cancelar.`,
-                estado_actual: ESTADOS[actual.status]
-            });
-        }
-
-        const { rows: [cancelada] } = await cliente.query(
-            `UPDATE user_invitations
-                SET status = 'cancelled', cancelled_at = now(), updated_at = now()
-              WHERE id = $1
-              RETURNING *`,
-            [id]
-        );
-        await registrarEvento(cliente, cancelada, 'cancelled', adminId);
+    const inv = await conTransaccion(async (tx) => {
+        await bloquearModificable(id, 'cancelar', tx);
+        const cancelada = await invitaciones.cancelar(id, tx);
+        await invitaciones.registrarEvento(cancelada, 'cancelled', adminId, null, tx);
         return cancelada;
     });
 
@@ -454,40 +334,20 @@ async function cancelar(id, { adminId, req = null } = {}) {
 // ---------------------------------------------------------------------
 
 /**
- * Motivos por los que un enlace no sirve. El cuerpo NO repite el correo ni el
- * rol: con un token adivinado o robado no se aprende nada de la invitacion.
- */
-const RECHAZOS = {
-    invalida:  { codigo: 404, msg: 'El enlace de invitacion no es valido.' },
-    usada:     { codigo: 410, msg: 'Esta invitacion ya fue utilizada. Si ya tenes cuenta, inicia sesion.' },
-    cancelada: { codigo: 410, msg: 'Esta invitacion fue cancelada por un administrador.' },
-    expirada:  { codigo: 410, msg: 'Esta invitacion vencio. Podes pedir que te envien una nueva.' }
-};
-
-/**
  * Criterio tecnico 2: el token existe, no vencio y no se uso.
  *
  * @returns {Promise<{valida: true, invitacion: object} | {valida: false, motivo: string, invitacion?: object}>}
  */
 async function evaluarToken(token) {
-    if (typeof token !== 'string' || token.length < 20 || token.length > 200) {
-        return { valida: false, motivo: 'invalida' };
+    if (!dominio.tokenConFormaValida(token)) return { valida: false, motivo: 'invalida' };
+
+    const inv = await invitaciones.buscarPorHash(hashToken(token));
+    const estado = dominio.evaluar(inv);
+
+    if (!estado.valida && estado.motivo === 'expirada' && inv.status === 'pending') {
+        await marcarVencidas();
     }
-
-    const { rows: [inv] } = await db.query(
-        'SELECT * FROM user_invitations WHERE token_hash = $1', [hashToken(token)]
-    );
-    if (!inv) return { valida: false, motivo: 'invalida' };
-
-    if (inv.status === 'accepted') return { valida: false, motivo: 'usada', invitacion: inv };
-    if (inv.status === 'cancelled') return { valida: false, motivo: 'cancelada', invitacion: inv };
-
-    if (inv.status === 'expired' || new Date(inv.expires_at) <= new Date()) {
-        if (inv.status === 'pending') await marcarVencidas();
-        return { valida: false, motivo: 'expirada', invitacion: inv };
-    }
-
-    return { valida: true, invitacion: inv };
+    return { ...estado, ...(inv ? { invitacion: inv } : {}) };
 }
 
 function rechazo(motivo, inv = null) {
@@ -527,21 +387,8 @@ async function validar(token) {
  * @returns {Promise<{token: string, user: object}>} JWT para entrar directo
  */
 async function aceptar(token, { password, full_name, language } = {}, { req = null } = {}) {
-    const errores = [];
     const nombre = typeof full_name === 'string' ? full_name.trim() : '';
-
-    if (nombre.length < 2 || nombre.length > 150) {
-        errores.push({ campo: 'full_name', detalle: 'Ingresa tu nombre completo (entre 2 y 150 caracteres).' });
-    }
-    if (typeof password !== 'string' || !REGLA_CONTRASENA.test(password)) {
-        errores.push({
-            campo: 'password',
-            detalle: 'La contrasena debe tener minimo 8 caracteres, al menos una mayuscula y un numero.'
-        });
-    }
-    if (language !== undefined && language !== null && language !== '' && !IDIOMAS.includes(language)) {
-        errores.push({ campo: 'language', detalle: `Idioma invalido. Validos: ${IDIOMAS.join(', ')}.` });
-    }
+    const errores = dominio.validarAceptacion({ nombre, password, language });
 
     // El token se evalua ANTES que los datos del formulario: con un enlace
     // vencido no importa que la contrasena este bien, y el invitado tiene que
@@ -552,37 +399,26 @@ async function aceptar(token, { password, full_name, language } = {}, { req = nu
 
     const hash = await hashPassword(password);
 
-    const resultado = await enTransaccion(async (cliente) => {
-        // Un solo uso (criterio tecnico 1): el UPDATE condicionado es la
-        // unica puerta. Si otro request lo acepto un instante antes, aca no
-        // vuelve ninguna fila.
-        const { rows: [inv] } = await cliente.query(
-            `UPDATE user_invitations
-                SET status = 'accepted', accepted_at = now(), updated_at = now()
-              WHERE token_hash = $1 AND status = 'pending' AND expires_at > now()
-              RETURNING *`,
-            [hashToken(token)]
-        );
+    const resultado = await conTransaccion(async (tx) => {
+        // Un solo uso (criterio tecnico 1): si otro request la acepto un
+        // instante antes, aca no vuelve ninguna fila.
+        const inv = await invitaciones.aceptarPorHash(hashToken(token), tx);
         if (!inv) throw YA_NO_VIGENTE;   // se resuelve afuera, con el motivo real
 
-        const { rows: existentes } = await cliente.query(
-            'SELECT 1 FROM users WHERE lower(email) = $1', [inv.email]
-        );
-        if (existentes.length > 0) {
+        if (await usuarios.cuentaPorCorreo(inv.email, tx)) {
             throw errorHttp(409, { msg: 'Ya existe una cuenta con ese correo.', estado_actual: 'cuenta_activa' });
         }
 
-        const { rows: [usuario] } = await cliente.query(
-            `INSERT INTO users (email, password, role, full_name, language, is_active)
-             VALUES ($1, $2, $3, $4, $5, true)
-             RETURNING id, email, role, full_name, language`,
-            [inv.email, hash, inv.role, nombre, language || inv.language || null]
-        );
+        const usuario = await usuarios.insertar({
+            email: inv.email,
+            passwordHash: hash,
+            role: inv.role,
+            fullName: nombre,
+            language: language || inv.language || null
+        }, tx);
 
-        await cliente.query(
-            'UPDATE user_invitations SET accepted_user_id = $2 WHERE id = $1', [inv.id, usuario.id]
-        );
-        await registrarEvento(cliente, inv, 'accepted', usuario.id);
+        await invitaciones.asignarCuenta(inv.id, usuario.id, tx);
+        await invitaciones.registrarEvento(inv, 'accepted', usuario.id, null, tx);
 
         // Mismo evento que el registro publico y el de Google: el correo de
         // bienvenida, y lo que venga despues, no necesita saber como entro.
@@ -591,7 +427,7 @@ async function aceptar(token, { password, full_name, language } = {}, { req = nu
             email: usuario.email,
             role: usuario.role,
             provider: 'invitation'
-        }, cliente);
+        }, tx);
 
         return { inv, usuario };
     }).catch(async (err) => {
@@ -632,14 +468,9 @@ async function solicitarReenvio(token) {
         return { msg: 'Ya pediste una nueva invitacion. El administrador la va a reenviar.', ya_solicitado: true };
     }
 
-    await enTransaccion(async (cliente) => {
-        const { rows: [marcada] } = await cliente.query(
-            `UPDATE user_invitations SET resend_requested_at = now(), updated_at = now()
-              WHERE id = $1 AND resend_requested_at IS NULL
-              RETURNING *`,
-            [inv.id]
-        );
-        if (marcada) await registrarEvento(cliente, marcada, 'resend_requested', null);
+    await conTransaccion(async (tx) => {
+        const marcada = await invitaciones.marcarReenvioSolicitado(inv.id, tx);
+        if (marcada) await invitaciones.registrarEvento(marcada, 'resend_requested', null, null, tx);
     });
 
     // Aviso en la bandeja de quien la genero; si esa cuenta ya no esta
