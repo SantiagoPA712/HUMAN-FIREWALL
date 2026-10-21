@@ -23,18 +23,24 @@ import SecurityPanel from './pages/SecurityPanel';
 import ScheduledReportsPage from './pages/ScheduledReportsPage';
 import OrganizationalPage from './pages/OrganizationalPage';
 import NotificationsPage from './pages/NotificationsPage';
+import PreferencesPage from './pages/PreferencesPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import AcceptInvitationPage from './pages/AcceptInvitationPage';
 import InvitationsPage from './pages/InvitationsPage';
 import ProfilePage from './pages/ProfilePage';
 import { PuntosProvider } from './context/PuntosContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { IdiomaProvider } from './context/IdiomaContext';
 import { TextSizeProvider } from './context/TextSizeContext';
 
 function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
+        {/* El idioma envuelve a toda la aplicacion para que valga igual en
+            cualquier pantalla: criterio de aceptacion 7, el idioma elegido se
+            mantiene al pasar de un modulo a otro. */}
+        <IdiomaProvider>
         {/* Tamano de texto: envuelve a todas las rutas para que la escala
             elegida se mantenga al pasar de un modulo a otro. */}
         <TextSizeProvider>
@@ -64,6 +70,11 @@ function App() {
             de rol. El bloque de cursos criticos, dentro de la pantalla, solo
             lo ve RH porque el backend responde 403 al resto. */}
         <Route path="/notifications" element={<NotificationsPage />} />
+
+        {/* Preferencias de la cuenta: idioma de la plataforma. Es de cada
+            usuario sobre si mismo, asi que no lleva restriccion de rol; el
+            backend saca el id del token y nadie puede tocar las de otro. */}
+        <Route path="/preferencias" element={<PreferencesPage />} />
 
         {/* Reportes de RH: el backend rechaza con 403 a quien no sea rh o admin */}
         <Route path="/reports" element={<ReportsPage />} />
@@ -111,6 +122,7 @@ function App() {
       </Routes>
       </PuntosProvider>
       </TextSizeProvider>
+      </IdiomaProvider>
       </ThemeProvider>
     </BrowserRouter>
   );

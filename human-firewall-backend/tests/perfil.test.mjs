@@ -228,7 +228,23 @@ const trasFalla = await fila();
 check('ni el nombre ni el telefono quedaron a medias',
     trasFalla.full_name === previo.full_name && trasFalla.phone === previo.phone);
 
-const { rows: [{ en_tx }] } = await pg.query(`SELECT now() = statement_timestamp() AS en_tx`);
+// now() es la hora de INICIO DE LA TRANSACCION. Dentro de un bloque abierto
+// queda clavada en el BEGIN; fuera, cada sentencia es su propia transaccion
+// implicita y avanza con el reloj. Asi que se mide: se pregunta la hora, se
+// espera, y se vuelve a preguntar. Si avanzo, la conexion no quedo dentro de
+// ninguna transaccion.
+//
+// Antes esto era `now() = statement_timestamp()`, y fallaba de a ratos: el
+// reloj de PGlite tiene granularidad de milisegundo, asi que fuera de
+// transaccion esa resta da 0 o 1-2 ms segun le toque y la igualdad exacta
+// se caia en una corrida de cada dos o tres. Medir el avance no depende ni
+// de la granularidad del reloj ni de hace cuanto se abrio la transaccion.
+const ESPERA_MS = 30;
+const hora = async () => (await pg.query('SELECT now() AS t')).rows[0].t;
+const horaAntes = await hora();
+await new Promise(r => setTimeout(r, ESPERA_MS));
+const horaDespues = await hora();
+const en_tx = (new Date(horaDespues) - new Date(horaAntes)) >= ESPERA_MS / 2;
 check('la transaccion se cerro con ROLLBACK (la conexion no quedo dentro de ella)', en_tx === true);
 
 estado.caida = true;

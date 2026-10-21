@@ -7,21 +7,14 @@ import { Card } from '../components/ui/Card';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
 import { formularioDesde, validarFormulario, cambiosRespectoDe } from '../lib/perfil';
+import { useIdioma } from '../context/useIdioma';
 
-const ROLES = {
-    admin: 'Administrador del Sistema',
-    security: 'Oficial de Seguridad (CISO)',
-    rh: 'Recursos Humanos',
-    manager: 'Gerencia / Manager',
-    instructor: 'Instructor',
-    employee: 'Empleado'
-};
+// Los mapas guardan la CLAVE del texto, no el texto: asi se resuelven con t()
+// en cada render y cambian de idioma solos.
+const ROLES = ['admin', 'security', 'rh', 'manager', 'instructor', 'employee'];
 
-const IDIOMAS = { '': 'El de la plataforma', es: 'Español', en: 'English' };
-
-const formatearFecha = (iso) => iso
-    ? new Date(iso).toLocaleString('es', { day: '2-digit', month: 'long', year: 'numeric' })
-    : '—';
+// El nombre de cada idioma se escribe en ese idioma, asi que no se traduce.
+const IDIOMAS = { es: 'Español', en: 'English' };
 
 /**
  * Mi perfil (HU de perfil editable).
@@ -31,6 +24,7 @@ const formatearFecha = (iso) => iso
  * volver (criterio de aceptacion 7).
  */
 export default function ProfilePage() {
+    const { t, idioma } = useIdioma();
     const [perfil, setPerfil] = useState(null);
     const [formulario, setFormulario] = useState(formularioDesde(null));
     const [editando, setEditando] = useState(false);
@@ -40,6 +34,13 @@ export default function ProfilePage() {
     const [errorDeCarga, setErrorDeCarga] = useState(null);
     const usuarioId = getUsuarioActual()?.id;
 
+    const formatearFecha = (iso) => iso
+        ? new Date(iso).toLocaleString(idioma, { day: '2-digit', month: 'long', year: 'numeric' })
+        : '—';
+
+    const nombreDeIdioma = (codigo) => IDIOMAS[codigo] || t('perfil.idioma_plataforma');
+    const nombreDeRol = (rol) => (ROLES.includes(rol) ? t(`roles.${rol}`) : rol);
+
     useEffect(() => {
         if (!usuarioId) { window.location.href = '/login'; return; }
 
@@ -48,8 +49,8 @@ export default function ProfilePage() {
                 setPerfil(data);
                 setFormulario(formularioDesde(data));
             })
-            .catch((e) => setErrorDeCarga(e.response?.data?.msg || 'No se pudo cargar tu perfil'));
-    }, [usuarioId]);
+            .catch((e) => setErrorDeCarga(e.response?.data?.msg || t('perfil.error_carga')));
+    }, [usuarioId, t]);
 
     const { errores: erroresActuales, valores } = validarFormulario(formulario);
     const hayCambios = perfil && Object.keys(cambiosRespectoDe(perfil, valores)).length > 0;
@@ -96,7 +97,7 @@ export default function ProfilePage() {
         // Criterio de aceptacion 5: sin cambios no hay solicitud.
         const cambios = cambiosRespectoDe(perfil, valores);
         if (Object.keys(cambios).length === 0) {
-            setAviso({ tipo: 'info', texto: 'No hay cambios para guardar.' });
+            setAviso({ tipo: 'info', texto: t('perfil.sin_cambios') });
             return;
         }
 
@@ -106,20 +107,26 @@ export default function ProfilePage() {
             setPerfil(data);
             setFormulario(formularioDesde(data));
             setEditando(false);
-            setAviso({ tipo: data.sin_cambios ? 'info' : 'exito', texto: data.msg });
+            // El backend manda su `msg` en espanol; aca se usa el del
+            // diccionario para que siga al idioma de la pantalla. El caso lo
+            // sigue decidiendo el servidor con `sin_cambios`.
+            setAviso({
+                tipo: data.sin_cambios ? 'info' : 'exito',
+                texto: t(data.sin_cambios ? 'perfil.sin_cambios_servidor' : 'perfil.guardado')
+            });
         } catch (err) {
             // Criterio de aceptacion 9: si no se guardo, no hay confirmacion.
             // El formulario queda como estaba para que no se pierda lo escrito.
             const cuerpo = err.response?.data;
             if (err.response?.status === 400 && Array.isArray(cuerpo?.errores)) {
                 setErrores(Object.fromEntries(cuerpo.errores.map((x) => [x.campo, x.detalle])));
-                setAviso({ tipo: 'error', texto: 'Revisa los campos marcados.' });
+                setAviso({ tipo: 'error', texto: t('perfil.revisa_campos') });
             } else {
                 setAviso({
                     tipo: 'error',
                     texto: cuerpo?.msg && err.response?.status !== 500
                         ? cuerpo.msg
-                        : 'No se pudo guardar tu perfil. Los cambios no se aplicaron; intenta de nuevo en unos minutos.'
+                        : t('perfil.error_guardar')
                 });
             }
         } finally {
@@ -132,7 +139,7 @@ export default function ProfilePage() {
             <div className="mx-auto max-w-3xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {t('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
@@ -141,10 +148,10 @@ export default function ProfilePage() {
                     <div>
                         <h1 className="flex items-center gap-3 text-3xl font-bold">
                             <UserCircle2 className="h-8 w-8 text-brand-blue" />
-                            Mi perfil
+                            {t('perfil.titulo')}
                         </h1>
                         <p className="mt-1 text-text-secondary">
-                            Tu información personal registrada en Human Firewall.
+                            {t('perfil.subtitulo')}
                         </p>
                     </div>
                     {perfil && !editando && (
@@ -153,7 +160,7 @@ export default function ProfilePage() {
                             onClick={iniciarEdicion}
                             className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 py-2 font-semibold text-white transition-colors hover:bg-brand-light cursor-pointer"
                         >
-                            <Pencil className="h-4 w-4" /> Editar perfil
+                            <Pencil className="h-4 w-4" /> {t('perfil.editar')}
                         </button>
                     )}
                 </header>
@@ -166,25 +173,25 @@ export default function ProfilePage() {
                     </Card>
                 )}
 
-                {!errorDeCarga && !perfil && <p className="text-text-secondary">Cargando…</p>}
+                {!errorDeCarga && !perfil && <p className="text-text-secondary">{t('comun.cargando')}</p>}
 
                 {perfil && (
                     <>
                         <Card className="mb-6 p-6">
-                            <h2 className="mb-1 text-lg font-bold">Datos personales</h2>
+                            <h2 className="mb-1 text-lg font-bold">{t('perfil.datos_personales')}</h2>
                             <p className="mb-5 text-sm text-text-secondary">
                                 {editando
-                                    ? 'Los campos con * son obligatorios.'
-                                    : 'Puedes actualizar tu nombre, tu teléfono y el idioma de tus correos.'}
+                                    ? t('perfil.obligatorios')
+                                    : t('perfil.puede_actualizar')}
                             </p>
 
                             {editando ? (
                                 <form onSubmit={guardar} noValidate className="flex flex-col gap-5">
                                     <Campo
                                         id="full_name"
-                                        etiqueta="Nombre completo *"
+                                        etiqueta={t('perfil.nombre_completo_obligatorio')}
                                         icono={UserCircle2}
-                                        error={errores.full_name}
+                                        error={errores.full_name && t(errores.full_name)}
                                     >
                                         <input
                                             id="full_name"
@@ -196,11 +203,11 @@ export default function ProfilePage() {
                                             aria-invalid={!!errores.full_name}
                                             aria-describedby={errores.full_name ? 'full_name-error' : undefined}
                                             className={claseDeInput(errores.full_name)}
-                                            placeholder="Ana María Pérez"
+                                            placeholder={t('perfil.nombre_placeholder')}
                                         />
                                     </Campo>
 
-                                    <Campo id="phone" etiqueta="Teléfono" icono={Phone} error={errores.phone} ayuda="Opcional. Con indicativo del país si es de otro país.">
+                                    <Campo id="phone" etiqueta={t('perfil.telefono')} icono={Phone} error={errores.phone && t(errores.phone)} ayuda={t('perfil.telefono_ayuda')}>
                                         <input
                                             id="phone"
                                             type="tel"
@@ -211,17 +218,18 @@ export default function ProfilePage() {
                                             aria-invalid={!!errores.phone}
                                             aria-describedby={errores.phone ? 'phone-error' : undefined}
                                             className={claseDeInput(errores.phone)}
-                                            placeholder="+57 300 123 4567"
+                                            placeholder={t('perfil.telefono_placeholder')}
                                         />
                                     </Campo>
 
-                                    <Campo id="language" etiqueta="Idioma de los correos" icono={Languages} error={errores.language}>
+                                    <Campo id="language" etiqueta={t('perfil.idioma_correos')} icono={Languages} error={errores.language && t(errores.language)}>
                                         <select
                                             id="language"
                                             value={formulario.language}
                                             onChange={cambiar('language')}
                                             className={claseDeInput(errores.language)}
                                         >
+                                            <option value="">{t('perfil.idioma_plataforma')}</option>
                                             {Object.entries(IDIOMAS).map(([valor, texto]) => (
                                                 <option key={valor} value={valor}>{texto}</option>
                                             ))}
@@ -235,24 +243,24 @@ export default function ProfilePage() {
                                             disabled={guardando}
                                             className="inline-flex items-center gap-2 rounded-lg border border-border-color px-4 py-2 font-medium text-text-secondary transition-colors hover:bg-nav-hover hover:text-text-primary disabled:opacity-50 cursor-pointer"
                                         >
-                                            <X className="h-4 w-4" /> Cancelar
+                                            <X className="h-4 w-4" /> {t('perfil.cancelar')}
                                         </button>
                                         <button
                                             type="submit"
                                             disabled={guardando || !hayCambios}
-                                            title={!hayCambios ? 'No hay cambios para guardar' : undefined}
+                                            title={!hayCambios ? t('perfil.sin_cambios_titulo') : undefined}
                                             className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-4 py-2 font-semibold text-white transition-colors hover:bg-brand-light disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                                         >
                                             <Save className="h-4 w-4" />
-                                            {guardando ? 'Guardando…' : 'Guardar cambios'}
+                                            {guardando ? t('perfil.guardando') : t('perfil.guardar_cambios')}
                                         </button>
                                     </div>
                                 </form>
                             ) : (
                                 <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                                    <Dato icono={UserCircle2} etiqueta="Nombre completo" valor={perfil.full_name} vacio="Sin registrar" />
-                                    <Dato icono={Phone} etiqueta="Teléfono" valor={perfil.phone} vacio="Sin registrar" />
-                                    <Dato icono={Languages} etiqueta="Idioma de los correos" valor={IDIOMAS[perfil.language || '']} />
+                                    <Dato icono={UserCircle2} etiqueta={t('perfil.nombre_completo')} valor={perfil.full_name} vacio={t('perfil.sin_registrar')} />
+                                    <Dato icono={Phone} etiqueta={t('perfil.telefono')} valor={perfil.phone} vacio={t('perfil.sin_registrar')} />
+                                    <Dato icono={Languages} etiqueta={t('perfil.idioma_correos')} valor={nombreDeIdioma(perfil.language)} />
                                 </dl>
                             )}
                         </Card>
@@ -260,16 +268,16 @@ export default function ProfilePage() {
                         {/* Criterio de aceptacion 8: lo protegido se ve pero no se edita. */}
                         <Card className="p-6">
                             <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
-                                <Lock className="h-4 w-4 text-text-secondary" /> Datos de la cuenta
+                                <Lock className="h-4 w-4 text-text-secondary" /> {t('perfil.datos_cuenta')}
                             </h2>
                             <p className="mb-5 text-sm text-text-secondary">
-                                Estos datos los administra la organización. Si alguno no es correcto, pide el cambio a un administrador.
+                                {t('perfil.datos_cuenta_ayuda')}
                             </p>
                             <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                                <Dato icono={Mail} etiqueta="Correo (usuario de acceso)" valor={perfil.email} />
-                                <Dato icono={Shield} etiqueta="Rol" valor={ROLES[perfil.role] || perfil.role} />
-                                <Dato icono={Users} etiqueta="Equipo" valor={perfil.team_name} vacio="Sin equipo asignado" />
-                                <Dato icono={CalendarDays} etiqueta="Miembro desde" valor={formatearFecha(perfil.created_at)} />
+                                <Dato icono={Mail} etiqueta={t('perfil.correo')} valor={perfil.email} />
+                                <Dato icono={Shield} etiqueta={t('perfil.rol')} valor={nombreDeRol(perfil.role)} />
+                                <Dato icono={Users} etiqueta={t('perfil.equipo')} valor={perfil.team_name} vacio={t('perfil.sin_equipo')} />
+                                <Dato icono={CalendarDays} etiqueta={t('perfil.miembro_desde')} valor={formatearFecha(perfil.created_at)} />
                             </dl>
                         </Card>
                     </>
@@ -324,12 +332,13 @@ const ESTILOS_AVISO = {
 };
 
 function Aviso({ tipo, texto, onCerrar }) {
+    const { t } = useIdioma();
     const { clase, icono: Icono } = ESTILOS_AVISO[tipo];
     return (
         <div role={tipo === 'error' ? 'alert' : 'status'} className={`mb-6 flex items-start gap-3 rounded-xl border p-4 ${clase}`}>
             <Icono className="mt-0.5 h-5 w-5 shrink-0" />
             <p className="flex-1 font-medium">{texto}</p>
-            <button type="button" onClick={onCerrar} aria-label="Cerrar aviso" className="opacity-70 hover:opacity-100 cursor-pointer">
+            <button type="button" onClick={onCerrar} aria-label={t('perfil.cerrar_aviso')} className="opacity-70 hover:opacity-100 cursor-pointer">
                 <X className="h-4 w-4" />
             </button>
         </div>

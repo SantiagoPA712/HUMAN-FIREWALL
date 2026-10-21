@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Lock, Wifi, Target, ShieldCheck, Trophy, ArrowLeft, BookOpen, Award, History, Play, Check } from 'lucide-react';
+import { Mail, Lock, Wifi, Target, ShieldCheck, Trophy, ArrowLeft, BookOpen, Award, History, Play, Check, Languages } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { ThemeSelector } from '../components/ThemeSelector';
 import { api } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 export default function ChallengesHub() {
+  const { t } = useIdioma();
+
   // Simulaciones guiadas cargadas en la base.
   //
   // Esta pagina solo mostraba los cinco minijuegos de abajo, que estan escritos
@@ -22,13 +25,14 @@ export default function ChallengesHub() {
       .catch(() => setSimulaciones([]));
   }, []);
 
+  // Se arma en cada render para que los textos se repinten al cambiar de idioma.
   const challenges = [
     {
       id: "phishing",
       icon: <Mail className="w-8 h-8 text-brand-light" />,
-      title: "Detector de Phishing",
-      desc: "Aprende a identificar correos fraudulentos y protege tu información",
-      level: "Fácil",
+      title: t('desafios.phishing_titulo'),
+      desc: t('desafios.phishing_desc'),
+      level: t('desafios.nivel_facil'),
       levelColor: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
       points: "+100 pts",
       route: "/simulation/phishing"
@@ -36,9 +40,9 @@ export default function ChallengesHub() {
     {
       id: "password",
       icon: <Lock className="w-8 h-8 text-brand-light" />,
-      title: "Maestro de Contraseñas",
-      desc: "Crea contraseñas seguras y aprende mejores prácticas",
-      level: "Medio",
+      title: t('desafios.password_titulo'),
+      desc: t('desafios.password_desc'),
+      level: t('desafios.nivel_medio'),
       levelColor: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30",
       points: "+150 pts",
       route: "/simulation/password"
@@ -46,9 +50,9 @@ export default function ChallengesHub() {
     {
       id: "wifi",
       icon: <Wifi className="w-8 h-8 text-brand-light" />,
-      title: "Wi-Fi Seguro",
-      desc: "Identifica riesgos en redes inalámbricas públicas",
-      level: "Medio",
+      title: t('desafios.wifi_titulo'),
+      desc: t('desafios.wifi_desc'),
+      level: t('desafios.nivel_medio'),
       levelColor: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30",
       points: "+200 pts",
       route: "/simulation/wifi"
@@ -56,9 +60,9 @@ export default function ChallengesHub() {
     {
       id: "social",
       icon: <Target className="w-8 h-8 text-brand-light" />,
-      title: "Ingeniería Social",
-      desc: "Detecta y previene ataques de manipulación psicológica",
-      level: "Difícil",
+      title: t('desafios.social_titulo'),
+      desc: t('desafios.social_desc'),
+      level: t('desafios.nivel_dificil'),
       levelColor: "bg-red-500/20 text-red-400 border border-red-500/30",
       points: "+250 pts",
       route: "/simulation/social"
@@ -66,9 +70,9 @@ export default function ChallengesHub() {
     {
       id: "data",
       icon: <ShieldCheck className="w-8 h-8 text-brand-light" />,
-      title: "Protección de Datos",
-      desc: "Maneja información sensible de forma segura",
-      level: "Medio",
+      title: t('desafios.datos_titulo'),
+      desc: t('desafios.datos_desc'),
+      level: t('desafios.nivel_medio'),
       levelColor: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30",
       points: "+200 pts",
       route: "/simulation/ransomware" // Reutilizamos Ransomware para Datos Críticos
@@ -92,36 +96,40 @@ export default function ChallengesHub() {
         <nav className="flex-1 flex flex-col gap-2">
           <a href="/dashboard" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <Trophy className="w-5 h-5" />
-            Mi Desempeño
+            {t('nav.mi_desempeno')}
           </a>
           <a href="/points" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <History className="w-5 h-5" />
-            Historial de Puntos
+            {t('nav.historial_puntos')}
+          </a>
+          <a href="/preferencias" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
+            <Languages className="w-5 h-5" />
+            {t('nav.preferencias')}
           </a>
           <a href="/challenges" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-brand-blue/10 text-brand-light font-medium">
             <Target className="w-5 h-5" />
-            Desafíos & Retos
+            {t('nav.desafios')}
           </a>
           <a href="/rewards" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <Award className="w-5 h-5" />
-            Mis Logros
+            {t('nav.mis_logros')}
           </a>
           <a href="/courses" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 text-text-secondary hover:text-white transition-colors">
             <BookOpen className="w-5 h-5" />
-            Cursos
+            {t('nav.cursos')}
           </a>
         </nav>
 
         <div className="mt-auto flex flex-col gap-3">
           <div className="rounded-xl border border-border-color bg-bg-card/40 p-3">
             <span className="text-xs font-semibold text-text-secondary block mb-2">
-              Tema
+              {t('nav.tema')}
             </span>
             <ThemeSelector variant="segmented" className="w-full justify-center" />
           </div>
 
           <button className="flex items-center w-full justify-start px-4 py-3 text-text-secondary hover:text-white hover:bg-red-500/10 hover:border-red-500/50 rounded-lg transition cursor-pointer" onClick={handleLogout}>
-            Cerrar Sesión
+            {t('nav.cerrar_sesion')}
           </button>
         </div>
       </aside>
@@ -130,11 +138,11 @@ export default function ChallengesHub() {
       <main className="flex-1 p-6 md:p-10 flex flex-col items-center overflow-y-auto">
       
         <div className="w-full max-w-4xl mb-8 flex flex-wrap justify-between items-center gap-3">
-          <h1 className="text-3xl font-bold">Desafíos Disponibles</h1>
+          <h1 className="text-3xl font-bold">{t('desafios.disponibles')}</h1>
           <div className="flex flex-wrap items-center gap-3">
             <ThemeToggle />
             <Button variant="outline" className="border-border-color hover:bg-nav-hover md:hidden" onClick={() => window.location.href = '/dashboard'}>
-              <ArrowLeft className="w-4 h-4 mr-2" /> Menú
+              <ArrowLeft className="w-4 h-4 mr-2" /> {t('desafios.menu')}
             </Button>
           </div>
         </div>
@@ -149,7 +157,7 @@ export default function ChallengesHub() {
           <>
             <h2 className="text-xl font-bold flex items-center gap-2 pt-2">
               <Play className="w-5 h-5 text-brand-light" />
-              Simulaciones interactivas
+              {t('desafios.simulaciones_titulo')}
             </h2>
 
             {simulaciones.map(sim => (
@@ -158,7 +166,7 @@ export default function ChallengesHub() {
                   <h3 className="text-xl font-bold">{sim.title}</h3>
                   {sim.intentada && (
                     <span className="shrink-0 flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-400">
-                      <Check className="w-3 h-3" /> ya la hiciste
+                      <Check className="w-3 h-3" /> {t('desafios.ya_la_hiciste')}
                     </span>
                   )}
                 </div>
@@ -172,7 +180,7 @@ export default function ChallengesHub() {
                     {sim.difficulty}
                   </span>
                   <span className="text-text-secondary">
-                    {sim.pasos} {sim.pasos === 1 ? 'decisión' : 'decisiones'}
+                    {sim.pasos} {sim.pasos === 1 ? t('desafios.decision') : t('desafios.decisiones')}
                     {sim.curso && ` · ${sim.curso}`}
                   </span>
                 </div>
@@ -181,12 +189,12 @@ export default function ChallengesHub() {
                   className="w-full font-bold bg-purple-600 hover:bg-purple-500"
                   onClick={() => window.location.href = `/simulation/play/${sim.id}`}
                 >
-                  {sim.intentada ? 'Volver a intentar' : 'Comenzar'}
+                  {sim.intentada ? t('desafios.volver_a_intentar') : t('desafios.comenzar')}
                 </Button>
               </Card>
             ))}
 
-            <h2 className="text-xl font-bold pt-6">Minijuegos rápidos</h2>
+            <h2 className="text-xl font-bold pt-6">{t('desafios.minijuegos_titulo')}</h2>
           </>
         )}
 
@@ -210,7 +218,7 @@ export default function ChallengesHub() {
             </div>
             
             <Button className="w-full font-bold shadow-[0_0_15px_rgba(37,99,235,0.2)]" onClick={() => window.location.href = chal.route}>
-              Comenzar
+              {t('desafios.comenzar')}
             </Button>
           </Card>
         ))}
@@ -219,10 +227,10 @@ export default function ChallengesHub() {
         <Card className="p-6 mt-12 bg-gradient-to-r from-bg-deep to-[#1a2336] border-t-2 border-t-yellow-500 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Trophy className="w-8 h-8 text-yellow-500" />
-            <span className="text-lg font-bold">Tabla de Líderes - Esta Semana</span>
+            <span className="text-lg font-bold">{t('desafios.tabla_lideres')}</span>
           </div>
           <Button variant="outline" className="border-yellow-500 text-yellow-500 hover:bg-yellow-500/10">
-            Ver Ranking
+            {t('desafios.ver_ranking')}
           </Button>
         </Card>
 

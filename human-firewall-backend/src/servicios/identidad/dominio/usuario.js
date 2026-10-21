@@ -8,6 +8,32 @@ const ROLES = ['employee', 'instructor', 'admin', 'rh', 'security', 'manager'];
 /** Mismos valores que el CHECK de users.language (migracion 034). */
 const IDIOMAS = ['es', 'en'];
 
+/**
+ * Nombre de cada idioma, escrito en ese mismo idioma.
+ *
+ * Vive aca y no en la interfaz porque el criterio tecnico 7 de la HU de
+ * preferencia de idioma pide aceptar unicamente los idiomas habilitados en el
+ * sistema: si la lista estuviera quemada en el frontend habria dos fuentes de
+ * verdad, y agregar un idioma obligaria a acordarse de tocar las dos.
+ *
+ * El nombre va en su propio idioma ("English", no "Ingles") porque quien lo
+ * busca en la lista es justamente quien todavia no entiende el idioma actual.
+ */
+const NOMBRES_DE_IDIOMA = {
+    es: 'Español',
+    en: 'English'
+};
+
+/** Idioma de la plataforma cuando el usuario no configuro ninguno (CA 5). */
+const IDIOMA_POR_DEFECTO = 'es';
+
+/** Catalogo que consume el selector de la interfaz. */
+const catalogoDeIdiomas = () => ({
+    idiomas: IDIOMAS.map(codigo => ({ codigo, nombre: NOMBRES_DE_IDIOMA[codigo] })),
+    por_defecto: IDIOMA_POR_DEFECTO
+});
+
+
 /** Politica de contrasena: minimo 8 caracteres, una mayuscula y un numero. */
 const POLITICA_CONTRASENA = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 const MENSAJE_POLITICA = 'La contraseña debe tener mínimo 8 caracteres, al menos una mayúscula y un número';
@@ -125,6 +151,9 @@ function cambiosDePerfil(actual, valores) {
 module.exports = {
     ROLES,
     IDIOMAS,
+    NOMBRES_DE_IDIOMA,
+    IDIOMA_POR_DEFECTO,
+    catalogoDeIdiomas,
     POLITICA_CONTRASENA,
     MENSAJE_POLITICA,
     cumplePolitica,

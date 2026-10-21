@@ -4,8 +4,10 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import api from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 export default function ForgotPasswordPage() {
+  const { t } = useIdioma();
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState('idle'); // idle, loading, success
   const [errorMsg, setErrorMsg] = useState('');
@@ -22,7 +24,7 @@ export default function ForgotPasswordPage() {
       setStatus('success');
     } catch (error) {
       setStatus('idle');
-      setErrorMsg(error.response?.data?.msg || 'Error de conexión con el servidor base.');
+      setErrorMsg(error.response?.data?.msg || t('acceso.error_conexion_base'));
     }
   };
 
@@ -34,7 +36,7 @@ export default function ForgotPasswordPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md z-10">
         <div className="flex justify-center flex-col items-center">
           <ShieldCheck className="w-16 h-16 text-brand-blue mb-4 animate-pulse-slow" />
-          <h2 className="text-3xl font-bold text-text-primary tracking-tight">Recuperar Acceso</h2>
+          <h2 className="text-3xl font-bold text-text-primary tracking-tight">{t('acceso.recuperar_titulo')}</h2>
         </div>
       </div>
 
@@ -46,15 +48,15 @@ export default function ForgotPasswordPage() {
                <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                  <Mail className="w-8 h-8 text-emerald-400" />
                </div>
-               <h3 className="text-xl font-bold text-emerald-400 mb-2">Instrucciones Enviadas</h3>
-               <p className="text-text-secondary text-sm mb-6">Hemos enviado un enlace seguro al correo <strong>{email}</strong>. Por favor, revisa tu bandeja de entrada.</p>
+               <h3 className="text-xl font-bold text-emerald-400 mb-2">{t('acceso.instrucciones_enviadas')}</h3>
+               <p className="text-text-secondary text-sm mb-6">{t('acceso.enlace_enviado_a')}<strong>{email}</strong>{t('acceso.revisa_bandeja')}</p>
                <Button variant="outline" className="w-full" onClick={() => window.location.href='/login'}>
-                 Regresar al Inicio de Sesión
+                 {t('acceso.regresar_login')}
                </Button>
             </div>
           ) : (
             <form className="space-y-6" onSubmit={handleSubmit}>
-              <p className="text-text-secondary text-sm text-center">Ingresa el correo corporativo asociado a tu cuenta y te enviaremos instrucciones para generar una nueva contraseña maestra.</p>
+              <p className="text-text-secondary text-sm text-center">{t('acceso.recuperar_ayuda')}</p>
               
               {errorMsg && (
                 <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-3 rounded-lg text-sm text-center animate-pulse">
@@ -64,9 +66,9 @@ export default function ForgotPasswordPage() {
 
               <Input
                 icon={Mail}
-                label="Correo Electrónico"
+                label={t('acceso.correo')}
                 type="email"
-                placeholder="juan.perez@empresa.com"
+                placeholder={t('acceso.correo_placeholder_recuperar')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -75,10 +77,10 @@ export default function ForgotPasswordPage() {
               <div>
                 <Button type="submit" className="w-full group py-3" disabled={status === 'loading'}>
                   {status === 'loading' ? (
-                    'Enviando enlace...'
+                    t('acceso.enviando_enlace')
                   ) : (
                     <>
-                      Enviar Enlace de Recuperación <Send className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      {t('acceso.enviar_enlace')} <Send className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </>
                   )}
                 </Button>
@@ -86,7 +88,7 @@ export default function ForgotPasswordPage() {
 
               <div className="mt-4 text-center">
                 <a href="/login" className="flex items-center justify-center text-sm font-medium text-brand-light hover:text-blue-400 transition-colors">
-                  <ArrowLeft className="w-4 h-4 mr-1" /> Volver al Login
+                  <ArrowLeft className="w-4 h-4 mr-1" /> {t('acceso.volver_al_login')}
                 </a>
               </div>
             </form>

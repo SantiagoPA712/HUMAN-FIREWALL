@@ -1,6 +1,9 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { useTextSize } from '../context/useTextSize';
+// `t` ya es el nombre del tamano en los map de abajo, asi que la funcion de
+// traduccion entra como `traducir` para no taparlo.
+import { useIdioma } from '../context/useIdioma';
 
 // Tamano de la "A" de muestra de cada opcion. Va en em para que la muestra
 // tambien crezca con la escala elegida y se siga viendo la diferencia.
@@ -17,12 +20,13 @@ const MUESTRA = { pequeno: '0.85em', normal: '1.1em', grande: '1.4em' };
  */
 export function TextSizeSelector({ variant = 'cards', className = '' }) {
   const { textSize, setTextSize, sizes } = useTextSize();
+  const { t: traducir } = useIdioma();
 
   if (variant === 'segmented') {
     return (
       <div
         role="radiogroup"
-        aria-label="Tamaño del texto"
+        aria-label={traducir('texto.titulo')}
         className={`inline-flex rounded-lg border border-border-color bg-bg-card p-1 ${className}`}
       >
         {sizes.map((t) => {
@@ -34,7 +38,7 @@ export function TextSizeSelector({ variant = 'cards', className = '' }) {
               role="radio"
               aria-checked={activo}
               onClick={() => setTextSize(t.id)}
-              title={`Texto ${t.etiqueta.toLowerCase()}`}
+              title={traducir('texto.muestra', { tamano: traducir(`texto.${t.id}`).toLowerCase() })}
               className={`flex flex-1 items-center justify-center rounded-md px-2 py-1 font-semibold leading-none transition-all cursor-pointer ${
                 activo
                   ? 'bg-brand-blue text-white shadow-sm'
@@ -42,7 +46,7 @@ export function TextSizeSelector({ variant = 'cards', className = '' }) {
               }`}
             >
               <span style={{ fontSize: MUESTRA[t.id] }} aria-hidden="true">A</span>
-              <span className="sr-only">{t.etiqueta}</span>
+              <span className="sr-only">{traducir(`texto.${t.id}`)}</span>
             </button>
           );
         })}
@@ -51,7 +55,7 @@ export function TextSizeSelector({ variant = 'cards', className = '' }) {
   }
 
   return (
-    <div role="radiogroup" aria-label="Tamaño del texto" className={`grid grid-ajustable [--ancho-columna:9rem] gap-3 ${className}`}>
+    <div role="radiogroup" aria-label={traducir('texto.titulo')} className={`grid grid-ajustable [--ancho-columna:9rem] gap-3 ${className}`}>
       {sizes.map((t) => {
         const activo = textSize === t.id;
         return (
@@ -78,12 +82,12 @@ export function TextSizeSelector({ variant = 'cards', className = '' }) {
               {activo && (
                 <span className="flex items-center gap-1 rounded-full bg-brand-blue px-2 py-0.5 text-xs font-semibold text-white">
                   <Check className="h-3 w-3" />
-                  Activo
+                  {traducir('comun.activo')}
                 </span>
               )}
             </div>
-            <span className="font-bold text-text-primary">{t.etiqueta}</span>
-            <span className="mt-0.5 text-xs text-text-secondary">{t.descripcion}</span>
+            <span className="font-bold text-text-primary">{traducir(`texto.${t.id}`)}</span>
+            <span className="mt-0.5 text-xs text-text-secondary">{traducir(`texto.${t.id}_desc`)}</span>
           </button>
         );
       })}

@@ -4,8 +4,10 @@ import { Card } from '../../components/ui/Card';
 import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
 import { Button } from '../../components/ui/Button';
+import { useIdioma } from '../../context/useIdioma';
 
 export default function PhishingGame() {
+  const { t } = useIdioma();
   const [gameState, setGameState] = useState('playing'); // 'playing', 'won', 'lost'
   const [puntosGanados, setPuntosGanados] = useState(0);
   const { notificarPuntos } = usePuntos();
@@ -30,10 +32,10 @@ export default function PhishingGame() {
       
       <div className="w-full max-w-4xl mb-6 flex justify-between items-center">
         <Button variant="outline" className="border-gray-700" onClick={() => window.location.href = '/dashboard'}>
-          <ArrowLeft className="w-4 h-4 mr-2" /> Salir de la simulación
+          <ArrowLeft className="w-4 h-4 mr-2" /> {t('juegos.ph_salir')}
         </Button>
         <div className="bg-brand-blue/20 text-brand-light px-4 py-2 rounded-full font-bold shadow-[0_0_15px_rgba(37,99,235,0.3)]">
-          Simulación en Vivo: Phishing Nivel 1
+          {t('juegos.ph_badge')}
         </div>
       </div>
 
@@ -85,7 +87,7 @@ export default function PhishingGame() {
                   className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition"
                   disabled={gameState !== 'playing'}
                 >
-                  Descargar Adjunto
+                  {t('juegos.ph_descargar_adjunto')}
                 </button>
               </div>
             </div>
@@ -96,8 +98,8 @@ export default function PhishingGame() {
         {/* Panel Investigativo del Usuario */}
         <div className="flex flex-col gap-4">
           <Card className="p-6 bg-bg-deep border-gray-800">
-            <h3 className="text-xl font-bold mb-4 text-white">Tu Misión</h3>
-            <p className="text-text-secondary text-sm mb-6">Analiza cuidadosamente este correo recibido. Tienes dos opciones principales como empleado. ¿Qué acción tomarás para proteger la red de la empresa?</p>
+            <h3 className="text-xl font-bold mb-4 text-white">{t('juegos.ph_tu_mision')}</h3>
+            <p className="text-text-secondary text-sm mb-6">{t('juegos.ph_instrucciones')}</p>
             
             <div className="flex flex-col gap-3">
               <Button 
@@ -106,14 +108,14 @@ export default function PhishingGame() {
                 disabled={gameState !== 'playing'}
               >
                 <ShieldAlert className="w-4 h-4 mr-2" />
-                Reportar correo como Phishing
+                {t('juegos.ph_reportar')}
               </Button>
               <Button 
                 variant="outline" 
                 onClick={() => handleDecision('ignore')}
                 disabled={gameState !== 'playing'}
               >
-                Ignorar y Eliminar
+                {t('juegos.ph_ignorar')}
               </Button>
             </div>
           </Card>
@@ -121,21 +123,21 @@ export default function PhishingGame() {
           {gameState === 'won' && (
             <Card className="p-6 bg-gradient-to-br from-emerald-900/50 to-emerald-600/20 border-emerald-500/50 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-5">
               <CheckCircle className="w-16 h-16 text-emerald-400 mb-4" />
-              <h3 className="text-xl font-bold text-emerald-300 mb-2">¡Misión Cumplida!</h3>
-              <p className="text-sm text-emerald-100 mb-4">Detectaste el remitente sospechoso y la doble extensión (.pdf.exe). Acabas de proteger a toda la compañía.</p>
-              <div className="bg-emerald-950 px-4 py-2 rounded-full font-bold text-emerald-400 mb-4">+{puntosGanados} Puntos de Seguridad</div>
-              <Button onClick={() => window.location.href = '/dashboard'} className="w-full bg-emerald-500 hover:bg-emerald-400">Volver al Dashboard</Button>
+              <h3 className="text-xl font-bold text-emerald-300 mb-2">{t('juegos.ph_ganaste_titulo')}</h3>
+              <p className="text-sm text-emerald-100 mb-4">{t('juegos.ph_ganaste_detalle')}</p>
+              <div className="bg-emerald-950 px-4 py-2 rounded-full font-bold text-emerald-400 mb-4">{t('juegos.puntos_de_seguridad', { n: puntosGanados })}</div>
+              <Button onClick={() => window.location.href = '/dashboard'} className="w-full bg-emerald-500 hover:bg-emerald-400">{t('juegos.volver_al_dashboard')}</Button>
             </Card>
           )}
 
           {gameState === 'lost' && (
             <Card className="p-6 bg-gradient-to-br from-red-900/50 to-red-600/20 border-red-500/50 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-5">
               <AlertTriangle className="w-16 h-16 text-red-500 mb-4 animate-bounce" />
-              <h3 className="text-xl font-bold text-red-400 mb-2">Incidente Crítico</h3>
-              <p className="text-sm text-red-100 mb-4">Descargaste malware. Fíjate en el correo del remitente: era un portal falso (`admin-portal-login.com`), no el oficial de la empresa.</p>
-              <div className="bg-red-950 px-4 py-2 rounded-full font-bold text-red-400 mb-3">0 Puntos obtenidos</div>
-              <p className="mb-4 text-xs text-red-200">El intento quedó registrado en <strong>Mi desempeño</strong>.</p>
-              <Button onClick={() => window.location.href = '/performance'} variant="outline" className="w-full border-red-500 text-red-400 hover:bg-red-500/10">Ver qué repasar</Button>
+              <h3 className="text-xl font-bold text-red-400 mb-2">{t('juegos.ph_perdiste_titulo')}</h3>
+              <p className="text-sm text-red-100 mb-4">{t('juegos.ph_perdiste_detalle')}</p>
+              <div className="bg-red-950 px-4 py-2 rounded-full font-bold text-red-400 mb-3">{t('juegos.cero_puntos_obtenidos')}</div>
+              <p className="mb-4 text-xs text-red-200">{t('juegos.intento_registrado_en')} <strong>{t('desempeno.titulo')}</strong>.</p>
+              <Button onClick={() => window.location.href = '/performance'} variant="outline" className="w-full border-red-500 text-red-400 hover:bg-red-500/10">{t('juegos.ver_que_repasar')}</Button>
             </Card>
           )}
         </div>

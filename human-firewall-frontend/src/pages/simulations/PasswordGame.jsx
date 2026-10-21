@@ -4,8 +4,10 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
+import { useIdioma } from '../../context/useIdioma';
 
 export default function PasswordGame() {
+  const { t } = useIdioma();
   const { notificarPuntos } = usePuntos();
   const [password, setPassword] = useState('');
   const [gameState, setGameState] = useState('playing'); // playing, won
@@ -19,10 +21,10 @@ export default function PasswordGame() {
   const score = [reqLength, reqNumber, reqSpecial, reqUpper].filter(Boolean).length;
   
   const getStrengthLabel = () => {
-    if (score === 0) return { label: "Ingresa una clave", color: "bg-gray-800", text: "text-gray-500" };
-    if (score <= 2) return { label: "Débil", color: "bg-red-500", text: "text-red-500" };
-    if (score === 3) return { label: "Fuerte", color: "bg-yellow-500", text: "text-yellow-500" };
-    return { label: "Inquebrantable", color: "bg-emerald-500", text: "text-emerald-500" };
+    if (score === 0) return { label: t('juegos.pw_fuerza_vacia'), color: "bg-gray-800", text: "text-gray-500" };
+    if (score <= 2) return { label: t('juegos.pw_fuerza_debil'), color: "bg-red-500", text: "text-red-500" };
+    if (score === 3) return { label: t('juegos.pw_fuerza_fuerte'), color: "bg-yellow-500", text: "text-yellow-500" };
+    return { label: t('juegos.pw_fuerza_inquebrantable'), color: "bg-emerald-500", text: "text-emerald-500" };
   };
 
   const strength = getStrengthLabel();
@@ -44,23 +46,23 @@ export default function PasswordGame() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-deep text-white p-6 flex flex-col items-center justify-center">
-      <Card className="w-full max-w-lg p-8 shadow-[0_0_50px_rgba(37,99,235,0.1)] border-gray-800">
+    <div className="min-h-screen bg-gray-900 text-white p-6 flex flex-col items-center justify-center">
+      <Card className="w-full max-w-lg p-8 shadow-[0_0_50px_rgba(37,99,235,0.1)] border-gray-800 !bg-gray-800">
         
         {gameState === 'playing' ? (
           <>
             <div className="flex items-center gap-3 mb-6 border-b border-gray-800 pb-4">
               <Lock className="w-8 h-8 text-brand-blue" />
-              <h2 className="text-2xl font-bold">Maestro de Contraseñas</h2>
+              <h2 className="text-2xl font-bold">{t('desafios.password_titulo')}</h2>
             </div>
-            
-            <p className="text-text-secondary mb-8 text-sm">Tu misión es construir una contraseña corporativa que resista un ataque de fuerza bruta moderno.</p>
+
+            <p className="text-text-secondary mb-8 text-sm">{t('juegos.pw_mision')}</p>
 
             <div className="relative mb-6">
               <input 
                 type="text" 
                 className="w-full bg-gray-900 border-2 border-gray-700 rounded-lg px-4 py-4 text-xl tracking-widest font-mono focus:border-brand-blue focus:outline-none transition"
-                placeholder="Escribe aquí..."
+                placeholder={t('juegos.pw_placeholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -76,10 +78,10 @@ export default function PasswordGame() {
             <p className={`text-right text-sm font-bold uppercase tracking-wider mb-8 ${strength.text}`}>{strength.label}</p>
 
             <div className="space-y-3 mb-8">
-              <Requirement check={reqLength} text="Al menos 12 caracteres (ideal >15)" />
-              <Requirement check={reqUpper} text="Contiene letras MAYÚSCULAS" />
-              <Requirement check={reqNumber} text="Contiene números (0-9)" />
-              <Requirement check={reqSpecial} text="Contiene símbolos (!@#$%^&*)" />
+              <Requirement check={reqLength} text={t('juegos.pw_req_largo')} />
+              <Requirement check={reqUpper} text={t('juegos.pw_req_mayusculas')} />
+              <Requirement check={reqNumber} text={t('juegos.pw_req_numeros')} />
+              <Requirement check={reqSpecial} text={t('juegos.pw_req_simbolos')} />
             </div>
 
             <Button 
@@ -87,18 +89,18 @@ export default function PasswordGame() {
               onClick={submitPassword}
               disabled={score !== 4}
             >
-              Registrar Contraseña Segura
+              {t('juegos.pw_registrar')}
             </Button>
           </>
         ) : (
           <div className="flex flex-col items-center text-center animate-in zoom-in py-8">
              <CheckCircle className="w-20 h-20 text-emerald-500 mb-6" />
-             <h3 className="text-3xl font-bold mb-4">¡Invulnerable!</h3>
-             <p className="text-text-secondary mb-8">Tu contraseña tomaría aproximadamente 400 billones de años en ser hackeada por las supercomputadoras actuales.</p>
+             <h3 className="text-3xl font-bold mb-4">{t('juegos.pw_ganaste_titulo')}</h3>
+             <p className="text-text-secondary mb-8">{t('juegos.pw_ganaste_detalle')}</p>
              <div className="bg-emerald-900/30 border border-emerald-500/50 text-emerald-400 font-bold px-6 py-3 rounded-full mb-8">
-               +150 PTS Ciberseguridad
+               {t('juegos.pw_puntos')}
              </div>
-             <Button onClick={() => window.location.href='/challenges'} variant="outline" className="w-full">Volver al Dashboard</Button>
+             <Button onClick={() => window.location.href='/challenges'} variant="outline" className="w-full">{t('juegos.volver_al_dashboard')}</Button>
           </div>
         )}
 

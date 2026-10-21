@@ -4,8 +4,10 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
+import { useIdioma } from '../../context/useIdioma';
 
 export default function WifiGame() {
+  const { t } = useIdioma();
   const { notificarPuntos } = usePuntos();
   const [gameState, setGameState] = useState('playing'); // playing, won, lost
   const [loading, setLoading] = useState(false);
@@ -41,12 +43,12 @@ export default function WifiGame() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex justify-center items-center p-6">
-      <Card className="w-full max-w-md bg-[#1c1c1e] text-white overflow-hidden p-0 relative">
+      <Card className="w-full max-w-md !bg-[#1c1c1e] text-white overflow-hidden p-0 relative">
         {/* Cabecera Tipo Smartphone */}
         <div className="bg-[#2c2c2e] px-4 py-6 border-b border-gray-700 text-center relative">
           <Wifi className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-          <h2 className="text-xl font-bold tracking-tight">Seleccionar Red</h2>
-          <p className="text-xs text-gray-400 mt-1">Estás en un aeropuerto a punto de enviar el cierre mensual con datos confidenciales. Elige cautelosamente.</p>
+          <h2 className="text-xl font-bold tracking-tight">{t('juegos.wf_titulo')}</h2>
+          <p className="text-xs text-gray-400 mt-1">{t('juegos.wf_instrucciones')}</p>
         </div>
 
         <div className="divide-y divide-gray-800">
@@ -66,19 +68,19 @@ export default function WifiGame() {
         {gameState === 'won' && (
            <div className="absolute inset-0 bg-emerald-950/95 p-6 flex flex-col items-center justify-center text-center z-10 animate-in fade-in">
              <ShieldCheck className="w-16 h-16 text-emerald-400 mb-4" />
-             <h3 className="text-2xl font-bold text-emerald-400 mb-2">+200 PTS Ciberseguridad</h3>
-             <p className="text-sm text-emerald-100 mb-6 font-medium">Conectarse a un Hotspot (Tethering) celular seguro es 1000 veces más confiable que cualquier red pública.</p>
-             <Button onClick={() => window.location.href='/challenges'} className="w-full">Volver a Misiones</Button>
+             <h3 className="text-2xl font-bold text-emerald-400 mb-2">{t('juegos.wf_ganaste_titulo')}</h3>
+             <p className="text-sm text-emerald-100 mb-6 font-medium">{t('juegos.wf_ganaste_detalle')}</p>
+             <Button onClick={() => window.location.href='/challenges'} className="w-full">{t('juegos.volver_a_misiones')}</Button>
            </div>
         )}
 
         {gameState === 'lost' && (
            <div className="absolute inset-0 bg-red-950/95 p-6 flex flex-col items-center justify-center text-center z-10 animate-in fade-in">
              <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
-             <h3 className="text-2xl font-bold text-red-500 mb-2">Tráfico Interceptado</h3>
-             <p className="text-sm text-red-100 mb-4 font-medium">Al conectarte a una red abierta, un atacante capturó tus credenciales en texto plano antes de llegar a los servidores de la empresa. Reprobaste.</p>
-             <p className="mb-6 text-xs text-red-200">0 puntos. El intento quedó registrado en <strong>Mi desempeño</strong>.</p>
-             <Button variant="outline" onClick={() => window.location.href='/performance'} className="w-full text-red-400 border-red-500">Ver qué repasar</Button>
+             <h3 className="text-2xl font-bold text-red-500 mb-2">{t('juegos.wf_perdiste_titulo')}</h3>
+             <p className="text-sm text-red-100 mb-4 font-medium">{t('juegos.wf_perdiste_detalle')}</p>
+             <p className="mb-6 text-xs text-red-200">{t('juegos.cero_puntos_registrado_en')} <strong>{t('desempeno.titulo')}</strong>.</p>
+             <Button variant="outline" onClick={() => window.location.href='/performance'} className="w-full text-red-400 border-red-500">{t('juegos.ver_que_repasar')}</Button>
            </div>
         )}
       </Card>

@@ -541,6 +541,7 @@ git merge main       # resolver conflictos aca, en tu rama, nunca en main
 | GET    | `/api/notifications/correo/preferencias`       | Autenticado (solo lo propio)  |
 | PATCH  | `/api/notifications/correo/preferencias`       | Autenticado (solo lo propio)  |
 | GET    | `/api/notifications/correo/estado`             | Solo admin                    |
+| GET    | `/api/users/idiomas`                           | Autenticado                   |
 | GET    | `/api/users/me`                                | Autenticado (solo lo propio)  |
 | PATCH  | `/api/users/me`                                | Autenticado (solo lo propio)  |
 | GET    | `/api/invitations`                             | Solo admin                    |
@@ -1100,6 +1101,110 @@ pantalla ni manda la solicitud, y si llega igual el backend responde 200 con
 pantalla muestra que no se guardo, sin confirmacion. Cada guardado con cambios
 deja una fila en `data.logs` (`update`, recurso `user_profile`) con el valor
 anterior y el nuevo de cada campo que cambio.
+
+### 0.13 Idioma de la plataforma: la cuenta manda, el navegador acompana
+
+Cada usuario elige el idioma de la interfaz en **Preferencias** (`/preferencias`).
+Se guarda en `users.language`, la misma columna que ya usaban los correos
+(migracion 034), asi que **esta HU no agrego ninguna migracion**.
+
+La preferencia vive en dos lados y cada uno tiene su trabajo:
+
+| Donde | Para que | Si los dos difieren |
+|-------|----------|---------------------|
+| `users.language` (base) | Es la fuente de verdad. Sobrevive a cerrar sesion y a cambiar de computador, y es lo que leen los correos | **Gana la base** |
+| `localStorage` (navegador) | Que la primera pintura ya salga en el idioma correcto, sin el parpadeo de medio segundo esperando al perfil | Se pisa con lo que diga la cuenta |
+
+`language` en NULL significa "sin configurar": rige el idioma por defecto de la
+plataforma. Se deja NULL y no `'es'` a proposito, para que cambiar el idioma por
+defecto alcance a quien nunca eligio uno.
+
+**La lista de idiomas sale del backend, no de la interfaz.** `GET
+/api/users/idiomas` devuelve el catalogo desde `dominio/usuario.js`, que es la
+misma constante contra la que `PATCH /api/users/me` valida y la misma que el
+CHECK de la base. Agregar un idioma es tocar un lugar:
+
+```js
+// servicios/identidad/dominio/usuario.js
+const IDIOMAS = ['es', 'en'];           // + el codigo nuevo
+const NOMBRES_DE_IDIOMA = { ... };      // + su nombre, escrito en ese idioma
+```
+...mas la migracion que amplie el CHECK, y el diccionario
+`human-firewall-frontend/src/i18n/<codigo>.js`. La interfaz solo ofrece los
+idiomas que tienen diccionario: uno declarado sin textos dejaria la pantalla en
+espanol sin explicar por que.
+
+**Los textos no se escriben en los componentes.** Van en `src/i18n/es.js` y
+`src/i18n/en.js`, agrupados por pantalla, y se leen con `t('nav.desafios')`.
+Las dos listas tienen que tener exactamente las mismas claves; si una se cae,
+`idioma.test.mjs` falla. Una clave sin traducir cae al espanol en vez de
+mostrar la clave cruda.
+
+```jsx
+const { t } = useIdioma();
+<h1>{t('preferencias.titulo')}</h1>
+<p>{t('nivel.faltan_puntos', { puntos: 40 })}</p>
+```
+
+El `IdiomaProvider` envuelve toda la aplicacion en `App.jsx`, asi que cambiar
+el idioma repinta cada pantalla sola: no hay que avisarle a ningun componente.
+
+**Alcance de la traduccion.** Estan traducidas las pantallas del empleado, que
+es el actor de la historia: navegacion, panel, desafios, puntos, niveles,
+logros, desempeno, notificaciones, preferencias y las pantallas de entrada.
+**No** estan traducidos los paneles de RH, admin, seguridad y gerencia (son de
+otros roles y de otras historias) ni el contenido de los juegos de simulacion,
+que es material de entrenamiento y no interfaz. Lo que viene del backend
+(titulos y cuerpos de las notificaciones) tampoco se traduce en el navegador:
+el backend ya los arma en el idioma de la cuenta.
+
+### 0.14 Preferencias de correo: lo opcional se elige, lo obligatorio no
+
+**Esta HU no agrego backend ni migracion.** El criterio tecnico 1 pide revisar
+lo que ya existe antes de tocar nada, y lo que existia era casi todo: la HU de
+notificaciones por correo (migracion 034) ya dejo el catalogo de tipos con su
+marca de critico, la tabla de preferencias por usuario y la comprobacion antes
+de encolar. Lo que faltaba era ponerlo **donde la historia lo pide**: en la
+configuracion de la cuenta.
+
+Las preferencias de correo se ofrecen ahora en `/preferencias`, junto al
+idioma. El centro de notificaciones **conserva las suyas tal como estaban**:
+no se movio ni se borro nada de lo que ya habia. Son dos rutas distintas
+servidas con `<a href>`, asi que cada una recarga y vuelve a leer la cuenta al
+entrar; no hay dos estados vivos a la vez que se puedan desincronizar.
+
+Tres niveles deciden si un correo sale, y se evaluan en este orden:
+
+| # | Que se mira | Donde vive | Si esta en false |
+|---|-------------|------------|------------------|
+| 1 | Es un tipo critico? | `email_notification_types.is_critical` | No aplica: los criticos ignoran los otros dos |
+| 2 | El canal de correo | `notification_preferences` (migracion 033) | Se corta TODO correo opcional |
+| 3 | La categoria puntual | `email_preferences` (migracion 034) | Se corta solo esa categoria |
+
+```js
+// emailNotifications.service.js, antes de encolar
+if (userId && !info.is_critical && !(await quiereRecibir(userId, tipo))) {
+    return { estado: 'omitido' };   // omitir NO es un fallo: no deja registro de error
+}
+```
+
+Sin fila en `email_preferences`, la categoria esta habilitada: la tabla guarda
+lo que alguien cambio, no el estado de todo el padron.
+
+**Lo obligatorio no se puede apagar, y el backend no se fia de la pantalla.**
+Un PATCH que intente desactivar un critico responde 400 con el motivo, en vez
+de aceptarlo en silencio y hacerle creer al usuario que lo apago. Y si alguien
+escribe la fila a mano saltandose la API, el envio la ignora igual: la regla
+esta en quien manda el correo, no en quien dibuja el formulario.
+
+**Que categorias se ofrecen.** Solo las que tienen `user_configurable = true`.
+La invitacion (`user_invitation`) no esta: le llega a alguien que todavia no
+tiene cuenta, asi que no hay preferencias suyas que consultar.
+
+Las descripciones salen de la base, que las guarda en espanol. La pantalla las
+traduce por codigo (`correo.cat_<codigo>` en los diccionarios) y, si aparece
+una categoria nueva que el diccionario no conoce, usa la del servidor: mejor en
+espanol que en blanco.
 
 ### 1. La fuente de verdad es `points_ledger`
 

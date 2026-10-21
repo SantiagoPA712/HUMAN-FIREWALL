@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 /**
  * Panel de logs de auditoria (HU: registro centralizado data.logs).
@@ -23,30 +24,32 @@ import { api, getUsuarioActual } from '../lib/api';
  * pantalla que no va a poder cargar.
  */
 
-// Textos de cada tipo de accion y modulo. Los valores son los de data.logs.
+// Cada tipo de accion y modulo de data.logs, con la CLAVE del diccionario que
+// lo nombra. Guardar la clave y no el texto es lo que hace que la tabla cambie
+// de idioma sola: el texto se resuelve con t() en el render.
 const ETIQUETA_ACCION = {
-    create: 'Alta',
-    update: 'Cambio de datos',
-    delete: 'Borrado',
-    deactivate: 'Baja de usuario',
-    role_change: 'Cambio de rol',
-    login_failed: 'Login fallido',
-    password_reset: 'Cambio de clave',
-    export: 'Exportado de datos',
-    config_change: 'Cambio de ajustes',
-    manual_adjustment: 'Ajuste manual',
-    status_change: 'Cambio de estado',
-    retention_purge: 'Purga programada'
+    create: 'logs.accion_create',
+    update: 'logs.accion_update',
+    delete: 'logs.accion_delete',
+    deactivate: 'logs.accion_deactivate',
+    role_change: 'logs.accion_role_change',
+    login_failed: 'logs.accion_login_failed',
+    password_reset: 'logs.accion_password_reset',
+    export: 'logs.accion_export',
+    config_change: 'logs.accion_config_change',
+    manual_adjustment: 'logs.accion_manual_adjustment',
+    status_change: 'logs.accion_status_change',
+    retention_purge: 'logs.accion_retention_purge'
 };
 
 const ETIQUETA_MODULO = {
-    auth: 'Acceso',
-    users: 'Usuarios',
-    gamification: 'Puntos y premios',
-    security: 'Seguridad',
-    reports: 'Reportes',
-    logs: 'Registro',
-    system: 'Sistema'
+    auth: 'logs.modulo_auth',
+    users: 'logs.modulo_users',
+    gamification: 'logs.modulo_gamification',
+    security: 'logs.modulo_security',
+    reports: 'logs.modulo_reports',
+    logs: 'logs.modulo_logs',
+    system: 'logs.modulo_system'
 };
 
 // Acciones que merecen destacarse en el listado: son las primeras que se
@@ -90,6 +93,7 @@ function aQuery(filtros, orden, extra = {}) {
 }
 
 export default function AuditLogsPage() {
+    const { t } = useIdioma();
     const usuario = getUsuarioActual();
     const autorizado = usuario?.role === 'admin';
 
@@ -120,11 +124,11 @@ export default function AuditLogsPage() {
             const errores = e.response?.data?.errores;
             setError(errores?.length
                 ? errores.map(x => x.detalle).join(' ')
-                : e.response?.data?.msg || 'No se pudo cargar el registro');
+                : e.response?.data?.msg || t('logs.error_cargar'));
         } finally {
             setCargando(false);
         }
-    }, [aplicados, orden, pagina]);
+    }, [aplicados, orden, pagina, t]);
 
     // Carga de datos en un efecto: el caso que la propia documentacion de
     // React acepta. Mismo patron que SecurityPanel y ReportsPage.
@@ -159,7 +163,7 @@ export default function AuditLogsPage() {
             const { data } = await api.get(`/api/logs/${id}`);
             setDetalle(data);
         } catch (e) {
-            setError(e.response?.data?.msg || 'No se pudo abrir el registro');
+            setError(e.response?.data?.msg || t('logs.error_abrir'));
         }
     };
 
@@ -186,7 +190,7 @@ export default function AuditLogsPage() {
             URL.revokeObjectURL(url);
             setError(null);
         } catch (e) {
-            let mensaje = 'No se pudo exportar';
+            let mensaje = t('logs.error_exportar');
             if (e.response?.data instanceof Blob) {
                 try {
                     const cuerpo = JSON.parse(await e.response.data.text());
@@ -204,9 +208,9 @@ export default function AuditLogsPage() {
             <Marco>
                 <Card className="border-l-4 border-l-red-500 p-8 text-center">
                     <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-red-500" />
-                    <p className="font-bold">Esta vista es solo para administradores</p>
+                    <p className="font-bold">{t('logs.sin_permiso_titulo')}</p>
                     <p className="mt-1 text-sm text-text-secondary">
-                        Tu cuenta no tiene permisos para ver el registro de acciones.
+                        {t('logs.sin_permiso_detalle')}
                     </p>
                 </Card>
             </Marco>
@@ -221,51 +225,51 @@ export default function AuditLogsPage() {
             {/* Filtros (criterio de aceptacion 2) */}
             <Card className="mb-6 p-5">
                 <form onSubmit={aplicar} className="grid grid-ajustable [--ancho-columna:11rem] gap-4">
-                    <Campo etiqueta="Desde">
+                    <Campo etiqueta={t('logs.desde')}>
                         <input type="date" value={borrador.desde} className={entradaClase}
                                onChange={e => setBorrador({ ...borrador, desde: e.target.value })} />
                     </Campo>
-                    <Campo etiqueta="Hasta">
+                    <Campo etiqueta={t('logs.hasta')}>
                         <input type="date" value={borrador.hasta} className={entradaClase}
                                onChange={e => setBorrador({ ...borrador, hasta: e.target.value })} />
                     </Campo>
-                    <Campo etiqueta="Usuario">
+                    <Campo etiqueta={t('logs.usuario')}>
                         <select value={borrador.user_id} className={entradaClase}
                                 onChange={e => setBorrador({ ...borrador, user_id: e.target.value })}>
-                            <option value="">Todos</option>
-                            <option value="system">Sistema</option>
+                            <option value="">{t('logs.todos')}</option>
+                            <option value="system">{t('logs.sistema')}</option>
                             {(opciones?.usuarios || []).map(u => (
                                 <option key={u.user_id} value={u.user_id}>{u.actor_email || `#${u.user_id}`}</option>
                             ))}
                         </select>
                     </Campo>
-                    <Campo etiqueta="Origen">
+                    <Campo etiqueta={t('logs.origen')}>
                         <select value={borrador.module} className={entradaClase}
                                 onChange={e => setBorrador({ ...borrador, module: e.target.value })}>
-                            <option value="">Todos</option>
+                            <option value="">{t('logs.todos')}</option>
                             {(opciones?.modulos || []).map(m => (
-                                <option key={m} value={m}>{ETIQUETA_MODULO[m] || m}</option>
+                                <option key={m} value={m}>{ETIQUETA_MODULO[m] ? t(ETIQUETA_MODULO[m]) : m}</option>
                             ))}
                         </select>
                     </Campo>
-                    <Campo etiqueta="Tipo">
+                    <Campo etiqueta={t('logs.tipo')}>
                         <select value={borrador.action_type} className={entradaClase}
                                 onChange={e => setBorrador({ ...borrador, action_type: e.target.value })}>
-                            <option value="">Todos</option>
+                            <option value="">{t('logs.todos')}</option>
                             {(opciones?.acciones || []).map(a => (
-                                <option key={a} value={a}>{ETIQUETA_ACCION[a] || a}</option>
+                                <option key={a} value={a}>{ETIQUETA_ACCION[a] ? t(ETIQUETA_ACCION[a]) : a}</option>
                             ))}
                         </select>
                     </Campo>
 
                     <div className="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-5">
                         <Button type="submit" className="h-9 px-4 py-0 text-sm">
-                            <Filter className="h-4 w-4" /> Aplicar filtros
+                            <Filter className="h-4 w-4" /> {t('logs.aplicar_filtros')}
                         </Button>
                         {hayFiltros && (
                             <Button type="button" variant="outline" onClick={limpiar}
                                     className="h-9 border-gray-700 px-4 py-0 text-sm text-text-secondary">
-                                <X className="h-4 w-4" /> Limpiar
+                                <X className="h-4 w-4" /> {t('logs.limpiar')}
                             </Button>
                         )}
 
@@ -275,16 +279,16 @@ export default function AuditLogsPage() {
                                     onClick={() => { setOrden(orden === 'desc' ? 'asc' : 'desc'); setPagina(1); }}
                                     className="h-9 border-gray-700 px-4 py-0 text-sm text-text-secondary">
                                 {orden === 'desc'
-                                    ? <><ArrowDownWideNarrow className="h-4 w-4" /> Recientes primero</>
-                                    : <><ArrowUpWideNarrow className="h-4 w-4" /> Antiguos primero</>}
+                                    ? <><ArrowDownWideNarrow className="h-4 w-4" /> {t('logs.recientes_primero')}</>
+                                    : <><ArrowUpWideNarrow className="h-4 w-4" /> {t('logs.antiguos_primero')}</>}
                             </Button>
 
                             {/* Exportacion (criterio de aceptacion 4) */}
                             <Button type="button" onClick={exportar}
                                     disabled={exportando || !pag || pag.total === 0}
-                                    title="El archivo trae exactamente los filtros aplicados, todas las hojas"
+                                    title={t('logs.exportar_titulo')}
                                     className="h-9 px-4 py-0 text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                                <Download className="h-4 w-4" /> {exportando ? 'Generando...' : 'Exportar CSV'}
+                                <Download className="h-4 w-4" /> {exportando ? t('logs.generando') : t('logs.exportar_csv')}
                             </Button>
                         </div>
                     </div>
@@ -302,17 +306,15 @@ export default function AuditLogsPage() {
                 <Card className="p-12 text-center">
                     <SearchX className="mx-auto mb-4 h-10 w-10 text-text-secondary" />
                     <p className="font-semibold">
-                        {hayFiltros ? 'Nada que mostrar con estos filtros' : 'Todavia no hay acciones registradas'}
+                        {t(hayFiltros ? 'logs.vacio_filtros_titulo' : 'logs.vacio_titulo')}
                     </p>
                     <p className="mt-1 text-sm text-text-secondary">
-                        {hayFiltros
-                            ? 'Prueba con otro rango de fechas o limpia los filtros.'
-                            : 'Los logins fallidos, cambios de rol, exportaciones y ajustes van a aparecer aqui.'}
+                        {t(hayFiltros ? 'logs.vacio_filtros_detalle' : 'logs.vacio_detalle')}
                     </p>
                     {hayFiltros && (
                         <Button variant="outline" onClick={limpiar}
                                 className="mx-auto mt-4 h-9 border-gray-700 px-4 py-0 text-sm text-text-secondary">
-                            Limpiar filtros
+                            {t('logs.limpiar_filtros')}
                         </Button>
                     )}
                 </Card>
@@ -324,11 +326,11 @@ export default function AuditLogsPage() {
                         <table className="w-full min-w-[47.5rem] text-left text-sm">
                             <thead>
                                 <tr className="border-b border-gray-700 text-text-secondary">
-                                    <th className="p-3 font-medium">Fecha y hora</th>
-                                    <th className="p-3 font-medium">Usuario</th>
-                                    <th className="p-3 font-medium">Tipo</th>
-                                    <th className="p-3 font-medium">Origen</th>
-                                    <th className="p-3 font-medium">Recurso</th>
+                                    <th className="p-3 font-medium">{t('logs.fecha_hora')}</th>
+                                    <th className="p-3 font-medium">{t('logs.usuario')}</th>
+                                    <th className="p-3 font-medium">{t('logs.tipo')}</th>
+                                    <th className="p-3 font-medium">{t('logs.origen')}</th>
+                                    <th className="p-3 font-medium">{t('logs.recurso')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -338,7 +340,7 @@ export default function AuditLogsPage() {
                                         <td className="whitespace-nowrap p-3 text-text-secondary">{fecha(l.occurred_at)}</td>
                                         <td className="p-3"><Actor log={l} /></td>
                                         <td className="p-3"><ChipAccion accion={l.action_type} /></td>
-                                        <td className="p-3 text-text-secondary">{ETIQUETA_MODULO[l.module] || l.module}</td>
+                                        <td className="p-3 text-text-secondary">{ETIQUETA_MODULO[l.module] ? t(ETIQUETA_MODULO[l.module]) : l.module}</td>
                                         <td className="p-3">
                                             <code className="text-xs">{l.resource_type}</code>
                                             {l.resource_id && <span className="text-text-secondary"> #{l.resource_id}</span>}
@@ -351,17 +353,18 @@ export default function AuditLogsPage() {
 
                     {/* Paginacion (criterio tecnico 7) */}
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-text-secondary">
-                        <span>{pag.total} {pag.total === 1 ? 'registro' : 'registros'} · hoja {pag.page} de {pag.total_paginas}</span>
+                        <span>{t(pag.total === 1 ? 'logs.paginacion_uno' : 'logs.paginacion_varios',
+                                 { total: pag.total, pagina: pag.page, paginas: pag.total_paginas })}</span>
                         <div className="flex gap-2">
                             <Button variant="outline" disabled={pag.page <= 1 || cargando}
                                     onClick={() => setPagina(pag.page - 1)}
                                     className="h-8 border-gray-700 px-3 py-0 text-xs disabled:opacity-40">
-                                <ChevronLeft className="h-4 w-4" /> Anterior
+                                <ChevronLeft className="h-4 w-4" /> {t('logs.anterior')}
                             </Button>
                             <Button variant="outline" disabled={pag.page >= pag.total_paginas || cargando}
                                     onClick={() => setPagina(pag.page + 1)}
                                     className="h-8 border-gray-700 px-3 py-0 text-xs disabled:opacity-40">
-                                Siguiente <ChevronRight className="h-4 w-4" />
+                                {t('logs.siguiente')} <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>
                     </div>
@@ -374,20 +377,24 @@ export default function AuditLogsPage() {
 }
 
 function Actor({ log }) {
+    const { t } = useIdioma();
+
     if (log.actor_type === 'system') {
         return (
             <span className="inline-flex items-center gap-1 text-text-secondary">
-                <Cpu className="h-3.5 w-3.5" /> Sistema
+                <Cpu className="h-3.5 w-3.5" /> {t('logs.sistema')}
             </span>
         );
     }
-    return <span>{log.actor_email || (log.user_id ? `#${log.user_id}` : 'desconocido')}</span>;
+    return <span>{log.actor_email || (log.user_id ? `#${log.user_id}` : t('logs.desconocido'))}</span>;
 }
 
 function ChipAccion({ accion }) {
+    const { t } = useIdioma();
+
     return (
         <span className={`rounded px-2 py-0.5 text-xs font-semibold ${COLOR_ACCION[accion] || 'bg-brand-blue/15 text-brand-light'}`}>
-            {ETIQUETA_ACCION[accion] || accion}
+            {ETIQUETA_ACCION[accion] ? t(ETIQUETA_ACCION[accion]) : accion}
         </span>
     );
 }
@@ -400,6 +407,7 @@ function ChipAccion({ accion }) {
  * hay que compararlo a ojo.
  */
 function ModalDetalle({ log, onCerrar }) {
+    const { t } = useIdioma();
     const antes = log.old_value || {};
     const despues = log.new_value || {};
     const claves = [...new Set([...Object.keys(antes), ...Object.keys(despues)])];
@@ -419,31 +427,32 @@ function ModalDetalle({ log, onCerrar }) {
                         </div>
                         <h2 className="text-2xl font-bold"><Actor log={log} /></h2>
                         <p className="text-sm text-text-secondary">
-                            {ETIQUETA_MODULO[log.module] || log.module} · <code>{log.resource_type}</code>
+                            {ETIQUETA_MODULO[log.module] ? t(ETIQUETA_MODULO[log.module]) : log.module} · <code>{log.resource_type}</code>
                             {log.resource_id && ` #${log.resource_id}`} · {fecha(log.occurred_at)}
                         </p>
                     </div>
-                    <button onClick={onCerrar} className="text-text-secondary hover:text-white" aria-label="Cerrar">✕</button>
+                    <button onClick={onCerrar} className="text-text-secondary hover:text-white" aria-label={t('comun.cerrar')}>✕</button>
                 </div>
 
                 <div className="mb-6 grid grid-ajustable gap-3">
-                    <Dato titulo="IP de origen" valor={log.ip_address || (log.actor_type === 'system' ? 'no aplica (sistema)' : 'no registrada')} />
-                    <Dato titulo="trace_id (correlacion)" valor={log.trace_id || 'sin traza'} mono />
-                    <Dato titulo="Hora del servidor" valor={fecha(log.occurred_at)} />
-                    <Dato titulo="Guardado en el log" valor={fecha(log.recorded_at)} />
+                    <Dato titulo={t('logs.ip_origen')}
+                          valor={log.ip_address || t(log.actor_type === 'system' ? 'logs.ip_no_aplica' : 'logs.ip_no_registrada')} />
+                    <Dato titulo={t('logs.trace_id')} valor={log.trace_id || t('logs.sin_traza')} mono />
+                    <Dato titulo={t('logs.hora_servidor')} valor={fecha(log.occurred_at)} />
+                    <Dato titulo={t('logs.guardado_log')} valor={fecha(log.recorded_at)} />
                 </div>
 
-                <h3 className="mb-3 font-bold">Valores</h3>
+                <h3 className="mb-3 font-bold">{t('logs.valores')}</h3>
                 {claves.length === 0 ? (
-                    <p className="text-sm text-text-secondary">Este registro no tiene valor anterior ni nuevo.</p>
+                    <p className="text-sm text-text-secondary">{t('logs.sin_valores')}</p>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
                             <thead>
                                 <tr className="border-b border-gray-700 text-text-secondary">
-                                    <th className="p-2 font-medium">Campo</th>
-                                    <th className="p-2 font-medium">Valor anterior</th>
-                                    <th className="p-2 font-medium">Valor nuevo</th>
+                                    <th className="p-2 font-medium">{t('logs.col_campo')}</th>
+                                    <th className="p-2 font-medium">{t('logs.valor_anterior')}</th>
+                                    <th className="p-2 font-medium">{t('logs.valor_nuevo')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -464,7 +473,7 @@ function ModalDetalle({ log, onCerrar }) {
                     </div>
                 )}
                 <p className="mt-4 text-xs text-text-secondary">
-                    Las claves y tokens nunca se guardan: aparecen como [REDACTED].
+                    {t('logs.nota_redactado')}
                 </p>
             </div>
         </div>
@@ -490,22 +499,24 @@ function Campo({ etiqueta, children }) {
 }
 
 function Marco({ children }) {
+    const { t } = useIdioma();
+
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-6xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {t('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
                 <header className="mb-8">
                     <h1 className="flex items-center gap-3 text-3xl font-bold">
                         <ScrollText className="h-8 w-8 text-brand-blue" />
-                        Registro de acciones
+                        {t('logs.titulo')}
                     </h1>
                     <p className="mt-1 text-text-secondary">
-                        Las acciones sensibles de la plataforma, con su autor, el recurso afectado y la hora del servidor.
+                        {t('logs.subtitulo')}
                     </p>
                 </header>
                 {children}

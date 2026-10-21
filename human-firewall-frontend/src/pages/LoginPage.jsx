@@ -5,8 +5,10 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { ThemeToggle } from '../components/ThemeToggle';
 import api from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 export default function LoginPage() {
+  const { t } = useIdioma();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -26,7 +28,7 @@ export default function LoginPage() {
       localStorage.setItem('token', res.data.token);
       window.location.href = '/dashboard';
     } catch (err) {
-      setError(err.response?.data?.msg || "Error de conexión al servidor.");
+      setError(err.response?.data?.msg || t('acceso.error_conexion'));
     } finally {
       setIsLoading(false);
     }
@@ -39,8 +41,8 @@ export default function LoginPage() {
       </div>
       <div className="flex flex-col items-center mb-8">
         <ShieldCheck className="w-12 h-12 text-brand-blue mb-4" />
-        <h1 className="text-3xl font-bold">Inicia Sesión en Human Firewall</h1>
-        <p className="text-text-secondary mt-2">Plataforma de concientización en ciberseguridad</p>
+        <h1 className="text-3xl font-bold">{t('acceso.login_titulo')}</h1>
+        <p className="text-text-secondary mt-2">{t('acceso.login_subtitulo')}</p>
       </div>
 
       <Card className="w-full max-w-md">
@@ -53,9 +55,10 @@ export default function LoginPage() {
           
           <Input 
             icon={Mail}
-            label="Correo Electrónico" 
-            type="email" 
-            placeholder="tu@empresa.com" 
+            label={t('acceso.correo')}
+            type="email"
+            placeholder={t('acceso.correo_placeholder')}
+
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -63,8 +66,9 @@ export default function LoginPage() {
 
           <Input 
             icon={Lock}
-            label="Contraseña" 
-            type="password" 
+            label={t('acceso.contrasena')}
+            type="password"
+
             placeholder="••••••••" 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -72,21 +76,21 @@ export default function LoginPage() {
           />
 
           <div className="flex justify-end">
-            <a href="/forgot-password" className="text-sm text-brand-light hover:underline">¿Olvidaste tu contraseña?</a>
+            <a href="/forgot-password" className="text-sm text-brand-light hover:underline">{t('acceso.olvide_contrasena')}</a>
           </div>
 
           <Button type="submit" className="w-full mt-2">
-            {isLoading ? "Iniciando..." : "Ingresar a mi Dashboard"}
+            {isLoading ? t('acceso.entrando') : t('acceso.entrar')}
           </Button>
 
           <div className="relative flex items-center py-4">
             <div className="flex-grow border-t border-gray-700"></div>
-            <span className="flex-shrink-0 mx-4 text-text-secondary text-sm">¿No tienes cuenta?</span>
+            <span className="flex-shrink-0 mx-4 text-text-secondary text-sm">{t('acceso.no_tenes_cuenta')}</span>
             <div className="flex-grow border-t border-gray-700"></div>
           </div>
 
           <Button type="button" variant="outline" className="w-full text-text-primary border-brand-blue/50 hover:bg-brand-blue/10" onClick={() => window.location.href = '/register'}>
-            Crear cuenta B2B gratuita
+            {t('acceso.crear_cuenta_b2b')}
           </Button>
         </form>
       </Card>

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { User, X, Shield, Palette, Sparkles, CheckCircle2, Type } from 'lucide-react';
 import { ThemeSelector } from './ThemeSelector';
 import { TextSizeSelector } from './TextSizeSelector';
+import { useIdioma } from '../context/useIdioma';
 import { getUsuarioActual } from '../lib/api';
 
 /**
@@ -10,6 +11,7 @@ import { getUsuarioActual } from '../lib/api';
  * la apariencia de la plataforma mediante el selector de tema claro y oscuro.
  */
 export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
+  const { t } = useIdioma();
   const usuario = getUsuarioActual();
 
   useEffect(() => {
@@ -24,13 +26,12 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
 
   if (!isOpen) return null;
 
-  const rolLegible = {
-    admin: 'Administrador del Sistema',
-    security: 'Oficial de Seguridad (CISO)',
-    rh: 'Recursos Humanos',
-    manager: 'Gerencia / Manager',
-    employee: 'Empleado',
-  }[usuario?.role] || 'Empleado';
+  // El rol sale del diccionario; la lista de roles que se muestran aqui es
+  // la misma de antes.
+  const ROLES_VISIBLES = ['admin', 'security', 'rh', 'manager', 'employee'];
+  const rolLegible = t(
+    `roles.${ROLES_VISIBLES.includes(usuario?.role) ? usuario.role : 'employee'}`
+  );
 
   return (
     <div
@@ -52,10 +53,10 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
             </div>
             <div>
               <h3 id="modal-title" className="text-xl font-bold text-text-primary">
-                Perfil y Configuración
+                {t('perfil.modal_titulo')}
               </h3>
               <p className="text-xs text-text-secondary">
-                Preferencias personales de cuenta y apariencia
+                {t('perfil.modal_subtitulo')}
               </p>
             </div>
           </div>
@@ -63,7 +64,7 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
             type="button"
             onClick={onClose}
             className="rounded-lg p-2 text-text-secondary hover:bg-nav-hover hover:text-text-primary transition-colors cursor-pointer"
-            aria-label="Cerrar modal"
+            aria-label={t('perfil.cerrar_modal')}
           >
             <X className="h-5 w-5" />
           </button>
@@ -74,17 +75,17 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs uppercase font-semibold text-text-secondary tracking-wider">
-                Cuenta de Usuario
+                {t('perfil.cuenta_usuario')}
               </p>
               <h4 className="text-lg font-bold text-text-primary mt-0.5">
                 {userName}
               </h4>
               <p className="text-xs text-text-secondary">
-                ID de empleado: <span className="font-mono text-text-primary">{usuario?.id || '—'}</span>
+                {t('perfil.id_empleado')} <span className="font-mono text-text-primary">{usuario?.id || '—'}</span>
               </p>
               <a href="/perfil" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-light hover:underline">
                 <User className="h-3.5 w-3.5" />
-                Ver y editar mi información personal
+                {t('perfil.ver_editar')}
               </a>
             </div>
             <div className="flex items-center gap-1.5 rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-light border border-brand-blue/20">
@@ -99,11 +100,11 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
           <div className="flex items-center gap-2 mb-2">
             <Palette className="h-5 w-5 text-brand-blue" />
             <h4 className="font-bold text-text-primary text-base">
-              Personalización de Apariencia
+              {t('perfil.apariencia_titulo')}
             </h4>
           </div>
           <p className="text-xs text-text-secondary mb-4">
-            Selecciona el tema que mejor se adapte a tu comodidad visual y condiciones de luz. El cambio se aplica de inmediato y se recordará en tus próximas sesiones.
+            {t('perfil.apariencia_ayuda')}
           </p>
 
           <ThemeSelector variant="cards" />
@@ -114,11 +115,11 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
           <div className="flex items-center gap-2 mb-2">
             <Type className="h-5 w-5 text-brand-blue" />
             <h4 className="font-bold text-text-primary text-base">
-              Tamaño del texto
+              {t('texto.titulo')}
             </h4>
           </div>
           <p className="text-xs text-text-secondary mb-4">
-            Ajusta el tamaño de los textos de toda la plataforma. Se aplica al instante en todos los módulos y se recordará la próxima vez que ingreses.
+            {t('texto.ayuda')}
           </p>
 
           <TextSizeSelector variant="cards" />
@@ -128,14 +129,14 @@ export function UserProfileModal({ isOpen, onClose, userName = 'Usuario' }) {
         <div className="flex items-center justify-between border-t border-border-color pt-4 text-xs text-text-secondary">
           <div className="flex items-center gap-1">
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <span>Preferencia guardada automáticamente</span>
+            <span>{t('perfil.guardada_automaticamente')}</span>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="px-4 py-2 rounded-lg bg-brand-blue text-white font-medium hover:bg-brand-light transition-colors cursor-pointer"
           >
-            Listo
+            {t('perfil.listo')}
           </button>
         </div>
       </div>

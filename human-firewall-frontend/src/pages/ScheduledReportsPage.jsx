@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 /**
  * Reportes automaticos periodicos.
@@ -27,6 +28,7 @@ import { api, getUsuarioActual } from '../lib/api';
  * el estado de cada corrida los decide el backend; esto pide y dibuja.
  */
 export default function ScheduledReportsPage() {
+    const { t } = useIdioma();
     const usuario = getUsuarioActual();
     const esAdmin = usuario?.role === 'admin';
     const autorizado = usuario && ['admin', 'rh', 'security', 'manager'].includes(usuario.role);
@@ -68,11 +70,11 @@ export default function ScheduledReportsPage() {
             if (respConfig) setConfig(respConfig.data);
 
         } catch (e) {
-            setError(e.response?.data?.msg || 'No se pudo cargar la informacion de reportes');
+            setError(e.response?.data?.msg || t('programados.error_cargar'));
         } finally {
             setCargando(false);
         }
-    }, [autorizado, esAdmin]);
+    }, [autorizado, esAdmin, t]);
 
     // Sin sesion no hay nada que pedir: se vuelve al login.
     useEffect(() => {
@@ -93,14 +95,14 @@ export default function ScheduledReportsPage() {
             await api.post('/api/gamification/reports/schedules', nueva);
             setMostrarFormulario(false);
             setNueva({ name: '', report_type: 'performance', frequency: 'weekly', format: 'csv', subscriber_roles: ['rh'] });
-            setAviso({ tipo: 'ok', mensaje: 'Programación creada. El sistema la ejecutará según su frecuencia.' });
+            setAviso({ tipo: 'ok', mensaje: t('programados.creada') });
             cargar();
 
         } catch (e) {
             if (e.response?.status === 400 && e.response.data?.errores) {
                 setErroresCampo(e.response.data.errores);
             } else {
-                setAviso({ tipo: 'error', mensaje: e.response?.data?.msg || 'No se pudo crear la programación' });
+                setAviso({ tipo: 'error', mensaje: e.response?.data?.msg || t('programados.error_crear') });
             }
         }
     };
@@ -112,7 +114,7 @@ export default function ScheduledReportsPage() {
             });
             cargar();
         } catch (e) {
-            setAviso({ tipo: 'error', mensaje: e.response?.data?.msg || 'No se pudo actualizar la programación' });
+            setAviso({ tipo: 'error', mensaje: e.response?.data?.msg || t('programados.error_actualizar') });
         }
     };
 
@@ -141,7 +143,7 @@ export default function ScheduledReportsPage() {
             URL.revokeObjectURL(url);
 
         } catch {
-            setAviso({ tipo: 'error', mensaje: 'No se pudo descargar el archivo' });
+            setAviso({ tipo: 'error', mensaje: t('programados.error_descargar') });
         } finally {
             setDescargando(null);
         }
@@ -152,9 +154,9 @@ export default function ScheduledReportsPage() {
             <Marco>
                 <Card className="border-l-4 border-l-red-500 p-8 text-center">
                     <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-red-500" />
-                    <p className="font-bold">Esta sección es solo para RH, seguridad, gerencia y administración</p>
+                    <p className="font-bold">{t('programados.sin_permiso_titulo')}</p>
                     <p className="mt-1 text-sm text-text-secondary">
-                        Tu cuenta no está suscrita a los reportes automáticos.
+                        {t('programados.sin_permiso_detalle')}
                     </p>
                 </Card>
             </Marco>
@@ -190,58 +192,58 @@ export default function ScheduledReportsPage() {
                     <div className="mb-4 flex items-center justify-between">
                         <h2 className="flex items-center gap-2 font-bold">
                             <CalendarClock className="h-5 w-5 text-brand-blue" />
-                            Programación de reportes
+                            {t('programados.panel_titulo')}
                         </h2>
                         {/* El icono acompana a la accion: con el formulario
                             abierto el boton cierra, y un "+" ahi invita a lo
                             contrario de lo que hace. */}
                         <Button onClick={() => setMostrarFormulario(v => !v)} className="px-4 py-2 text-sm">
                             {mostrarFormulario ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                            {mostrarFormulario ? 'Cancelar' : 'Nueva programación'}
+                            {mostrarFormulario ? t('comun.cancelar') : t('programados.nueva')}
                         </Button>
                     </div>
 
                     {mostrarFormulario && (
                         <div className="mb-6 rounded-xl border border-gray-700 p-4">
                             <div className="grid grid-ajustable [--ancho-columna:12rem] gap-4">
-                                <Campo etiqueta="Nombre">
+                                <Campo etiqueta={t('programados.nombre')}>
                                     <input value={nueva.name}
                                            onChange={e => setNueva({ ...nueva, name: e.target.value })}
-                                           placeholder="Desempeño semanal para RH"
+                                           placeholder={t('programados.nombre_placeholder')}
                                            className={entradaClase} />
                                 </Campo>
-                                <Campo etiqueta="Tipo de reporte">
+                                <Campo etiqueta={t('programados.tipo')}>
                                     <select value={nueva.report_type}
                                             onChange={e => setNueva({ ...nueva, report_type: e.target.value })}
                                             className={entradaClase}>
-                                        <option value="performance">Desempeño por usuario</option>
-                                        <option value="organizational">Consolidado organizacional</option>
+                                        <option value="performance">{t('programados.tipo_performance')}</option>
+                                        <option value="organizational">{t('programados.tipo_organizational')}</option>
                                     </select>
                                 </Campo>
-                                <Campo etiqueta="Frecuencia">
+                                <Campo etiqueta={t('programados.frecuencia')}>
                                     <select value={nueva.frequency}
                                             onChange={e => setNueva({ ...nueva, frequency: e.target.value })}
                                             className={entradaClase}>
-                                        <option value="daily">Diaria</option>
-                                        <option value="weekly">Semanal</option>
-                                        <option value="monthly">Mensual</option>
+                                        <option value="daily">{t('programados.frecuencia_daily')}</option>
+                                        <option value="weekly">{t('programados.frecuencia_weekly')}</option>
+                                        <option value="monthly">{t('programados.frecuencia_monthly')}</option>
                                     </select>
                                 </Campo>
-                                <Campo etiqueta="Formato">
+                                <Campo etiqueta={t('programados.formato')}>
                                     <select value={nueva.format}
                                             onChange={e => setNueva({ ...nueva, format: e.target.value })}
                                             className={entradaClase}>
-                                        <option value="csv">CSV</option>
+                                        <option value="csv">{t('programados.formato_csv')}</option>
                                         {/* El consolidado organizacional solo existe en CSV; el
                                             backend lo rechaza y aca directamente no se ofrece. */}
-                                        {nueva.report_type === 'performance' && <option value="pdf">PDF</option>}
+                                        {nueva.report_type === 'performance' && <option value="pdf">{t('programados.formato_pdf')}</option>}
                                     </select>
                                 </Campo>
                             </div>
 
                             <div className="mt-4">
                                 <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                                    Destinatarios (roles suscritos)
+                                    {t('programados.destinatarios')}
                                 </span>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {(config?.roles || ['rh', 'security', 'manager', 'admin']).map(rol => {
@@ -265,8 +267,7 @@ export default function ScheduledReportsPage() {
                                     })}
                                 </div>
                                 <p className="mt-2 text-xs text-text-secondary">
-                                    Se guardan roles, no personas: quien entre después a ese rol recibe el reporte sin
-                                    tener que agregarlo a mano.
+                                    {t('programados.destinatarios_ayuda')}
                                 </p>
                             </div>
 
@@ -281,28 +282,28 @@ export default function ScheduledReportsPage() {
                             )}
 
                             <div className="mt-4">
-                                <Button onClick={crear} className="px-4 py-2 text-sm">Guardar programación</Button>
+                                <Button onClick={crear} className="px-4 py-2 text-sm">{t('programados.guardar')}</Button>
                             </div>
                         </div>
                     )}
 
                     {!config ? (
-                        <p className="text-sm text-text-secondary">Cargando programaciones…</p>
+                        <p className="text-sm text-text-secondary">{t('programados.cargando_programaciones')}</p>
                     ) : config.programaciones.length === 0 ? (
                         <p className="py-6 text-center text-sm text-text-secondary">
-                            No hay reportes programados todavía.
+                            {t('programados.vacio')}
                         </p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[47.5rem] text-left text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-700 text-text-secondary">
-                                        <th className="p-3 font-medium">Reporte</th>
-                                        <th className="p-3 font-medium">Frecuencia</th>
-                                        <th className="p-3 font-medium">Destinatarios</th>
-                                        <th className="p-3 font-medium">Próxima ejecución</th>
-                                        <th className="p-3 font-medium text-right">Generados</th>
-                                        <th className="p-3 font-medium text-right">Estado</th>
+                                        <th className="p-3 font-medium">{t('programados.col_reporte')}</th>
+                                        <th className="p-3 font-medium">{t('programados.col_frecuencia')}</th>
+                                        <th className="p-3 font-medium">{t('programados.col_destinatarios')}</th>
+                                        <th className="p-3 font-medium">{t('programados.col_proxima')}</th>
+                                        <th className="p-3 font-medium text-right">{t('programados.col_generados')}</th>
+                                        <th className="p-3 font-medium text-right">{t('programados.col_estado')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -314,7 +315,9 @@ export default function ScheduledReportsPage() {
                                                     {p.report_type} · {p.format.toUpperCase()}
                                                 </p>
                                             </td>
-                                            <td className="p-3 text-text-secondary">{FRECUENCIAS[p.frequency] || p.frequency}</td>
+                                            <td className="p-3 text-text-secondary">
+                                                {FRECUENCIAS[p.frequency] ? t(FRECUENCIAS[p.frequency]) : p.frequency}
+                                            </td>
                                             <td className="p-3">
                                                 <span className="inline-flex items-center gap-1 text-text-secondary">
                                                     <Users className="h-3.5 w-3.5" />
@@ -331,8 +334,8 @@ export default function ScheduledReportsPage() {
                                                                 : 'border-gray-700 text-text-secondary'
                                                         }`}>
                                                     {p.is_active
-                                                        ? <><Play className="h-3 w-3" /> Activa</>
-                                                        : <><Pause className="h-3 w-3" /> Pausada</>}
+                                                        ? <><Play className="h-3 w-3" /> {t('programados.activa')}</>
+                                                        : <><Pause className="h-3 w-3" /> {t('programados.pausada')}</>}
                                                 </button>
                                             </td>
                                         </tr>
@@ -347,20 +350,20 @@ export default function ScheduledReportsPage() {
             {/* --- Mockup 2: historico --- */}
             <Card className="p-6">
                 <div className="mb-4 flex items-center justify-between">
-                    <h2 className="font-bold">Reportes generados</h2>
+                    <h2 className="font-bold">{t('programados.historico_titulo')}</h2>
                     <button onClick={cargar} disabled={cargando}
                             className="flex items-center gap-2 text-sm text-text-secondary hover:text-white disabled:opacity-50">
                         <RefreshCw className={`h-4 w-4 ${cargando ? 'animate-spin' : ''}`} />
-                        Actualizar
+                        {t('comun.actualizar')}
                     </button>
                 </div>
 
                 {historial.length === 0 ? (
                     <div className="py-12 text-center">
                         <CalendarClock className="mx-auto mb-4 h-10 w-10 text-text-secondary" />
-                        <p className="font-semibold">Todavía no se generó ningún reporte automático</p>
+                        <p className="font-semibold">{t('programados.historico_vacio_titulo')}</p>
                         <p className="mt-1 text-sm text-text-secondary">
-                            Aparecerán acá en cuanto se cumpla la frecuencia de alguna programación.
+                            {t('programados.historico_vacio_detalle')}
                         </p>
                     </div>
                 ) : (
@@ -368,11 +371,11 @@ export default function ScheduledReportsPage() {
                         <table className="w-full min-w-[45rem] text-left text-sm">
                             <thead>
                                 <tr className="border-b border-gray-700 text-text-secondary">
-                                    <th className="p-3 font-medium">Reporte</th>
-                                    <th className="p-3 font-medium">Periodo</th>
-                                    <th className="p-3 font-medium">Generado</th>
-                                    <th className="p-3 font-medium">Estado</th>
-                                    <th className="p-3 font-medium text-right">Archivo</th>
+                                    <th className="p-3 font-medium">{t('programados.col_reporte')}</th>
+                                    <th className="p-3 font-medium">{t('programados.col_periodo')}</th>
+                                    <th className="p-3 font-medium">{t('programados.col_generado')}</th>
+                                    <th className="p-3 font-medium">{t('programados.col_estado')}</th>
+                                    <th className="p-3 font-medium text-right">{t('programados.col_archivo')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -387,19 +390,22 @@ export default function ScheduledReportsPage() {
                                         <td className="p-3">
                                             {h.status === 'success' ? (
                                                 <span className="inline-flex items-center gap-1 rounded bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-400">
-                                                    <CheckCircle2 className="h-3.5 w-3.5" /> Éxito
+                                                    <CheckCircle2 className="h-3.5 w-3.5" /> {t('programados.exito')}
                                                 </span>
                                             ) : (
                                                 <div>
                                                     <span className="inline-flex items-center gap-1 rounded bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">
-                                                        <XCircle className="h-3.5 w-3.5" /> Error
+                                                        <XCircle className="h-3.5 w-3.5" /> {t('programados.error')}
                                                     </span>
                                                     {/* Mensaje genérico para todos; el detalle técnico
                                                         solo llega en la respuesta si sos admin. */}
                                                     <p className="mt-1 text-xs text-text-secondary">{h.mensaje}</p>
                                                     {h.detalle_tecnico && (
                                                         <p className="mt-1 font-mono text-2xs text-red-300/80">
-                                                            {h.detalle_tecnico} · log {h.referencia_log}
+                                                            {t('programados.detalle_log', {
+                                                                detalle: h.detalle_tecnico,
+                                                                log: h.referencia_log
+                                                            })}
                                                         </p>
                                                     )}
                                                 </div>
@@ -411,7 +417,7 @@ export default function ScheduledReportsPage() {
                                                         disabled={descargando === h.id}
                                                         className="inline-flex items-center gap-1 rounded-lg border border-gray-700 px-3 py-1.5 text-xs hover:bg-gray-800 disabled:opacity-40">
                                                     <Download className="h-3.5 w-3.5" />
-                                                    {descargando === h.id ? 'Descargando…' : 'Descargar'}
+                                                    {descargando === h.id ? t('programados.descargando') : t('programados.descargar')}
                                                 </button>
                                             ) : (
                                                 <span className="text-xs text-text-secondary">—</span>
@@ -428,7 +434,12 @@ export default function ScheduledReportsPage() {
     );
 }
 
-const FRECUENCIAS = { daily: 'Diaria', weekly: 'Semanal', monthly: 'Mensual' };
+// Claves del diccionario, no textos: asi la columna cambia de idioma sola.
+const FRECUENCIAS = {
+    daily: 'programados.frecuencia_daily',
+    weekly: 'programados.frecuencia_weekly',
+    monthly: 'programados.frecuencia_monthly'
+};
 
 const entradaClase =
     'w-full rounded-lg border border-gray-700 bg-bg-deep/60 px-3 py-2 text-sm text-text-primary ' +
@@ -446,22 +457,24 @@ function Campo({ etiqueta, children }) {
 }
 
 function Marco({ children }) {
+    const { t } = useIdioma();
+
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-6xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {t('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
                 <header className="mb-8">
                     <h1 className="flex items-center gap-3 text-3xl font-bold">
                         <CalendarClock className="h-8 w-8 text-brand-blue" />
-                        Reportes automáticos
+                        {t('programados.titulo')}
                     </h1>
                     <p className="mt-1 text-text-secondary">
-                        Programación periódica y histórico de generaciones.
+                        {t('programados.subtitulo')}
                     </p>
                 </header>
                 {children}
