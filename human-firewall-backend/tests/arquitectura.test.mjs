@@ -56,9 +56,9 @@ check('el registro (servicios/index.js) tiene todas las carpetas de servicios',
 
 for (const nombre of NOMBRES) {
     const base = path.join(a.DIR_SERVICIOS, nombre);
-    const faltan = ['index.js', 'manifiesto.js', 'README.md', 'api', 'aplicacion', 'infraestructura', 'contrato/openapi.js', 'api/esquemas.js']
+    const faltan = ['index.js', 'manifiesto.js', 'README.md', 'controller', 'application', 'infrastructure', 'contract/openapi.js', 'controller/dto.js']
         .filter(p => !existsSync(path.join(base, p)));
-    check(`${nombre}: tiene index, manifiesto, README, api, aplicacion, infraestructura, DTO y contrato`,
+    check(`${nombre}: tiene index, manifiesto, README, controller, application, infrastructure, DTO y contrato`,
         faltan.length === 0, `(faltan: ${faltan.join(', ')})`);
 
     const m = manifiestos[nombre];
@@ -68,7 +68,7 @@ for (const nombre of NOMBRES) {
 
     const capasRaras = analisis[nombre]
         .map(f => f.capa)
-        .filter(c => !['api', 'aplicacion', 'dominio', 'infraestructura', 'contrato', '(raiz)'].includes(c));
+        .filter(c => !['controller', 'application', 'domain', 'infrastructure', 'contract', 'config', '(raiz)'].includes(c));
     check(`${nombre}: no hay carpetas fuera de las capas definidas`, capasRaras.length === 0, `(${[...new Set(capasRaras)]})`);
 }
 
@@ -78,25 +78,25 @@ console.log('\n--- CAPAS (criterios tecnicos 3 y 4) ---');
 
 const todos = NOMBRES.flatMap(n => analisis[n]);
 
-const apiConBase = todos.filter(f => f.capa === 'api' && f.requires.some(r => r.destino === DB));
+const apiConBase = todos.filter(f => f.capa === 'controller' && f.requires.some(r => r.destino === DB));
 check('ningun controlador ni archivo de rutas importa la base de datos', apiConBase.length === 0,
     lista(apiConBase.map(f => f.relativo)));
 
-const apiConSql = todos.filter(f => f.capa === 'api' && (f.lecturas.length || f.escrituras.length));
+const apiConSql = todos.filter(f => f.capa === 'controller' && (f.lecturas.length || f.escrituras.length));
 check('ningun archivo de la capa api tiene SQL', apiConSql.length === 0, lista(apiConSql.map(f => f.relativo)));
 
-const dominioImpuro = todos.filter(f => f.capa === 'dominio' && f.requires.some(r => !r.destino.includes(`${path.sep}dominio${path.sep}`)));
+const dominioImpuro = todos.filter(f => f.capa === 'domain' && f.requires.some(r => !r.destino.includes(`${path.sep}domain${path.sep}`)));
 check('la capa de dominio no depende de nada fuera del dominio (ni base, ni bus, ni HTTP)',
     dominioImpuro.length === 0, lista(dominioImpuro.map(f => `${f.relativo} -> ${f.requires.map(r => r.especificador)}`)));
 
-const contratoConBase = todos.filter(f => f.capa === 'contrato' && f.requires.some(r => r.destino === DB));
+const contratoConBase = todos.filter(f => f.capa === 'contract' && f.requires.some(r => r.destino === DB));
 check('los contratos no tocan la base', contratoConBase.length === 0);
 
 // =====================================================================
 console.log('\n--- COMUNICACION ENTRE SERVICIOS (criterio de aceptacion 5) ---');
 // =====================================================================
 
-const esCliente = (f) => /\/infraestructura\/clientes\/[a-z]+\.cliente\.js$/.test(f.relativo);
+const esCliente = (f) => /\/infrastructure\/client\/[a-z]+\.cliente\.js$/.test(f.relativo);
 const violaciones = [];
 const dependenciasReales = Object.fromEntries(NOMBRES.map(n => [n, new Set()]));
 
@@ -112,7 +112,7 @@ for (const nombre of NOMBRES) {
         }
     }
 }
-check('un servicio solo llega a otro por su index.js y desde infraestructura/clientes/', violaciones.length === 0, lista(violaciones));
+check('un servicio solo llega a otro por su index.js y desde infrastructure/client/', violaciones.length === 0, lista(violaciones));
 
 const clientesMalNombrados = todos.filter(f => esCliente(f) && !f.requires.some(r => {
     const otro = a.servicioDe(r.destino);

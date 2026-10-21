@@ -4,23 +4,23 @@
  */
 
 const manifiesto = require('./manifiesto');
-const usuarios = require('./infraestructura/usuarios.repositorio');
+const usuarios = require('./infrastructure/persistence/usuarios.repositorio');
 
 module.exports = {
     manifiesto,
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
-    contrato: () => require('./contrato/openapi'),
+    contrato: () => require('./contract/openapi'),
 
     rutas: () => [
-        { prefijo: '/api/auth', router: require('./api/auth.routes') },
-        { prefijo: '/api/users', router: require('./api/user.routes') },
-        { prefijo: '/api/sso', router: require('./api/sso.routes') },
-        { prefijo: '/api/invitations', router: require('./api/invitations.routes') }
+        { prefijo: '/api/auth', router: require('./controller/auth.routes') },
+        { prefijo: '/api/users', router: require('./controller/user.routes') },
+        { prefijo: '/api/sso', router: require('./controller/sso.routes') },
+        { prefijo: '/api/invitations', router: require('./controller/invitations.routes') }
     ],
 
     /** Registra la estrategia de Google en passport (la usa /api/sso). */
-    configurarAutenticacion: () => require('./infraestructura/passport'),
+    configurarAutenticacion: () => require('./infrastructure/passport'),
 
     registrarHandlers() {},
     iniciarProcesos() {},

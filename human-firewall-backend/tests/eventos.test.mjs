@@ -57,8 +57,8 @@ console.log('Esquema y migraciones listos\n');
 const eventBus      = require_('./compartido/eventos/eventBus');
 const catalogo      = require_('./compartido/eventos/catalogo');
 const suscriptores  = require_('./servicios/suscriptores');
-const authService   = require_('./servicios/identidad/aplicacion/auth.service');
-const simController = require_('./servicios/evaluaciones/api/simulation.controller');
+const authService   = require_('./servicios/identidad/application/auth.service');
+const simController = require_('./servicios/evaluaciones/controller/simulation.controller');
 
 const { EVENTOS, SUSCRIPTORES_ESPERADOS } = catalogo;
 

@@ -48,9 +48,9 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const sched = require_('./servicios/reportes/aplicacion/scheduledReports.service');
-const notifications = require_('./servicios/notificaciones/aplicacion/notifications.service');
-const controller = require_('./servicios/reportes/api/scheduledReports.controller');
+const sched = require_('./servicios/reportes/application/scheduledReports.service');
+const notifications = require_('./servicios/notificaciones/application/notifications.service');
+const controller = require_('./servicios/reportes/controller/scheduledReports.controller');
 const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 const eventBus = require_('./compartido/eventos/eventBus');
 const suscriptores = require_('./servicios/suscriptores');

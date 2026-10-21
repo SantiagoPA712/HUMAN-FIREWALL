@@ -4,20 +4,20 @@
  */
 
 const manifiesto = require('./manifiesto');
-const dataLogs = require('./aplicacion/dataLogs.service');
-const anomalies = require('./aplicacion/anomalies.service');
-const audit = require('./aplicacion/audit.service');
+const dataLogs = require('./application/dataLogs.service');
+const anomalies = require('./application/anomalies.service');
+const audit = require('./application/audit.service');
 
 module.exports = {
     manifiesto,
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
-    contrato: () => require('./contrato/openapi'),
+    contrato: () => require('./contract/openapi'),
 
     rutas: () => [
-        { prefijo: '/api/gamification/security', router: require('./api/seguridad.routes') },
-        { prefijo: '/api/gamification/users', router: require('./api/ajustes.routes') },
-        { prefijo: '/api/logs', router: require('./api/logs.routes') }
+        { prefijo: '/api/gamification/security', router: require('./controller/seguridad.routes') },
+        { prefijo: '/api/gamification/users', router: require('./controller/ajustes.routes') },
+        { prefijo: '/api/logs', router: require('./controller/logs.routes') }
     ],
 
     registrarHandlers() {

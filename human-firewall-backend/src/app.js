@@ -26,7 +26,7 @@ app.use(asignarTraceId);
 app.use(express.json());
 
 const passport = require('passport');
-const servicios = require('./servicios');
+const servicios = require('./servicios/index');
 
 // Estrategia de Google (la usa /api/sso, que es del servicio de identidad).
 servicios.servicio('identidad').configurarAutenticacion();

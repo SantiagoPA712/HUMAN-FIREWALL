@@ -23,13 +23,13 @@
  */
 
 const SERVICIOS = [
-    require('./identidad'),
-    require('./cursos'),
-    require('./evaluaciones'),
-    require('./gamificacion'),
-    require('./notificaciones'),
-    require('./reportes'),
-    require('./seguridad')
+    require('./identidad/index'),
+    require('./cursos/index'),
+    require('./evaluaciones/index'),
+    require('./gamificacion/index'),
+    require('./notificaciones/index'),
+    require('./reportes/index'),
+    require('./seguridad/index')
 ];
 
 /** Busca un servicio por nombre. */

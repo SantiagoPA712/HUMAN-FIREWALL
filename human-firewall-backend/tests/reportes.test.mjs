@@ -40,11 +40,11 @@ for (const f of ['001_points_ledger', '002_points_rules', '003_lesson_quiz_track
 }
 console.log('Migraciones aplicadas\n');
 
-const reports = require_('./servicios/reportes/aplicacion/reports.service');
-const exports_ = require_('./servicios/reportes/aplicacion/reportExports.service');
-const points = require_('./servicios/gamificacion/aplicacion/points.service');
-const levels = require_('./servicios/gamificacion/aplicacion/levels.service');
-const controller = require_('./servicios/reportes/api/report.controller');
+const reports = require_('./servicios/reportes/application/reports.service');
+const exports_ = require_('./servicios/reportes/application/reportExports.service');
+const points = require_('./servicios/gamificacion/application/points.service');
+const levels = require_('./servicios/gamificacion/application/levels.service');
+const controller = require_('./servicios/reportes/controller/report.controller');
 const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 
 // ---------------------------------------------------------------------
@@ -342,8 +342,8 @@ console.log('\n--- EXPORTACION ASINCRONA (criterio tecnico 5) ---');
 // Se fuerza el camino asincrono bajando el umbral a 1.
 const umbralOriginal = process.env.REPORT_EXPORT_SYNC_LIMIT;
 process.env.REPORT_EXPORT_SYNC_LIMIT = '1';
-delete require_.cache[require_.resolve('./servicios/reportes/aplicacion/reportExports.service')];
-const exportsBajoUmbral = require_('./servicios/reportes/aplicacion/reportExports.service');
+delete require_.cache[require_.resolve('./servicios/reportes/application/reportExports.service')];
+const exportsBajoUmbral = require_('./servicios/reportes/application/reportExports.service');
 
 check('el umbral se lee del entorno', exportsBajoUmbral.LIMITE_SINCRONO === 1);
 

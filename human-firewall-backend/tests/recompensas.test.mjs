@@ -50,8 +50,8 @@ for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_trackin
 console.log('Migraciones aplicadas sobre una base con datos previos\n');
 
 const eventBus = require_('./compartido/eventos/eventBus');
-const points   = require_('./servicios/gamificacion/aplicacion/points.service');
-const rewards  = require_('./servicios/gamificacion/aplicacion/rewards.service');
+const points   = require_('./servicios/gamificacion/application/points.service');
+const rewards  = require_('./servicios/gamificacion/application/rewards.service');
 points.registrarHandlers();
 rewards.registrarHandlers();
 

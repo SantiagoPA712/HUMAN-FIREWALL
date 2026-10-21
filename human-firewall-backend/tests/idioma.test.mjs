@@ -51,8 +51,8 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const controller = require_('./servicios/identidad/api/user.controller');
-const dominio = require_('./servicios/identidad/dominio/usuario');
+const controller = require_('./servicios/identidad/controller/user.controller');
+const dominio = require_('./servicios/identidad/domain/usuario');
 
 /** Llama a un controlador sin levantar Express. */
 const llamar = async (handler, req) => {
