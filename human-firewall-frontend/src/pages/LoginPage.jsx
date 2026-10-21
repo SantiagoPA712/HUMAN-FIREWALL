@@ -85,7 +85,7 @@ export default function LoginPage() {
             <div className="flex-grow border-t border-gray-700"></div>
           </div>
 
-          <Button type="button" variant="outline" className="w-full text-white border-brand-blue/50 hover:bg-brand-blue/10" onClick={() => window.location.href = '/register'}>
+          <Button type="button" variant="outline" className="w-full text-text-primary border-brand-blue/50 hover:bg-brand-blue/10" onClick={() => window.location.href = '/register'}>
             Crear cuenta B2B gratuita
           </Button>
         </form>
