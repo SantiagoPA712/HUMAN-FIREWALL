@@ -54,16 +54,16 @@ console.log('Esquema y migraciones listos\n');
 
 // El reloj de fechas limite paso al servicio de cursos (dueno de las asignaciones).
 const cursos = require_('./servicios/cursos');
-const correo = require_('./servicios/notificaciones/aplicacion/emailNotifications.service');
-const plantillas = require_('./servicios/notificaciones/aplicacion/emailTemplates.service');
-const resultados = require_('./servicios/notificaciones/aplicacion/resultNotifications.service');
-const recovery = require_('./servicios/identidad/aplicacion/recovery.service');
+const correo = require_('./servicios/notificaciones/application/emailNotifications.service');
+const plantillas = require_('./servicios/notificaciones/application/emailTemplates.service');
+const resultados = require_('./servicios/notificaciones/application/resultNotifications.service');
+const recovery = require_('./servicios/identidad/application/recovery.service');
 const eventBus = require_('./compartido/eventos/eventBus');
 const catalogo = require_('./compartido/eventos/catalogo');
 const suscriptores = require_('./servicios/suscriptores');
-const courseController = require_('./servicios/cursos/api/course.controller');
-const emailController = require_('./servicios/notificaciones/api/emailNotifications.controller');
-const userController = require_('./servicios/identidad/api/user.controller');
+const courseController = require_('./servicios/cursos/controller/course.controller');
+const emailController = require_('./servicios/notificaciones/controller/emailNotifications.controller');
+const userController = require_('./servicios/identidad/controller/user.controller');
 
 const { EVENTOS } = catalogo;
 const suscritos = suscriptores.conectarTodo({ iniciarWorker: false });

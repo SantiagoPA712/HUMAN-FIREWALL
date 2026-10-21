@@ -42,10 +42,10 @@ for (const f of ['001_points_ledger', '002_points_rules', '003_lesson_quiz_track
 console.log('Migraciones aplicadas\n');
 
 const eventBus = require_('./compartido/eventos/eventBus');
-const points = require_('./servicios/gamificacion/aplicacion/points.service');
-const anomalias = require_('./servicios/seguridad/aplicacion/anomalies.service');
-const auditoria = require_('./servicios/seguridad/aplicacion/audit.service');
-const controller = require_('./servicios/seguridad/api/security.controller');
+const points = require_('./servicios/gamificacion/application/points.service');
+const anomalias = require_('./servicios/seguridad/application/anomalies.service');
+const auditoria = require_('./servicios/seguridad/application/audit.service');
+const controller = require_('./servicios/seguridad/controller/security.controller');
 const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 
 points.registrarHandlers();

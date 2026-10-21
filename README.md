@@ -84,12 +84,244 @@ sus contratos:
 | `reportes` | Reportes para RH, programados y organizacional |
 | `seguridad` | Anomalias, auditoria de ajustes y `data.logs` |
 
-Cada uno vive en `human-firewall-backend/src/servicios/<servicio>/` con la
-misma forma: `api/` (rutas, controladores sin SQL y DTO), `aplicacion/`
-(casos de uso), `dominio/` (reglas puras, cuando hay), `infraestructura/`
-(repositorios y clientes de otros servicios) y `contrato/` (OpenAPI). Un
-servicio solo llega a otro por su `index.js`, y solo es dueno de sus tablas.
+Cada uno vive en `human-firewall-backend/src/servicios/<servicio>/` con las
+capas de la seccion 11 del material ("Arquitectura de microservicios aplicando
+capas"):
+
+```
+<servicio>/
+|-- controller/                 Controller / API: rutas, controladores sin SQL y DTO
+|-- application/                Application / Service: casos de uso
+|-- domain/                     Domain: reglas y entidades del negocio
+|-- infrastructure/
+|   |-- persistence/            Persistence: repositorios (SQL de sus propios datos)
+|   `-- client/                 clientes de otros microservicios
+|-- config/configuracion.js     configuracion del servicio (el application.yml del ejemplo)
+|-- contract/openapi.js         contrato de su API
+`-- index.js                    puerta de entrada (el ProductApplication del ejemplo)
+```
+
+Un servicio solo llega a otro por su `index.js`, y solo es dueno de sus tablas.
 `tests/arquitectura.test.mjs` verifica esas reglas en cada `npm test`.
+
+#### Estructura del microservicio por capas
+
+Este es el arbol real del proyecto despues de aplicar la seccion 11 (el
+equivalente a la "Estructura recomendada del microservicio por capas" del
+material, donde aparece `product-service`). Cada servicio tiene las mismas
+carpetas; `index.js` de cada servicio cumple el papel de `ProductApplication`.
+
+```
+human-firewall-backend/
+└── src/
+    └── servicios/
+        ├── index.js
+        ├── suscriptores.js
+        ├── cursos/
+        │   ├── controller/
+        │   │   ├── course.controller.js
+        │   │   ├── course.routes.js
+        │   │   └── dto.js
+        │   ├── application/
+        │   │   └── cursos.service.js
+        │   ├── domain/
+        │   │   └── curso.js
+        │   ├── infrastructure/
+        │   │   └── persistence/
+        │   │       └── cursos.repositorio.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── evaluaciones/
+        │   ├── controller/
+        │   │   ├── desafios.controller.js
+        │   │   ├── desafios.routes.js
+        │   │   ├── dto.js
+        │   │   ├── simulation.controller.js
+        │   │   └── simulation.routes.js
+        │   ├── application/
+        │   │   ├── desafios.service.js
+        │   │   └── simulaciones.service.js
+        │   ├── domain/
+        │   │   └── puntaje.js
+        │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   └── evaluaciones.repositorio.js
+        │   │   └── client/
+        │   │       ├── cursos.cliente.js
+        │   │       └── gamificacion.cliente.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── gamificacion/
+        │   ├── controller/
+        │   │   ├── dto.js
+        │   │   ├── gamification.controller.js
+        │   │   └── gamification.routes.js
+        │   ├── application/
+        │   │   ├── gamificacion.service.js
+        │   │   ├── levels.service.js
+        │   │   ├── points.service.js
+        │   │   ├── recommendations.service.js
+        │   │   └── rewards.service.js
+        │   ├── domain/
+        │   │   ├── nivel.js
+        │   │   ├── puntos.js
+        │   │   ├── recomendacion.js
+        │   │   └── recompensa.js
+        │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   └── gamificacion.repositorio.js
+        │   │   └── client/
+        │   │       ├── cursos.cliente.js
+        │   │       ├── evaluaciones.cliente.js
+        │   │       ├── identidad.cliente.js
+        │   │       └── seguridad.cliente.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── identidad/
+        │   ├── controller/
+        │   │   ├── auth.controller.js
+        │   │   ├── auth.routes.js
+        │   │   ├── dto.js
+        │   │   ├── invitations.controller.js
+        │   │   ├── invitations.routes.js
+        │   │   ├── sso.routes.js
+        │   │   ├── user.controller.js
+        │   │   └── user.routes.js
+        │   ├── application/
+        │   │   ├── auth.service.js
+        │   │   ├── invitations.service.js
+        │   │   ├── recovery.service.js
+        │   │   ├── sso.service.js
+        │   │   └── user.service.js
+        │   ├── domain/
+        │   │   ├── invitacion.js
+        │   │   └── usuario.js
+        │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   ├── invitaciones.repositorio.js
+        │   │   │   ├── recuperacion.repositorio.js
+        │   │   │   └── usuarios.repositorio.js
+        │   │   ├── client/
+        │   │   │   ├── notificaciones.cliente.js
+        │   │   │   └── seguridad.cliente.js
+        │   │   ├── passport.js
+        │   │   └── seed_admin.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── notificaciones/
+        │   ├── controller/
+        │   │   ├── dto.js
+        │   │   ├── emailNotifications.controller.js
+        │   │   ├── notification.controller.js
+        │   │   ├── notification.routes.js
+        │   │   └── resultNotifications.controller.js
+        │   ├── application/
+        │   │   ├── emailNotifications.service.js
+        │   │   ├── emailTemplates.service.js
+        │   │   ├── notifications.service.js
+        │   │   └── resultNotifications.service.js
+        │   ├── domain/
+        │   │   ├── entrega.js
+        │   │   ├── notificacion.js
+        │   │   └── plantilla.js
+        │   ├── infrastructure/
+        │   │   └── client/
+        │   │       ├── cursos.cliente.js
+        │   │       ├── evaluaciones.cliente.js
+        │   │       └── identidad.cliente.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        ├── reportes/
+        │   ├── controller/
+        │   │   ├── dto.js
+        │   │   ├── orgReports.controller.js
+        │   │   ├── report.controller.js
+        │   │   ├── reportes.routes.js
+        │   │   └── scheduledReports.controller.js
+        │   ├── application/
+        │   │   ├── orgReports.service.js
+        │   │   ├── reportExports.service.js
+        │   │   ├── reports.service.js
+        │   │   └── scheduledReports.service.js
+        │   ├── domain/
+        │   │   ├── periodo.js
+        │   │   └── programacion.js
+        │   ├── infrastructure/
+        │   │   └── client/
+        │   │       ├── gamificacion.cliente.js
+        │   │       ├── notificaciones.cliente.js
+        │   │       └── seguridad.cliente.js
+        │   ├── config/
+        │   │   └── configuracion.js
+        │   ├── contract/
+        │   │   └── openapi.js
+        │   ├── README.md
+        │   ├── index.js
+        │   └── manifiesto.js
+        └── seguridad/
+            ├── controller/
+            │   ├── ajustes.routes.js
+            │   ├── dto.js
+            │   ├── logs.controller.js
+            │   ├── logs.routes.js
+            │   ├── security.controller.js
+            │   └── seguridad.routes.js
+            ├── application/
+            │   ├── anomalies.service.js
+            │   ├── audit.service.js
+            │   └── dataLogs.service.js
+            ├── domain/
+            │   ├── anomalia.js
+            │   └── registro.js
+            ├── infrastructure/
+            │   └── client/
+            │       ├── gamificacion.cliente.js
+            │       └── identidad.cliente.js
+            ├── config/
+            │   └── configuracion.js
+            ├── contract/
+            │   └── openapi.js
+            ├── README.md
+            ├── index.js
+            └── manifiesto.js
+```
+
+Como leerlo, comparado con el ejemplo del material:
+
+| Material (`product-service`) | Human Firewall |
+|---|---|
+| `controller/ProductController.java` | `controller/*.controller.js` (+ `*.routes.js` y `dto.js`) |
+| `application/ProductService.java` | `application/*.service.js` |
+| `domain/Product.java`, `ProductStatus.java` | `domain/*.js` (reglas y estados del negocio) |
+| `infrastructure/persistence/ProductRepository.java` | `infrastructure/persistence/*.repositorio.js` |
+| `infrastructure/client/InventoryClient` | `infrastructure/client/<otro>.cliente.js` |
+| `config/application.yml` | `config/configuracion.js` |
+| `ProductApplication.java` | `index.js` |
 
 - Documento de arquitectura: [`docs/arquitectura/README.md`](docs/arquitectura/README.md)
 - Catalogo de servicios (generado): [`docs/arquitectura/SERVICIOS.md`](docs/arquitectura/SERVICIOS.md)
@@ -247,7 +479,7 @@ no se dupliquen ni los puntos, ni los avisos.
 Sin tocar a quien publica:
 
 ```js
-// src/servicios/<servicio>/aplicacion/mi.service.js
+// src/servicios/<servicio>/application/mi.service.js
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 
@@ -890,10 +1122,10 @@ ajustes manuales llegan a los dos.
 **Para registrar una accion nueva, una sola llamada, sin `await`:**
 
 Desde otro servicio, por su cliente de seguridad
-(`infraestructura/clientes/seguridad.cliente.js`):
+(`infrastructure/client/seguridad.cliente.js`):
 
 ```js
-const dataLogs = require('../infraestructura/clientes/seguridad.cliente');
+const dataLogs = require('../infrastructure/client/seguridad.cliente');
 
 dataLogs.registrarAccion({
     req,                                        // de aca salen usuario, IP y trace_id
@@ -1078,7 +1310,7 @@ para guardar. El id sale siempre del token: no hay forma de apuntar a otro usuar
 | `email`, `role`, equipo, fecha de alta | No | Se muestran como "Datos de la cuenta". El correo es el usuario de login |
 
 **Lista blanca, no lista negra.** `CAMPOS_EDITABLES_PERFIL` en
-`servicios/identidad/dominio/usuario.js` es lo unico que se acepta. Si la
+`servicios/identidad/domain/usuario.js` es lo unico que se acepta. Si la
 solicitud trae cualquier otro campo (`role`, `is_active`, `email`, `team_id`,
 `total_points`, `password`, `id`...) se rechaza **entera** con 403 `PROHIBIDO`,
 aunque traiga campos validos al lado. Ignorarlo en silencio le haria creer a
@@ -1120,12 +1352,12 @@ plataforma. Se deja NULL y no `'es'` a proposito, para que cambiar el idioma por
 defecto alcance a quien nunca eligio uno.
 
 **La lista de idiomas sale del backend, no de la interfaz.** `GET
-/api/users/idiomas` devuelve el catalogo desde `dominio/usuario.js`, que es la
+/api/users/idiomas` devuelve el catalogo desde `domain/usuario.js`, que es la
 misma constante contra la que `PATCH /api/users/me` valida y la misma que el
 CHECK de la base. Agregar un idioma es tocar un lugar:
 
 ```js
-// servicios/identidad/dominio/usuario.js
+// servicios/identidad/domain/usuario.js
 const IDIOMAS = ['es', 'en'];           // + el codigo nuevo
 const NOMBRES_DE_IDIOMA = { ... };      // + su nombre, escrito en ese idioma
 ```
@@ -1383,7 +1615,7 @@ Para usar la grilla en una pantalla nueva: `grid grid-ajustable` (celdas de
 |           `-- <servicio>/     identidad, cursos, evaluaciones, gamificacion,
 |               |-- index.js        notificaciones, reportes, seguridad
 |               |-- manifiesto.js   (ver docs/arquitectura/README.md)
-|               |-- api/  aplicacion/  dominio/  infraestructura/  contrato/
+|               |-- controller/  application/  domain/  infrastructure/  contract/
 `-- human-firewall-frontend/
     |-- dist/                   Build compilado; lo sirve el backend (no se versiona)
     `-- src/
@@ -1424,11 +1656,11 @@ Para usar la grilla en una pantalla nueva: `grid grid-ajustable` (celdas de
 | 4 | `JWT_SECRET` caia a `'secret'` si faltaba la variable | Sin valor por defecto (`compartido/config/entorno.js`): el servidor no arranca sin `DATABASE_URL` ni `JWT_SECRET` |
 | 7 | `auth.forgotPassword` devolvia el error real y permitia enumerar usuarios registrados | Responde siempre el mismo mensaje, exista o no la cuenta |
 | - | 68 respuestas 500 devolvian `error.message`, con el texto crudo de PostgreSQL | Formato comun de errores: un 500 responde un mensaje generico y el `traceId`; el detalle va al log |
-| - | Cuatro controladores (course, simulation, gamification, user) tenian 47 consultas SQL | Repositorios en `infraestructura/` y casos de uso en `aplicacion/`; ningun controlador importa la base |
+| - | Cuatro controladores (course, simulation, gamification, user) tenian 47 consultas SQL | Repositorios en `infrastructure/` y casos de uso en `application/`; ningun controlador importa la base |
 | - | Servicios que escribian en tablas de otro (notificaciones en `courses` y `course_assignments`, gamificacion en `quiz_attempts`) | Cada tabla tiene un dueno; las escrituras pasan por el contrato del dueno |
 | - | `seed_admin.js` tenia la contrasena del admin escrita en el codigo | La lee de `ADMIN_EMAIL` / `ADMIN_PASSWORD` |
 | - | La API no tenia contrato: la coleccion de Postman cubria 5 de 80 endpoints | Contrato OpenAPI 3.1 en `/api/docs`, verificado contra la API real por `tests/contratos.test.mjs` |
-| - | En una simulacion cuyas opciones no dan puntos, `pasos` daba 0 y el score por aciertos nunca se calculaba | Corregido en `evaluaciones/dominio/puntaje.js`; lo encontro la prueba unitaria |
+| - | En una simulacion cuyas opciones no dan puntos, `pasos` daba 0 y el score por aciertos nunca se calculaba | Corregido en `evaluaciones/domain/puntaje.js`; lo encontro la prueba unitaria |
 
 ### Pendiente
 

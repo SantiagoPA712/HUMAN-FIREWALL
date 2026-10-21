@@ -4,17 +4,17 @@
  */
 
 const manifiesto = require('./manifiesto');
-const repo = require('./infraestructura/evaluaciones.repositorio');
+const repo = require('./infrastructure/persistence/evaluaciones.repositorio');
 
 module.exports = {
     manifiesto,
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
-    contrato: () => require('./contrato/openapi'),
+    contrato: () => require('./contract/openapi'),
 
     rutas: () => [
-        { prefijo: '/api/simulations', router: require('./api/simulation.routes') },
-        { prefijo: '/api/gamification/challenge', router: require('./api/desafios.routes') }
+        { prefijo: '/api/simulations', router: require('./controller/simulation.routes') },
+        { prefijo: '/api/gamification/challenge', router: require('./controller/desafios.routes') }
     ],
 
     registrarHandlers() {},

@@ -2,26 +2,26 @@
  * Servicio de cursos — puerta de entrada publica.
  *
  * Este archivo ES el contrato interno del servicio: lo unico que otro
- * servicio puede usar. Nadie de afuera importa api/, aplicacion/ ni
- * infraestructura/ (lo verifica tests/arquitectura.test.mjs). Los demas
+ * servicio puede usar. Nadie de afuera importa controller/, application/ ni
+ * infrastructure/ (lo verifica tests/arquitectura.test.mjs). Los demas
  * servicios llegan aca a traves de su propio cliente, en
- * <su-servicio>/infraestructura/clientes/cursos.cliente.js.
+ * <su-servicio>/infrastructure/client/cursos.cliente.js.
  *
  * Si mañana cursos se desplegara como un proceso aparte, este objeto pasaria
  * a ser una API HTTP interna y solo cambiarian esos clientes.
  */
 
 const manifiesto = require('./manifiesto');
-const cursos = require('./aplicacion/cursos.service');
+const cursos = require('./application/cursos.service');
 
 module.exports = {
     manifiesto,
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
-    contrato: () => require('./contrato/openapi'),
+    contrato: () => require('./contract/openapi'),
 
     /** Routers HTTP que app.js monta. */
-    rutas: () => [{ prefijo: '/api/courses', router: require('./api/course.routes') }],
+    rutas: () => [{ prefijo: '/api/courses', router: require('./controller/course.routes') }],
 
     /** Suscripciones al bus: este servicio no consume eventos. */
     registrarHandlers() {},

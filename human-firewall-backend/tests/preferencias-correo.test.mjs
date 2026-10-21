@@ -47,8 +47,8 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const correo = require_('./servicios/notificaciones/aplicacion/emailNotifications.service');
-const controller = require_('./servicios/notificaciones/api/emailNotifications.controller');
+const correo = require_('./servicios/notificaciones/application/emailNotifications.service');
+const controller = require_('./servicios/notificaciones/controller/emailNotifications.controller');
 
 const llamar = async (handler, req) => {
     let estado = 200, cuerpo = null;

@@ -11,9 +11,9 @@ Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura
 
 | Quiero... | Toco |
 |-----------|------|
-| Avisar ante un evento nuevo | `aplicacion/notifications.service.js` -> `PLANTILLAS`, o `resultNotifications.service.js` si es un resultado |
-| Un correo nuevo | un tipo en `email_notification_types`, su plantilla en `email_templates` y su handler en `aplicacion/emailNotifications.service.js` |
-| Saber el correo, idioma o RH de alguien | `infraestructura/clientes/identidad.cliente.js` (no leer `users`) |
+| Avisar ante un evento nuevo | `application/notifications.service.js` -> `PLANTILLAS`, o `resultNotifications.service.js` si es un resultado |
+| Un correo nuevo | un tipo en `email_notification_types`, su plantilla en `email_templates` y su handler en `application/emailNotifications.service.js` |
+| Saber el correo, idioma o RH de alguien | `infrastructure/client/identidad.cliente.js` (no leer `users`) |
 | El titulo de un curso, desafio o simulacion | los clientes de cursos y evaluaciones |
 
 ## Reglas que no hay que romper

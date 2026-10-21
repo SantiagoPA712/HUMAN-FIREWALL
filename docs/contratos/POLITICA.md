@@ -39,7 +39,7 @@ El contrato publico tiene una version semantica `MAYOR.MENOR.PARCHE` en
 
 1. **Evaluar a los consumidores.** Buscar la ruta en el frontend:
    `grep -rn "/api/<ruta>" human-firewall-frontend/src`. Para un contrato
-   interno, buscar quien usa la funcion: `grep -rn "<funcion>" src/servicios/*/infraestructura/clientes`.
+   interno, buscar quien usa la funcion: `grep -rn "<funcion>" src/servicios/*/infrastructure/clientes`.
    Para un evento, mirar `consume` en los manifiestos (o `docs/arquitectura/SERVICIOS.md`).
 2. **Si es compatible:** cambiar el DTO y el contrato juntos (el cuerpo
    documentado es el mismo objeto que valida la ruta), subir MENOR o PARCHE y
@@ -58,7 +58,7 @@ El contrato publico tiene una version semantica `MAYOR.MENOR.PARCHE` en
 
 ## Revision en el PR
 
-Todo PR que toque `contrato/`, `api/esquemas.js`, un `index.js` de servicio o
+Todo PR que toque `contract/`, `controller/dto.js`, un `index.js` de servicio o
 el catalogo de eventos tiene que decir en la descripcion:
 
 - que contrato cambio y si es compatible;

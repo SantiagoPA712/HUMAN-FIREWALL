@@ -39,8 +39,8 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const org = require_('./servicios/reportes/aplicacion/orgReports.service');
-const controller = require_('./servicios/reportes/api/orgReports.controller');
+const org = require_('./servicios/reportes/application/orgReports.service');
+const controller = require_('./servicios/reportes/controller/orgReports.controller');
 const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 
 const llamar = async (handler, req) => {

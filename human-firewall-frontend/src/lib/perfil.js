@@ -2,7 +2,7 @@
  * Reglas del perfil propio del lado del cliente (HU de perfil editable,
  * criterio tecnico 4).
  *
- * Son las mismas que valida el backend en servicios/identidad/dominio/usuario.js:
+ * Son las mismas que valida el backend en servicios/identidad/domain/usuario.js:
  * aca sirven para avisar antes de enviar, no para proteger nada. Si alguien
  * se saltea la pantalla, el backend vuelve a validar y rechaza.
  */

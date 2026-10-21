@@ -52,9 +52,9 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const controller = require_('./servicios/identidad/api/invitations.controller');
-const invitaciones = require_('./servicios/identidad/aplicacion/invitations.service');
-const correo = require_('./servicios/notificaciones/aplicacion/emailNotifications.service');
+const controller = require_('./servicios/identidad/controller/invitations.controller');
+const invitaciones = require_('./servicios/identidad/application/invitations.service');
+const correo = require_('./servicios/notificaciones/application/emailNotifications.service');
 const eventBus = require_('./compartido/eventos/eventBus');
 const catalogo = require_('./compartido/eventos/catalogo');
 const suscriptores = require_('./servicios/suscriptores');

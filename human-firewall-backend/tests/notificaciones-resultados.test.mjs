@@ -43,8 +43,8 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 }
 console.log('Esquema y migraciones listos\n');
 
-const resultados = require_('./servicios/notificaciones/aplicacion/resultNotifications.service');
-const controller = require_('./servicios/notificaciones/api/resultNotifications.controller');
+const resultados = require_('./servicios/notificaciones/application/resultNotifications.service');
+const controller = require_('./servicios/notificaciones/controller/resultNotifications.controller');
 const { requireRoles } = require_('./compartido/middlewares/role.middleware');
 const eventBus = require_('./compartido/eventos/eventBus');
 const catalogo = require_('./compartido/eventos/catalogo');
@@ -88,7 +88,7 @@ const beto = await idDe('beto@hf.com');
 const rhDelEquipo = await idDe('rh1@hf.com');
 const rhDeOtroEquipo = await idDe('rhotro@hf.com');
 
-const gamification = require_('./servicios/evaluaciones/api/desafios.controller');
+const gamification = require_('./servicios/evaluaciones/controller/desafios.controller');
 
 await llamar(gamification.completeChallenge, {
     user: { id: ana, role: 'employee' },

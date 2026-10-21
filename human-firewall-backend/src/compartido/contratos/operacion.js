@@ -6,7 +6,7 @@
  * seguridad y los errores comunes. Esta funcion los arma a partir de lo que
  * el servicio ya tiene:
  *
- *   - el DTO de api/esquemas.js (el mismo objeto que valida la ruta), y
+ *   - el DTO de controller/dto.js (el mismo objeto que valida la ruta), y
  *   - la politica de acceso de la ruta (publica, autenticada o por roles).
  *
  * Uso, en servicios/<servicio>/contrato/openapi.js:
@@ -44,7 +44,7 @@ function parametros(esquema, ubicacion) {
  * @param {'publica'|'autenticado'|string[]} o.acceso  roles permitidos si es un arreglo
  * @param {string}   [o.propietario]  parametro de ruta del dueno: el propio usuario
  *                                   tambien puede, ademas de los roles
- * @param {object}   [o.dto]         { body?, params?, query? } (de api/esquemas.js)
+ * @param {object}   [o.dto]         { body?, params?, query? } (de controller/dto.js)
  * @param {boolean}  [o.validado=true] false si el DTO solo documenta y la
  *                                   validacion la hace el servicio
  * @param {object}   o.respuestas    { status: { descripcion, esquema?, ejemplo?, tipo? } }

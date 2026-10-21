@@ -57,7 +57,7 @@ Cuentas de usuario, autenticacion (correo/contrasena y Google), recuperacion de 
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infraestructura/clientes/`: `usuarioExiste`, `correoDe`, `idPorCorreo`, `obtenerContacto`, `responsablesRhDe`, `activosConRol`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `usuarioExiste`, `correoDe`, `idPorCorreo`, `obtenerContacto`, `responsablesRhDe`, `activosConRol`.
 
 ### Estructura
 
@@ -66,39 +66,47 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrae
 - `index.js` — Servicio de identidad — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de identidad.
 
-**api/** — Presentacion: rutas, controladores y DTO
+**config/** — Configuracion del servicio (equivale al application.yml)
 
-- `api/auth.controller.js` — Controlador HTTP de autenticacion (/api/auth).
-- `api/auth.routes.js` — Rutas de autenticacion, montadas en /api/auth.
-- `api/esquemas.js` — DTO del servicio de identidad.
-- `api/invitations.controller.js` — Invitaciones de usuarios (HU de onboarding por invitacion).
-- `api/invitations.routes.js` — Rutas de invitaciones, montadas en /api/invitations: publicas para el invitado (con limite por IP) y de administrador.
-- `api/sso.routes.js` — Rutas de inicio de sesion con Google, montadas en /api/sso.
-- `api/user.controller.js` — Controlador HTTP de usuarios (/api/users).
-- `api/user.routes.js` — Rutas de usuarios, montadas en /api/users.
+- `config/configuracion.js` — Configuracion del servicio de identidad.
 
-**aplicacion/** — Aplicacion: casos de uso
+**controller/** — Controller / API: rutas, controladores y DTO
 
-- `aplicacion/auth.service.js` — Casos de uso de autenticacion: login (con bloqueo por intentos) y registro publico como employee, que publica user.registered.
-- `aplicacion/invitations.service.js` — Invitaciones de usuarios.
-- `aplicacion/recovery.service.js` — Casos de uso de recuperacion de contrasena: generar el token y restablecer la contrasena, que publica user.password_changed.
-- `aplicacion/user.service.js` — Casos de uso de cuentas: alta por un admin, listado y perfil propio.
+- `controller/auth.controller.js` — Controlador HTTP de autenticacion (/api/auth).
+- `controller/auth.routes.js` — Rutas de autenticacion, montadas en /api/auth.
+- `controller/dto.js` — DTO del servicio de identidad.
+- `controller/invitations.controller.js` — Invitaciones de usuarios (HU de onboarding por invitacion).
+- `controller/invitations.routes.js` — Rutas de invitaciones, montadas en /api/invitations: publicas para el invitado (con limite por IP) y de administrador.
+- `controller/sso.routes.js` — Rutas de inicio de sesion con Google, montadas en /api/sso.
+- `controller/user.controller.js` — Controlador HTTP de usuarios (/api/users).
+- `controller/user.routes.js` — Rutas de usuarios, montadas en /api/users.
 
-**dominio/** — Dominio: reglas puras
+**application/** — Application / Service: casos de uso
 
-- `dominio/usuario.js` — Reglas del dominio de identidad.
+- `application/auth.service.js` — Casos de uso de autenticacion: login (con bloqueo por intentos) y registro publico como employee, que publica user.registered.
+- `application/invitations.service.js` — Invitaciones de usuarios.
+- `application/recovery.service.js` — Casos de uso de recuperacion de contrasena: generar el token y restablecer la contrasena, que publica user.password_changed.
+- `application/sso.service.js` — Caso de uso de ingreso con Google: busca la cuenta por correo y, si no existe, la crea y publica user.registered.
+- `application/user.service.js` — Casos de uso de cuentas: alta por un admin, listado, cambio de rol o estado, baja logica y perfil propio.
 
-**infraestructura/** — Infraestructura: repositorios, clientes e integraciones
+**domain/** — Domain: entidades y reglas de negocio
 
-- `infraestructura/clientes/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde identidad.
-- `infraestructura/clientes/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde identidad.
-- `infraestructura/passport.js` — Integracion con Google OAuth (passport).
-- `infraestructura/seed_admin.js` — Script que crea una cuenta admin con credenciales tomadas del entorno.
-- `infraestructura/usuarios.repositorio.js` — Repositorio de cuentas de usuario.
+- `domain/invitacion.js` — Reglas del dominio de invitaciones.
+- `domain/usuario.js` — Reglas del dominio de identidad.
 
-**contrato/** — Contrato publico OpenAPI
+**infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
-- `contrato/openapi.js` — Contrato publico (OpenAPI) del servicio de identidad.
+- `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde identidad.
+- `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde identidad.
+- `infrastructure/passport.js` — Integracion con Google OAuth (passport).
+- `infrastructure/persistence/invitaciones.repositorio.js` — Repositorio de invitaciones (esquema identidad).
+- `infrastructure/persistence/recuperacion.repositorio.js` — Repositorio de tokens de recuperacion de contrasena (esquema identidad).
+- `infrastructure/persistence/usuarios.repositorio.js` — Repositorio de cuentas de usuario (esquema identidad).
+- `infrastructure/seed_admin.js` — Script que crea una cuenta admin con credenciales tomadas del entorno.
+
+**contract/** — Contrato publico OpenAPI
+
+- `contract/openapi.js` — Contrato publico (OpenAPI) del servicio de identidad.
 
 ---
 
@@ -127,7 +135,7 @@ Catalogo de cursos y lecciones, asignacion de cursos a usuarios, progreso por le
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infraestructura/clientes/`: `obtenerTitulo`, `obtenerTitulos`, `idsDeCursosAsignados`, `obtenerLeccion`, `contarLeccionesCompletadas`, `contarCursosCompletados`, `listarConCriticidad`, `marcarCritico`, `buscarVencimientosProximos`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `obtenerTitulo`, `obtenerTitulos`, `idsDeCursosAsignados`, `obtenerLeccion`, `contarLeccionesCompletadas`, `contarCursosCompletados`, `listarConCriticidad`, `marcarCritico`, `buscarVencimientosProximos`.
 
 ### Estructura
 
@@ -136,23 +144,31 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrae
 - `index.js` — Servicio de cursos — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de cursos.
 
-**api/** — Presentacion: rutas, controladores y DTO
+**config/** — Configuracion del servicio (equivale al application.yml)
 
-- `api/course.controller.js` — Controlador HTTP de cursos.
-- `api/course.routes.js` — Rutas del servicio de cursos, montadas en /api/courses.
-- `api/esquemas.js` — DTO del servicio de cursos: la forma de lo que acepta cada endpoint.
+- `config/configuracion.js` — Configuracion del servicio de cursos (equivale al application.yml de la seccion 11).
 
-**aplicacion/** — Aplicacion: casos de uso
+**controller/** — Controller / API: rutas, controladores y DTO
 
-- `aplicacion/cursos.service.js` — Casos de uso del servicio de cursos.
+- `controller/course.controller.js` — Controlador HTTP de cursos.
+- `controller/course.routes.js` — Rutas del servicio de cursos, montadas en /api/courses.
+- `controller/dto.js` — DTO del servicio de cursos: la forma de lo que acepta cada endpoint.
 
-**infraestructura/** — Infraestructura: repositorios, clientes e integraciones
+**application/** — Application / Service: casos de uso
 
-- `infraestructura/cursos.repositorio.js` — Repositorio de cursos: el unico archivo del servicio que escribe SQL.
+- `application/cursos.service.js` — Casos de uso del servicio de cursos.
 
-**contrato/** — Contrato publico OpenAPI
+**domain/** — Domain: entidades y reglas de negocio
 
-- `contrato/openapi.js` — Contrato publico (OpenAPI) del servicio de cursos.
+- `domain/curso.js` — Reglas del dominio de cursos.
+
+**infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
+
+- `infrastructure/persistence/cursos.repositorio.js` — Repositorio de cursos: el unico archivo del servicio que escribe SQL.
+
+**contract/** — Contrato publico OpenAPI
+
+- `contract/openapi.js` — Contrato publico (OpenAPI) del servicio de cursos.
 
 ---
 
@@ -182,7 +198,7 @@ Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal y e
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infraestructura/clientes/`: `nombreDeDesafio`, `tituloDeSimulacion`, `contarEvaluacionesAprobadas`, `ultimosResultados`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `nombreDeDesafio`, `tituloDeSimulacion`, `contarEvaluacionesAprobadas`, `ultimosResultados`.
 
 ### Estructura
 
@@ -191,32 +207,36 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrae
 - `index.js` — Servicio de evaluaciones — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de evaluaciones.
 
-**api/** — Presentacion: rutas, controladores y DTO
+**config/** — Configuracion del servicio (equivale al application.yml)
 
-- `api/desafios.controller.js` — Controlador HTTP de los desafios del portal.
-- `api/desafios.routes.js` — Ruta de desafios del portal, montada en /api/gamification/challenge.
-- `api/esquemas.js` — DTO del servicio de evaluaciones.
-- `api/simulation.controller.js` — Controlador HTTP de simulaciones.
-- `api/simulation.routes.js` — Rutas de simulaciones, montadas en /api/simulations.
+- `config/configuracion.js` — Configuracion del servicio de evaluaciones (equivale al application.yml de la seccion 11 del material).
 
-**aplicacion/** — Aplicacion: casos de uso
+**controller/** — Controller / API: rutas, controladores y DTO
 
-- `aplicacion/desafios.service.js` — Casos de uso de los desafios del portal (minijuegos).
-- `aplicacion/simulaciones.service.js` — Casos de uso de las simulaciones.
+- `controller/desafios.controller.js` — Controlador HTTP de los desafios del portal.
+- `controller/desafios.routes.js` — Ruta de desafios del portal, montada en /api/gamification/challenge.
+- `controller/dto.js` — DTO del servicio de evaluaciones.
+- `controller/simulation.controller.js` — Controlador HTTP de simulaciones.
+- `controller/simulation.routes.js` — Rutas de simulaciones, montadas en /api/simulations.
 
-**dominio/** — Dominio: reglas puras
+**application/** — Application / Service: casos de uso
 
-- `dominio/puntaje.js` — Reglas de puntaje de las evaluaciones.
+- `application/desafios.service.js` — Casos de uso de los desafios del portal (minijuegos).
+- `application/simulaciones.service.js` — Casos de uso de las simulaciones.
 
-**infraestructura/** — Infraestructura: repositorios, clientes e integraciones
+**domain/** — Domain: entidades y reglas de negocio
 
-- `infraestructura/clientes/cursos.cliente.js` — Cliente del servicio de cursos, visto desde evaluaciones.
-- `infraestructura/clientes/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde evaluaciones.
-- `infraestructura/evaluaciones.repositorio.js` — Repositorio de evaluaciones: simulaciones, desafios e intentos.
+- `domain/puntaje.js` — Reglas de puntaje de las evaluaciones.
 
-**contrato/** — Contrato publico OpenAPI
+**infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
-- `contrato/openapi.js` — Contrato publico (OpenAPI) del servicio de evaluaciones.
+- `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde evaluaciones.
+- `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde evaluaciones.
+- `infrastructure/persistence/evaluaciones.repositorio.js` — Repositorio de evaluaciones: simulaciones, desafios e intentos.
+
+**contract/** — Contrato publico OpenAPI
+
+- `contract/openapi.js` — Contrato publico (OpenAPI) del servicio de evaluaciones.
 
 ---
 
@@ -259,7 +279,7 @@ Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infraestructura/clientes/`: `yaOtorgado`, `obtenerTotalesPorUsuarios`, `obtenerResumenPorUsuarios`, `obtenerEscalera`, `calcularProgreso`, `obtenerPuntos`, `obtenerNivelDeUsuario`, `contarRecompensasDe`, `buscarRecompensa`, `registrarMovimiento`, `otorgarRecompensa`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `yaOtorgado`, `obtenerTotalesPorUsuarios`, `obtenerResumenPorUsuarios`, `obtenerEscalera`, `calcularProgreso`, `obtenerPuntos`, `obtenerNivelDeUsuario`, `contarRecompensasDe`, `buscarRecompensa`, `registrarMovimiento`, `otorgarRecompensa`.
 
 ### Estructura
 
@@ -268,30 +288,42 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrae
 - `index.js` — Servicio de gamificacion — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de gamificacion.
 
-**api/** — Presentacion: rutas, controladores y DTO
+**config/** — Configuracion del servicio (equivale al application.yml)
 
-- `api/esquemas.js` — DTO del servicio de gamificacion.
-- `api/gamification.controller.js` — Controlador HTTP de gamificacion.
-- `api/gamification.routes.js` — Rutas del servicio de gamificacion, montadas en /api/gamification.
+- `config/configuracion.js` — Configuracion del servicio de gamificacion (equivale al application.yml de la seccion 11 del material).
 
-**aplicacion/** — Aplicacion: casos de uso
+**controller/** — Controller / API: rutas, controladores y DTO
 
-- `aplicacion/levels.service.js` — Servicio de niveles.
-- `aplicacion/points.service.js` — Servicio de asignacion automatica de puntos.
-- `aplicacion/recommendations.service.js` — Motor de recomendaciones y resumen de desempeno.
-- `aplicacion/rewards.service.js` — Motor de evaluacion de recompensas.
+- `controller/dto.js` — DTO del servicio de gamificacion.
+- `controller/gamification.controller.js` — Controlador HTTP de gamificacion.
+- `controller/gamification.routes.js` — Rutas del servicio de gamificacion, montadas en /api/gamification.
 
-**infraestructura/** — Infraestructura: repositorios, clientes e integraciones
+**application/** — Application / Service: casos de uso
 
-- `infraestructura/clientes/cursos.cliente.js` — Cliente del servicio de cursos, visto desde gamificacion.
-- `infraestructura/clientes/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde gamificacion.
-- `infraestructura/clientes/identidad.cliente.js` — Cliente del servicio de identidad, visto desde gamificacion.
-- `infraestructura/clientes/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde gamificacion.
-- `infraestructura/gamificacion.repositorio.js` — Repositorio de las consultas que antes escribia a mano gamification.controller.js.
+- `application/gamificacion.service.js` — Consultas de gamificacion que pide el controller (ranking, estado del usuario, catalogo, reglas).
+- `application/levels.service.js` — Servicio de niveles.
+- `application/points.service.js` — Servicio de asignacion automatica de puntos.
+- `application/recommendations.service.js` — Motor de recomendaciones y resumen de desempeno.
+- `application/rewards.service.js` — Motor de evaluacion de recompensas.
 
-**contrato/** — Contrato publico OpenAPI
+**domain/** — Domain: entidades y reglas de negocio
 
-- `contrato/openapi.js` — Contrato publico (OpenAPI) del servicio de gamificacion.
+- `domain/nivel.js` — Niveles (servicio de gamificacion).
+- `domain/puntos.js` — Puntos (servicio de gamificacion).
+- `domain/recomendacion.js` — Recomendaciones (servicio de gamificacion).
+- `domain/recompensa.js` — Recompensas (servicio de gamificacion).
+
+**infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
+
+- `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde gamificacion.
+- `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde gamificacion.
+- `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde gamificacion.
+- `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde gamificacion.
+- `infrastructure/persistence/gamificacion.repositorio.js` — Repositorio de las consultas que antes escribia a mano gamification.controller.js.
+
+**contract/** — Contrato publico OpenAPI
+
+- `contract/openapi.js` — Contrato publico (OpenAPI) del servicio de gamificacion.
 
 ---
 
@@ -325,7 +357,7 @@ Avisos in-app, notificacion de resultados (con alerta a RH en cursos criticos), 
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infraestructura/clientes/`: `avisarEnBandeja`, `notificar`, `reenviarCorreo`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `avisarEnBandeja`, `notificar`, `reenviarCorreo`.
 
 ### Estructura
 
@@ -334,30 +366,40 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrae
 - `index.js` — Servicio de notificaciones — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de notificaciones.
 
-**api/** — Presentacion: rutas, controladores y DTO
+**config/** — Configuracion del servicio (equivale al application.yml)
 
-- `api/emailNotifications.controller.js` — Preferencias de correo y diagnostico de la cola (HU de notificaciones por correo).
-- `api/esquemas.js` — DTO del servicio de notificaciones.
-- `api/notification.controller.js` — Controlador HTTP de la bandeja de avisos y del diagnostico del bus.
-- `api/notification.routes.js` — Rutas del servicio de notificaciones, montadas en /api/notifications.
-- `api/resultNotifications.controller.js` — Centro de notificaciones de resultados y su configuracion.
+- `config/configuracion.js` — Configuracion del servicio de notificaciones (equivale al application.yml de la seccion 11 del material).
 
-**aplicacion/** — Aplicacion: casos de uso
+**controller/** — Controller / API: rutas, controladores y DTO
 
-- `aplicacion/emailNotifications.service.js` — Notificaciones por correo electronico.
-- `aplicacion/emailTemplates.service.js` — Plantillas de correo versionadas (criterio tecnico 2 de la HU de notificaciones por correo).
-- `aplicacion/notifications.service.js` — Servicio de notificaciones.
-- `aplicacion/resultNotifications.service.js` — Notificacion de resultados de evaluaciones y simulaciones.
+- `controller/dto.js` — DTO del servicio de notificaciones.
+- `controller/emailNotifications.controller.js` — Preferencias de correo y diagnostico de la cola (HU de notificaciones por correo).
+- `controller/notification.controller.js` — Controlador HTTP de la bandeja de avisos y del diagnostico del bus.
+- `controller/notification.routes.js` — Rutas del servicio de notificaciones, montadas en /api/notifications.
+- `controller/resultNotifications.controller.js` — Centro de notificaciones de resultados y su configuracion.
 
-**infraestructura/** — Infraestructura: repositorios, clientes e integraciones
+**application/** — Application / Service: casos de uso
 
-- `infraestructura/clientes/cursos.cliente.js` — Cliente del servicio de cursos, visto desde notificaciones.
-- `infraestructura/clientes/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde notificaciones.
-- `infraestructura/clientes/identidad.cliente.js` — Cliente del servicio de identidad, visto desde notificaciones.
+- `application/emailNotifications.service.js` — Notificaciones por correo electronico.
+- `application/emailTemplates.service.js` — Plantillas de correo versionadas (criterio tecnico 2 de la HU de notificaciones por correo).
+- `application/notifications.service.js` — Servicio de notificaciones.
+- `application/resultNotifications.service.js` — Notificacion de resultados de evaluaciones y simulaciones.
 
-**contrato/** — Contrato publico OpenAPI
+**domain/** — Domain: entidades y reglas de negocio
 
-- `contrato/openapi.js` — Contrato publico (OpenAPI) del servicio de notificaciones.
+- `domain/entrega.js` — Entrega de correos (servicio de notificaciones).
+- `domain/notificacion.js` — Notificaciones (servicio de notificaciones).
+- `domain/plantilla.js` — Plantillas de correo (servicio de notificaciones).
+
+**infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
+
+- `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde notificaciones.
+- `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde notificaciones.
+- `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde notificaciones.
+
+**contract/** — Contrato publico OpenAPI
+
+- `contract/openapi.js` — Contrato publico (OpenAPI) del servicio de notificaciones.
 
 ---
 
@@ -408,30 +450,39 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 - `index.js` — Servicio de reportes — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de reportes.
 
-**api/** — Presentacion: rutas, controladores y DTO
+**config/** — Configuracion del servicio (equivale al application.yml)
 
-- `api/esquemas.js` — Esquemas de entrada del servicio de reportes.
-- `api/orgReports.controller.js` — Resultados organizacionales para gerencia.
-- `api/report.controller.js` — Reportes de desempeno para RH.
-- `api/reportes.routes.js` — Rutas del servicio de reportes, montadas en /api/gamification/reports.
-- `api/scheduledReports.controller.js` — Reportes automaticos periodicos.
+- `config/configuracion.js` — Configuracion del servicio de reportes (equivale al application.yml de la seccion 11 del material).
 
-**aplicacion/** — Aplicacion: casos de uso
+**controller/** — Controller / API: rutas, controladores y DTO
 
-- `aplicacion/orgReports.service.js` — Resultados organizacionales consolidados.
-- `aplicacion/reportExports.service.js` — Exportacion de reportes a CSV y PDF.
-- `aplicacion/reports.service.js` — Reportes de desempeno para RH.
-- `aplicacion/scheduledReports.service.js` — Reportes automaticos periodicos.
+- `controller/dto.js` — Esquemas de entrada del servicio de reportes.
+- `controller/orgReports.controller.js` — Resultados organizacionales para gerencia.
+- `controller/report.controller.js` — Reportes de desempeno para RH.
+- `controller/reportes.routes.js` — Rutas del servicio de reportes, montadas en /api/gamification/reports.
+- `controller/scheduledReports.controller.js` — Reportes automaticos periodicos.
 
-**infraestructura/** — Infraestructura: repositorios, clientes e integraciones
+**application/** — Application / Service: casos de uso
 
-- `infraestructura/clientes/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde reportes.
-- `infraestructura/clientes/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde reportes.
-- `infraestructura/clientes/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde reportes.
+- `application/orgReports.service.js` — Resultados organizacionales consolidados.
+- `application/reportExports.service.js` — Exportacion de reportes a CSV y PDF.
+- `application/reports.service.js` — Reportes de desempeno para RH.
+- `application/scheduledReports.service.js` — Reportes automaticos periodicos.
 
-**contrato/** — Contrato publico OpenAPI
+**domain/** — Domain: entidades y reglas de negocio
 
-- `contrato/openapi.js` — Contrato publico (OpenAPI) del servicio de reportes.
+- `domain/periodo.js` — Periodos de reporte (servicio de reportes).
+- `domain/programacion.js` — Programacion de reportes (servicio de reportes).
+
+**infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
+
+- `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde reportes.
+- `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde reportes.
+- `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde reportes.
+
+**contract/** — Contrato publico OpenAPI
+
+- `contract/openapi.js` — Contrato publico (OpenAPI) del servicio de reportes.
 
 ---
 
@@ -470,7 +521,7 @@ Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y regist
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infraestructura/clientes/`: `registrarAccion`, `ACCIONES`, `MODULOS`, `auditarAjusteManual`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `registrarAccion`, `ACCIONES`, `MODULOS`, `auditarAjusteManual`.
 
 ### Estructura
 
@@ -479,26 +530,35 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrae
 - `index.js` — Servicio de seguridad — puerta de entrada publica.
 - `manifiesto.js` — Ficha del servicio de seguridad.
 
-**api/** — Presentacion: rutas, controladores y DTO
+**config/** — Configuracion del servicio (equivale al application.yml)
 
-- `api/ajustes.routes.js` — Ajuste manual de puntos, nivel o insignias, montado en /api/gamification/users.
-- `api/esquemas.js` — DTO del servicio de seguridad.
-- `api/logs.controller.js` — Consulta de los logs de auditoria (data.logs).
-- `api/logs.routes.js` — Rutas del registro de acciones criticas (data.logs), montadas en /api/logs.
-- `api/security.controller.js` — Panel de seguridad: anomalias y auditoria.
-- `api/seguridad.routes.js` — Rutas del panel de seguridad, montadas en /api/gamification/security.
+- `config/configuracion.js` — Configuracion del servicio de seguridad (equivale al application.yml de la seccion 11 del material).
 
-**aplicacion/** — Aplicacion: casos de uso
+**controller/** — Controller / API: rutas, controladores y DTO
 
-- `aplicacion/anomalies.service.js` — Deteccion de anomalias en la asignacion de puntos.
-- `aplicacion/audit.service.js` — Auditoria de ajustes manuales.
-- `aplicacion/dataLogs.service.js` — Registro centralizado de logs de auditoria (data.logs).
+- `controller/ajustes.routes.js` — Ajuste manual de puntos, nivel o insignias, montado en /api/gamification/users.
+- `controller/dto.js` — DTO del servicio de seguridad.
+- `controller/logs.controller.js` — Consulta de los logs de auditoria (data.logs).
+- `controller/logs.routes.js` — Rutas del registro de acciones criticas (data.logs), montadas en /api/logs.
+- `controller/security.controller.js` — Panel de seguridad: anomalias y auditoria.
+- `controller/seguridad.routes.js` — Rutas del panel de seguridad, montadas en /api/gamification/security.
 
-**infraestructura/** — Infraestructura: repositorios, clientes e integraciones
+**application/** — Application / Service: casos de uso
 
-- `infraestructura/clientes/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde seguridad.
-- `infraestructura/clientes/identidad.cliente.js` — Cliente del servicio de identidad, visto desde seguridad.
+- `application/anomalies.service.js` — Deteccion de anomalias en la asignacion de puntos.
+- `application/audit.service.js` — Auditoria de ajustes manuales.
+- `application/dataLogs.service.js` — Registro centralizado de logs de auditoria (data.logs).
 
-**contrato/** — Contrato publico OpenAPI
+**domain/** — Domain: entidades y reglas de negocio
 
-- `contrato/openapi.js` — Contrato publico (OpenAPI) del servicio de seguridad.
+- `domain/anomalia.js` — Anomalias (servicio de seguridad).
+- `domain/registro.js` — Registro de actividad (servicio de seguridad).
+
+**infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
+
+- `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde seguridad.
+- `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde seguridad.
+
+**contract/** — Contrato publico OpenAPI
+
+- `contract/openapi.js` — Contrato publico (OpenAPI) del servicio de seguridad.

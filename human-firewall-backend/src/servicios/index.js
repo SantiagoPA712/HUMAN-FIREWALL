@@ -7,14 +7,16 @@
  *
  * Cada servicio es una carpeta con la misma forma:
  *
- *   <servicio>/
- *     index.js          puerta publica: lo unico que otros servicios pueden usar
- *     manifiesto.js     ficha: responsabilidad, rutas, tablas, eventos, dependencias
- *     api/              capa de presentacion: rutas, controladores y DTO (esquemas.js)
- *     aplicacion/       capa de aplicacion: casos de uso
- *     dominio/          reglas puras, cuando el servicio las tiene
- *     infraestructura/  repositorios, clientes de otros servicios, integraciones
- *     contrato/         contrato OpenAPI de la API publica del servicio
+ *   <servicio>/                       (seccion 11 del material)
+ *     index.js                        puerta publica: lo unico que otros servicios pueden usar
+ *     manifiesto.js                   ficha: responsabilidad, rutas, tablas, eventos, dependencias
+ *     controller/                     Controller / API: rutas, controladores y DTO (dto.js)
+ *     application/                    Application / Service: casos de uso
+ *     domain/                         Domain: reglas y entidades del negocio (funciones puras)
+ *     infrastructure/persistence/     Persistence: repositorios, el SQL de sus propios datos
+ *     infrastructure/client/          Infrastructure: clientes de otros servicios
+ *     config/configuracion.js         configuracion propia (el application.yml del ejemplo)
+ *     contract/openapi.js             contrato OpenAPI de la API publica del servicio
  *
  * El orden importa solo para montar rutas: los servicios cuyas rutas
  * comparten un prefijo mas largo (/api/gamification/challenge,
@@ -23,13 +25,13 @@
  */
 
 const SERVICIOS = [
-    require('./identidad'),
-    require('./cursos'),
-    require('./evaluaciones'),
-    require('./gamificacion'),
-    require('./notificaciones'),
-    require('./reportes'),
-    require('./seguridad')
+    require('./identidad/index'),
+    require('./cursos/index'),
+    require('./evaluaciones/index'),
+    require('./gamificacion/index'),
+    require('./notificaciones/index'),
+    require('./reportes/index'),
+    require('./seguridad/index')
 ];
 
 /** Busca un servicio por nombre. */

@@ -4,19 +4,19 @@
  */
 
 const manifiesto = require('./manifiesto');
-const points = require('./aplicacion/points.service');
-const rewards = require('./aplicacion/rewards.service');
-const levels = require('./aplicacion/levels.service');
-const recommendations = require('./aplicacion/recommendations.service');
-const repo = require('./infraestructura/gamificacion.repositorio');
+const points = require('./application/points.service');
+const rewards = require('./application/rewards.service');
+const levels = require('./application/levels.service');
+const recommendations = require('./application/recommendations.service');
+const repo = require('./infrastructure/persistence/gamificacion.repositorio');
 
 module.exports = {
     manifiesto,
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
-    contrato: () => require('./contrato/openapi'),
+    contrato: () => require('./contract/openapi'),
 
-    rutas: () => [{ prefijo: '/api/gamification', router: require('./api/gamification.routes') }],
+    rutas: () => [{ prefijo: '/api/gamification', router: require('./controller/gamification.routes') }],
 
     registrarHandlers() {
         points.registrarHandlers();

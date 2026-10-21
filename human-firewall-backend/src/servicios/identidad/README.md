@@ -13,11 +13,11 @@ y el contrato navegable en `/api/docs`.
 
 | Quiero... | Toco |
 |-----------|------|
-| Un endpoint nuevo de cuentas | `api/user.routes.js` + `api/user.controller.js`, su DTO en `api/esquemas.js` y su operacion en `contrato/openapi.js` |
-| Cambiar la politica de contrasenas o los roles validos | `dominio/usuario.js` (lo usan registro, reset e invitaciones) |
-| Una consulta nueva sobre `users` | `infraestructura/usuarios.repositorio.js` |
-| Que otro servicio pueda preguntar algo de una cuenta | exponerlo en `index.js`; el otro servicio lo usa desde su `infraestructura/clientes/identidad.cliente.js` |
-| Registrar una accion critica en data.logs | `infraestructura/clientes/seguridad.cliente.js` -> `registrarAccion()` |
+| Un endpoint nuevo de cuentas | `controller/user.routes.js` + `controller/user.controller.js`, su DTO en `controller/dto.js` y su operacion en `contract/openapi.js` |
+| Cambiar la politica de contrasenas o los roles validos | `domain/usuario.js` (lo usan registro, reset e invitaciones) |
+| Una consulta nueva sobre `users` | `infrastructure/persistence/usuarios.repositorio.js` |
+| Que otro servicio pueda preguntar algo de una cuenta | exponerlo en `index.js`; el otro servicio lo usa desde su `infrastructure/client/identidad.cliente.js` |
+| Registrar una accion critica en data.logs | `infrastructure/client/seguridad.cliente.js` -> `registrarAccion()` |
 
 ## Reglas que no hay que romper
 

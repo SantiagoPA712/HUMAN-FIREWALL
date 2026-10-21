@@ -16,10 +16,10 @@ frontend; antes estaban dentro de `gamification.routes.js`.
 
 | Quiero... | Toco |
 |-----------|------|
-| Un filtro nuevo del reporte | `aplicacion/reports.service.js` -> `validarFiltros()` y su esquema en `api/esquemas.js` |
-| Un tipo de reporte programado | `aplicacion/scheduledReports.service.js` (`TIPOS`) |
-| Un KPI organizacional | `aplicacion/orgReports.service.js` (`KPIS`) |
-| Avisar a alguien | `infraestructura/clientes/notificaciones.cliente.js` |
+| Un filtro nuevo del reporte | `application/reports.service.js` -> `validarFiltros()` y su esquema en `controller/dto.js` |
+| Un tipo de reporte programado | `application/scheduledReports.service.js` (`TIPOS`) |
+| Un KPI organizacional | `application/orgReports.service.js` (`KPIS`) |
+| Avisar a alguien | `infrastructure/client/notificaciones.cliente.js` |
 
 ## Reglas que no hay que romper
 

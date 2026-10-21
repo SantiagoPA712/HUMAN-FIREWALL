@@ -7,17 +7,17 @@
  */
 
 const manifiesto = require('./manifiesto');
-const reportExports = require('./aplicacion/reportExports.service');
-const scheduledReports = require('./aplicacion/scheduledReports.service');
-const orgReports = require('./aplicacion/orgReports.service');
+const reportExports = require('./application/reportExports.service');
+const scheduledReports = require('./application/scheduledReports.service');
+const orgReports = require('./application/orgReports.service');
 
 module.exports = {
     manifiesto,
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
-    contrato: () => require('./contrato/openapi'),
+    contrato: () => require('./contract/openapi'),
 
-    rutas: () => [{ prefijo: '/api/gamification/reports', router: require('./api/reportes.routes') }],
+    rutas: () => [{ prefijo: '/api/gamification/reports', router: require('./controller/reportes.routes') }],
 
     registrarHandlers() {
         reportExports.registrarHandlers();

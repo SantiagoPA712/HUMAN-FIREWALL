@@ -5,8 +5,8 @@
  * Son funciones puras o casi: no necesitan base de datos ni servidor, que es
  * justamente lo que se gana al sacar las reglas de los controladores.
  *
- *   - evaluaciones/dominio/puntaje.js   reglas de puntaje
- *   - identidad/dominio/usuario.js      politica de contrasena y catalogos
+ *   - evaluaciones/domain/puntaje.js   reglas de puntaje
+ *   - identidad/domain/usuario.js      politica de contrasena y catalogos
  *   - compartido/http/errores.js        formato comun de errores
  *   - compartido/http/validacion.js     validacion por DTO
  *   - compartido/contratos/operacion.js constructor de operaciones OpenAPI
@@ -28,7 +28,7 @@ const lanza = (fn) => { try { fn(); return null; } catch (e) { return e; } };
 console.log('--- DOMINIO DE EVALUACIONES: PUNTAJE ---');
 // =====================================================================
 
-const puntaje = require_('./servicios/evaluaciones/dominio/puntaje');
+const puntaje = require_('./servicios/evaluaciones/domain/puntaje');
 
 // Dos pasos: el 1 con opciones de 10 (correcta) y 0; el 2 con 20 (correcta) y 5.
 const opciones = [
@@ -77,7 +77,7 @@ check('un score que no es entero se ignora', puntaje.normalizarResultadoDesafio(
 console.log('\n--- DOMINIO DE IDENTIDAD ---');
 // =====================================================================
 
-const usuario = require_('./servicios/identidad/dominio/usuario');
+const usuario = require_('./servicios/identidad/domain/usuario');
 check('contrasena valida: 8+, mayuscula y numero', usuario.cumplePolitica('Segura123'));
 check('sin mayuscula no cumple', !usuario.cumplePolitica('segura123'));
 check('sin numero no cumple', !usuario.cumplePolitica('SeguraSegura'));

@@ -40,8 +40,8 @@ for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_trackin
 console.log('Migraciones aplicadas\n');
 
 const eventBus = require_('./compartido/eventos/eventBus');
-const points   = require_('./servicios/gamificacion/aplicacion/points.service');
-const levels   = require_('./servicios/gamificacion/aplicacion/levels.service');
+const points   = require_('./servicios/gamificacion/application/points.service');
+const levels   = require_('./servicios/gamificacion/application/levels.service');
 points.registrarHandlers();
 levels.registrarHandlers();
 

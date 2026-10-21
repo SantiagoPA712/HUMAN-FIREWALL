@@ -9,7 +9,7 @@ Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura
 
 Cualquier servicio registra una accion critica con
 `registrarAccion({ req, accion, modulo, recurso, recursoId, antes, despues })`
-desde su `infraestructura/clientes/seguridad.cliente.js`. Publica
+desde su `infrastructure/client/seguridad.cliente.js`. Publica
 `audit.log_recorded` y vuelve: el log se escribe fuera del request, enmascara
 contrasenas y tokens, y nunca hace fallar la accion original.
 
@@ -17,9 +17,9 @@ contrasenas y tokens, y nunca hace fallar la accion original.
 
 | Quiero... | Toco |
 |-----------|------|
-| Un tipo de accion o modulo nuevo en data.logs | `aplicacion/dataLogs.service.js` -> `ACCIONES` / `MODULOS` |
+| Un tipo de accion o modulo nuevo en data.logs | `application/dataLogs.service.js` -> `ACCIONES` / `MODULOS` |
 | Un umbral de anomalia | la tabla `anomaly_rules` |
-| Un tipo de ajuste manual | `aplicacion/audit.service.js` (el ajuste se aplica por el cliente de gamificacion) |
+| Un tipo de ajuste manual | `application/audit.service.js` (el ajuste se aplica por el cliente de gamificacion) |
 
 ## Reglas que no hay que romper
 

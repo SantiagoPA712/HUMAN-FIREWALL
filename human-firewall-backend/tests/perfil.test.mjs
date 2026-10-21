@@ -30,7 +30,7 @@ const msg = e => e?.message || String(e);
 const api = await levantarApi();
 const { pg, require_, ids, tokens, pedir, estado } = api;
 const eventBus = require_('./compartido/eventos/eventBus');
-const dominio = require_('./servicios/identidad/dominio/usuario');
+const dominio = require_('./servicios/identidad/domain/usuario');
 
 const yo = tokens.employee;
 const miId = ids.employee;

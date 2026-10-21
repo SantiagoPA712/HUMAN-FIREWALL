@@ -22,11 +22,12 @@ const SRC = path.join(__dirname, '..', 'src');
 const DESTINO = path.join(__dirname, '..', '..', 'docs', 'arquitectura', 'SERVICIOS.md');
 
 const CAPAS = {
-    api: 'Presentacion: rutas, controladores y DTO',
-    aplicacion: 'Aplicacion: casos de uso',
-    dominio: 'Dominio: reglas puras',
-    infraestructura: 'Infraestructura: repositorios, clientes e integraciones',
-    contrato: 'Contrato publico OpenAPI'
+    config: 'Configuracion del servicio (equivale al application.yml)',
+    controller: 'Controller / API: rutas, controladores y DTO',
+    application: 'Application / Service: casos de uso',
+    domain: 'Domain: entidades y reglas de negocio',
+    infrastructure: 'Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones',
+    contract: 'Contrato publico OpenAPI'
 };
 
 /** Primera oracion del comentario de cabecera de un archivo. */
@@ -127,13 +128,13 @@ function generar() {
         l.push('### Contrato interno (index.js)');
         l.push('');
         l.push(publicas.length
-            ? `Lo que otros servicios pueden usar, siempre a traves de un cliente en su \`infraestructura/clientes/\`: ${publicas.map(p => `\`${p}\``).join(', ')}.`
+            ? `Lo que otros servicios pueden usar, siempre a traves de un cliente en su \`infrastructure/client/\`: ${publicas.map(p => `\`${p}\``).join(', ')}.`
             : 'No expone funciones a otros servicios: su unico contrato es la API HTTP.');
         l.push('');
 
         l.push('### Estructura');
         l.push('');
-        const orden = ['(raiz)', 'api', 'aplicacion', 'dominio', 'infraestructura', 'contrato'];
+        const orden = ['(raiz)', 'config', 'controller', 'application', 'domain', 'infrastructure', 'contract'];
         const archivos = analizarServicio(m.nombre).sort((a, b) =>
             (orden.indexOf(a.capa) - orden.indexOf(b.capa)) || a.relativo.localeCompare(b.relativo));
         let capaActual = null;

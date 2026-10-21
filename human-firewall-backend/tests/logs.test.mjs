@@ -60,8 +60,8 @@ for (const archivo of readdirSync(`${DIR}migrations`).filter(f => f.endsWith('.s
 console.log('Esquema y migraciones listos\n');
 
 const eventBus = require_('./compartido/eventos/eventBus');
-const dataLogs = require_('./servicios/seguridad/aplicacion/dataLogs.service');
-const userController = require_('./servicios/identidad/api/user.controller');
+const dataLogs = require_('./servicios/seguridad/application/dataLogs.service');
+const userController = require_('./servicios/identidad/controller/user.controller');
 const jwt = require_('jsonwebtoken');
 const app = require_('./app');
 

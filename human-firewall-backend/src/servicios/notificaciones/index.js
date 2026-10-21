@@ -4,17 +4,17 @@
  */
 
 const manifiesto = require('./manifiesto');
-const notifications = require('./aplicacion/notifications.service');
-const resultNotifications = require('./aplicacion/resultNotifications.service');
-const emailNotifications = require('./aplicacion/emailNotifications.service');
+const notifications = require('./application/notifications.service');
+const resultNotifications = require('./application/resultNotifications.service');
+const emailNotifications = require('./application/emailNotifications.service');
 
 module.exports = {
     manifiesto,
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
-    contrato: () => require('./contrato/openapi'),
+    contrato: () => require('./contract/openapi'),
 
-    rutas: () => [{ prefijo: '/api/notifications', router: require('./api/notification.routes') }],
+    rutas: () => [{ prefijo: '/api/notifications', router: require('./controller/notification.routes') }],
 
     registrarHandlers() {
         notifications.registrarHandlers();

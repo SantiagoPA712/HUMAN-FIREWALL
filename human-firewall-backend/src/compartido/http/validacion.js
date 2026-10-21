@@ -1,13 +1,13 @@
 /**
  * Validacion de solicitudes con DTO (esquemas JSON Schema).
  *
- * Cada servicio declara en api/esquemas.js la forma de lo que acepta: el
+ * Cada servicio declara en controller/dto.js la forma de lo que acepta: el
  * cuerpo, los parametros de ruta y los de query. El mismo objeto sirve para
  * dos cosas, y esa es la gracia:
  *
  *   1. Este middleware lo usa para rechazar la solicitud ANTES de llegar al
  *      controlador, con un 400 y el detalle por campo.
- *   2. El contrato OpenAPI (contrato/openapi.js) lo publica tal cual como
+ *   2. El contrato OpenAPI (contract/openapi.js) lo publica tal cual como
  *      requestBody / parameters.
  *
  * Asi la documentacion no puede quedar desalineada con lo que de verdad se
