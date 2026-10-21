@@ -64,14 +64,20 @@ export default function ProfilePage() {
         });
     };
 
+    // El formulario siempre arranca desde lo guardado, no desde lo que haya
+    // quedado de una edicion anterior.
     const iniciarEdicion = () => {
+        setFormulario(formularioDesde(perfil));
         setAviso(null);
         setErrores({});
         setEditando(true);
     };
 
-    // Criterio de aceptacion 6: cancelar descarta lo que no se guardo.
+    // Criterio de aceptacion 6: cancelar descarta lo que no se guardo. Antes
+    // solo cerraba el formulario: lo escrito quedaba en el estado, volvia a
+    // aparecer al pulsar "Editar perfil" y se podia guardar sin querer.
     const cancelar = () => {
+        setFormulario(formularioDesde(perfil));
         setErrores({});
         setAviso(null);
         setEditando(false);
