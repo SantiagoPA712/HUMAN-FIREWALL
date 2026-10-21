@@ -23,6 +23,25 @@
   --table-row-hover: #F1F5F9;
 }
 
+/* ---------------------------------------------------------------------
+   Tamano de texto (HU de tamano de texto)
+
+   TextSizeContext marca <html data-text-size="...">. La escala va sobre el
+   font-size raiz y no sobre cada texto: Tailwind mide todo en rem (texto,
+   espacios, iconos, anchos), asi que la interfaz entera crece en proporcion y
+   un texto grande no se sale de su boton ni tapa al de al lado.
+
+   Va en porcentaje y no en px para sumar sobre el tamano que la persona
+   tenga configurado en el navegador, en vez de pisarlo.
+   --------------------------------------------------------------------- */
+:root { --hf-escala-texto: 100%; }
+:root[data-text-size="pequeno"] { --hf-escala-texto: 87.5%; }
+:root[data-text-size="grande"] { --hf-escala-texto: 125%; }
+
+html {
+  font-size: var(--hf-escala-texto);
+}
+
 :root[data-theme="dark"],
 :root.dark,
 html[data-theme="dark"],
@@ -62,6 +81,14 @@ body.dark,
   --color-nav-hover: var(--nav-hover);
 
   --font-sans: 'Inter', system-ui, sans-serif;
+
+  /* Tamanos menores que text-xs, en rem para que sigan la escala de texto.
+     Reemplazan a los text-[10px] / text-[11px] que habia sueltos, que no
+     crecian al agrandar el texto. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 1rem;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
 
   /* Tamanos menores que text-xs, en rem para que sigan la escala de texto.
      Reemplazan a los text-[10px] / text-[11px] que habia sueltos, que no

@@ -28,11 +28,15 @@ import AcceptInvitationPage from './pages/AcceptInvitationPage';
 import InvitationsPage from './pages/InvitationsPage';
 import { PuntosProvider } from './context/PuntosContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { TextSizeProvider } from './context/TextSizeContext';
 
 function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
+        {/* Tamano de texto: envuelve a todas las rutas para que la escala
+            elegida se mantenga al pasar de un modulo a otro. */}
+        <TextSizeProvider>
         <PuntosProvider>
           <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -101,6 +105,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       </PuntosProvider>
+      </TextSizeProvider>
       </ThemeProvider>
     </BrowserRouter>
   );
