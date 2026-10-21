@@ -4,15 +4,20 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import api from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 export default function ResetPasswordPage() {
+  const { t } = useIdioma();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
   const [token, setToken] = useState(null);
   
   const [status, setStatus] = useState('idle'); // idle, loading, success
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Este efecto queda igual que estaba. Lo unico que cambia es que el aviso
+  // sale del diccionario y que `t` entra en las dependencias.
   useEffect(() => {
     // Al cargar el componente, atrapar el ?token=xyz desde la URL del navegador
     const params = new URLSearchParams(window.location.search);
@@ -20,20 +25,20 @@ export default function ResetPasswordPage() {
     if (urlToken) {
       setToken(urlToken);
     } else {
-      setErrorMsg('El enlace no contiene un token válido de seguridad.');
+      setErrorMsg(t('acceso.sin_token'));
     }
-  }, []);
+  }, [t]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
     if (password !== confirmPassword) {
-      return setErrorMsg('Las contraseñas no coinciden. Intenta de nuevo.');
+      return setErrorMsg(t('acceso.contrasenas_no_coinciden'));
     }
 
     if (!token) {
-      return setErrorMsg('Token inválido. Solicita uno nuevo en Olvidé mi Contraseña.');
+      return setErrorMsg(t('acceso.token_invalido'));
     }
 
     setStatus('loading');
@@ -47,7 +52,7 @@ export default function ResetPasswordPage() {
     } catch (error) {
       setStatus('idle');
       // La Regex o caída de token del backend llegará aquí como CA6
-      setErrorMsg(error.response?.data?.msg || 'Error de conexión con el servidor.');
+      setErrorMsg(error.response?.data?.msg || t('acceso.error_conexion_reset'));
     }
   };
 
@@ -59,7 +64,7 @@ export default function ResetPasswordPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md z-10">
         <div className="flex justify-center flex-col items-center">
           <ShieldCheck className="w-16 h-16 text-emerald-400 mb-4" />
-          <h2 className="text-3xl font-bold text-text-primary tracking-tight">Crear Nueva Contraseña</h2>
+          <h2 className="text-3xl font-bold text-text-primary tracking-tight">{t('acceso.nueva_contrasena_titulo')}</h2>
         </div>
       </div>
 
@@ -71,10 +76,10 @@ export default function ResetPasswordPage() {
                <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                  <CheckCircle className="w-8 h-8 text-emerald-400" />
                </div>
-               <h3 className="text-xl font-bold text-emerald-400 mb-2">¡Contraseña Actualizada!</h3>
-               <p className="text-text-secondary text-sm mb-6">El sistema ha encriptado y guardado tu nueva clave de acceso exitosamente.</p>
+               <h3 className="text-xl font-bold text-emerald-400 mb-2">{t('acceso.contrasena_actualizada')}</h3>
+               <p className="text-text-secondary text-sm mb-6">{t('acceso.contrasena_actualizada_ayuda')}</p>
                <Button className="w-full bg-emerald-600 hover:bg-emerald-500" onClick={() => window.location.href='/login'}>
-                 Ir a Iniciar Sesión
+                 {t('acceso.ir_a_login')}
                </Button>
             </div>
           ) : (
@@ -88,7 +93,7 @@ export default function ResetPasswordPage() {
 
               <Input
                 icon={Lock}
-                label="Nueva Contraseña"
+                label={t('acceso.nueva_contrasena')}
                 type="password"
                 placeholder="••••••••"
                 value={password}
@@ -98,7 +103,7 @@ export default function ResetPasswordPage() {
 
               <Input
                 icon={Lock}
-                label="Confirmar Contraseña"
+                label={t('acceso.confirmar_contrasena')}
                 type="password"
                 placeholder="••••••••"
                 value={confirmPassword}
@@ -108,7 +113,7 @@ export default function ResetPasswordPage() {
 
               <div>
                 <Button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-500" disabled={status === 'loading' || !token}>
-                  {status === 'loading' ? 'Procesando...' : 'Guardar y Actualizar'}
+                  {status === 'loading' ? t('acceso.procesando') : t('acceso.guardar_actualizar')}
                 </Button>
               </div>
 

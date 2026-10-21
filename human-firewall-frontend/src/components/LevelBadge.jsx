@@ -1,5 +1,6 @@
 import React from 'react';
 import { Shield } from 'lucide-react';
+import { useIdioma } from '../context/useIdioma';
 
 /**
  * Insignia de nivel con barra de progreso.
@@ -15,6 +16,8 @@ import { Shield } from 'lucide-react';
  * @param {boolean}     compacto  version reducida para la cabecera
  */
 export function LevelBadge({ nivel, compacto = false }) {
+    const { t } = useIdioma();
+
     if (!nivel) {
         return compacto
             ? <div className="h-12 w-12 animate-pulse rounded-full bg-border-color" />
@@ -30,7 +33,7 @@ export function LevelBadge({ nivel, compacto = false }) {
         return (
             <div className="flex items-center gap-3">
                 <div className="text-right">
-                    <p className="text-sm text-text-secondary">Nivel actual</p>
+                    <p className="text-sm text-text-secondary">{t('nivel.nivel_actual')}</p>
                     <p className="font-bold text-brand-light">{nombre}</p>
                 </div>
                 <div className="relative flex h-12 w-12 items-center justify-center rounded-full border-2 border-brand-blue bg-bg-card font-bold text-text-primary shadow-sm">
@@ -50,10 +53,10 @@ export function LevelBadge({ nivel, compacto = false }) {
                     {/* Se envuelve en vez de truncarse: con el texto grande
                         (HU de tamano de texto) el truncado dejaba solo "N". */}
                     <h3 className="break-words text-lg font-bold">
-                        Nivel {nivel_actual} – {nombre}
+                        {t('comun.nivel')} {nivel_actual} – {nombre}
                     </h3>
                     <p className="text-sm text-text-secondary">
-                        {puntos_actuales} puntos acumulados
+                        {t('nivel.puntos_acumulados', { puntos: puntos_actuales })}
                     </p>
                 </div>
             </div>
@@ -64,7 +67,7 @@ export function LevelBadge({ nivel, compacto = false }) {
                 aria-valuenow={porcentaje_avance}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label={`Avance dentro del nivel ${nivel_actual}`}
+                aria-label={t('nivel.avance_aria', { nivel: nivel_actual })}
             >
                 <div
                     className="h-full rounded-full bg-brand-blue transition-all duration-700"
@@ -73,11 +76,15 @@ export function LevelBadge({ nivel, compacto = false }) {
             </div>
 
             <div className="mt-1.5 flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-text-secondary">
-                <span>{porcentaje_avance}% del nivel</span>
+                <span>{t('nivel.porcentaje', { porcentaje: porcentaje_avance })}</span>
                 {es_nivel_maximo
-                    ? <span className="text-brand-light">Nivel máximo alcanzado</span>
+                    ? <span className="text-brand-light">{t('nivel.maximo_alcanzado')}</span>
                     : <span>
-                        Faltan <strong className="text-brand-light">{puntos_faltantes}</strong> para {siguiente_nombre} ({puntos_para_siguiente} pts)
+                        {t('nivel.faltan_para', {
+                            puntos: puntos_faltantes,
+                            siguiente: siguiente_nombre,
+                            umbral: puntos_para_siguiente
+                        })}
                       </span>}
             </div>
         </div>

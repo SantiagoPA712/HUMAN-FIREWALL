@@ -1,12 +1,14 @@
 import React from 'react';
 import { Sun, Moon, Check } from 'lucide-react';
 import { useTheme } from '../context/useTheme';
+import { useIdioma } from '../context/useIdioma';
 
 /**
  * Selector de tema claro y oscuro con tarjetas interactivas e indicadores de estado.
  * Diseñado especialmente para la sección de Configuración y Perfil de Usuario.
  */
 export function ThemeSelector({ variant = 'cards', className = '' }) {
+  const { t } = useIdioma();
   const { setTheme, isDark, isLight } = useTheme();
 
   if (variant === 'segmented') {
@@ -23,7 +25,7 @@ export function ThemeSelector({ variant = 'cards', className = '' }) {
           aria-pressed={isLight}
         >
           <Sun className="h-4 w-4" />
-          Claro
+          {t('preferencias.tema_claro')}
         </button>
         <button
           type="button"
@@ -36,7 +38,7 @@ export function ThemeSelector({ variant = 'cards', className = '' }) {
           aria-pressed={isDark}
         >
           <Moon className="h-4 w-4" />
-          Oscuro
+          {t('preferencias.tema_oscuro')}
         </button>
       </div>
     );
@@ -66,13 +68,13 @@ export function ThemeSelector({ variant = 'cards', className = '' }) {
           {isLight && (
             <span className="flex items-center gap-1 rounded-full bg-brand-blue text-white px-2.5 py-0.5 text-xs font-semibold">
               <Check className="h-3 w-3" />
-              Activo
+              {t('comun.activo')}
             </span>
           )}
         </div>
         <div>
           <h4 className="font-bold text-text-primary flex items-center gap-2">
-            Tema Claro
+            {t('preferencias.tema_claro_largo')}
             <span className="text-3xs font-normal uppercase tracking-wider text-text-secondary border border-border-color rounded px-1.5 py-0.2">
               Predeterminado
             </span>
@@ -105,13 +107,13 @@ export function ThemeSelector({ variant = 'cards', className = '' }) {
           {isDark && (
             <span className="flex items-center gap-1 rounded-full bg-brand-blue text-white px-2.5 py-0.5 text-xs font-semibold">
               <Check className="h-3 w-3" />
-              Activo
+              {t('comun.activo')}
             </span>
           )}
         </div>
         <div>
           <h4 className="font-bold text-text-primary">
-            Tema Oscuro
+            {t('preferencias.tema_oscuro_largo')}
           </h4>
           <p className="mt-1 text-xs text-text-secondary">
             Colores profundos diseñados para reducir la fatiga visual en sesiones prolongadas.

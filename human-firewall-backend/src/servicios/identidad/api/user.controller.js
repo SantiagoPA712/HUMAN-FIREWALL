@@ -10,6 +10,8 @@ const userService = require('../aplicacion/user.service');
 const usuarios = require('../infraestructura/usuarios.repositorio');
 const {
     ROLES: ROLES_VALIDOS,
+    IDIOMAS: IDIOMAS_VALIDOS,
+    catalogoDeIdiomas,
     CAMPOS_EDITABLES_PERFIL,
     camposProtegidos,
     validarPerfil
@@ -153,6 +155,28 @@ exports.deactivateUser = async (req, res) => {
     }
 };
 
+
+/**
+ * GET /api/users/idiomas
+ *
+ * Idiomas habilitados en la plataforma y cual es el de por defecto.
+ *
+ * Criterio de aceptacion 1 de la HU de preferencia de idioma: el empleado
+ * tiene que poder VER las opciones disponibles. Sale del dominio y no de una
+ * lista escrita en la interfaz para que el criterio tecnico 7 ("aceptar
+ * unicamente los idiomas habilitados") se cumpla contra la misma fuente que
+ * valida el PATCH: si se agrega un idioma, el selector lo muestra solo.
+ *
+ * No exige rol: es el catalogo de la plataforma, no datos de nadie. Si exige
+ * sesion, porque la pantalla de preferencias ya la tiene.
+ */
+exports.getIdiomas = async (req, res) => {
+    try {
+        res.status(200).json(catalogoDeIdiomas());
+    } catch (error) {
+        responderError(req, res, error);
+    }
+};
 
 /**
  * GET /api/users/me

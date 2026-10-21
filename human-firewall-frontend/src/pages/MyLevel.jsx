@@ -4,6 +4,7 @@ import { Card } from '../components/ui/Card';
 import { LevelBadge } from '../components/LevelBadge';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 /**
  * Vista ampliada "Mi nivel" (mockup 2 de la HU):
@@ -15,6 +16,7 @@ import { api, getUsuarioActual } from '../lib/api';
  * cambian en la base, esta pantalla los refleja sola.
  */
 export default function MyLevel() {
+    const { t, idioma } = useIdioma();
     const [nivel, setNivel] = useState(null);
     const [escalera, setEscalera] = useState([]);
     const [error, setError] = useState(null);
@@ -32,11 +34,11 @@ export default function MyLevel() {
                 setEscalera(escaleraResp.data);
                 setError(null);
             })
-            .catch((e) => setError(e.response?.data?.msg || 'No se pudo cargar tu nivel'));
-    }, [usuario?.id]);
+            .catch((e) => setError(e.response?.data?.msg || t('nivel.error_carga')));
+    }, [usuario?.id, t]);
 
     const formatearFecha = (iso) =>
-        new Date(iso).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' });
+        new Date(iso).toLocaleDateString(idioma, { day: '2-digit', month: 'long', year: 'numeric' });
 
     // Que niveles ya alcanzo, para pintar la escalera.
     //
@@ -51,7 +53,7 @@ export default function MyLevel() {
             <div className="mx-auto max-w-4xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {t('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
@@ -59,10 +61,10 @@ export default function MyLevel() {
                 <header className="mb-8">
                     <h1 className="flex items-center gap-3 text-3xl font-bold">
                         <ShieldCheck className="h-8 w-8 text-brand-blue" />
-                        Mi nivel
+                        {t('nivel.titulo')}
                     </h1>
                     <p className="mt-1 text-text-secondary">
-                        Tu nivel sale de los puntos que acumulaste. Cuanto más entrenás, más alto llegás.
+                        {t('nivel.subtitulo')}
                     </p>
                 </header>
 
@@ -71,7 +73,7 @@ export default function MyLevel() {
                         <p className="text-red-400">{error}</p>
                     </Card>
                 )}
-                {!error && !nivel && <p className="text-text-secondary">Cargando…</p>}
+                {!error && !nivel && <p className="text-text-secondary">{t('comun.cargando')}</p>}
 
                 {nivel && (
                     <>
@@ -81,24 +83,24 @@ export default function MyLevel() {
 
                         <div className="mb-8 grid grid-ajustable [--ancho-columna:10rem] gap-4">
                             <Card className="p-6">
-                                <p className="text-sm text-text-secondary">Puntos actuales</p>
+                                <p className="text-sm text-text-secondary">{t('nivel.puntos_actuales')}</p>
                                 <p className="text-3xl font-black text-brand-blue">{nivel.puntos_actuales}</p>
                             </Card>
                             <Card className="p-6">
                                 <p className="text-sm text-text-secondary">
-                                    {nivel.es_nivel_maximo ? 'Estado' : 'Faltan para subir'}
+                                    {nivel.es_nivel_maximo ? t('nivel.estado') : t('nivel.faltan_para_subir')}
                                 </p>
                                 <p className="text-3xl font-black">
                                     {nivel.es_nivel_maximo ? '—' : nivel.puntos_faltantes}
                                 </p>
                             </Card>
                             <Card className="p-6">
-                                <p className="text-sm text-text-secondary">Niveles alcanzados</p>
+                                <p className="text-sm text-text-secondary">{t('nivel.niveles_alcanzados')}</p>
                                 <p className="text-3xl font-black text-brand-light">{nivel.historial.length}</p>
                             </Card>
                         </div>
 
-                        <h2 className="mb-4 text-xl font-bold">La escalera completa</h2>
+                        <h2 className="mb-4 text-xl font-bold">{t('nivel.escalera_completa')}</h2>
                         <div className="mb-10 space-y-3">
                             {escalera.map((n) => {
                                 const esActual = n.level === nivel.nivel_actual;
@@ -121,10 +123,10 @@ export default function MyLevel() {
 
                                         <div className="min-w-0 flex-1">
                                             <h3 className="font-bold">
-                                                Nivel {n.level} – {n.name}
+                                                {t('comun.nivel')} {n.level} – {n.name}
                                                 {esActual && (
                                                     <span className="ml-2 rounded-full bg-brand-blue/20 px-2 py-0.5 text-xs font-semibold text-brand-light">
-                                                        estás acá
+                                                        {t('nivel.estas_aca')}
                                                     </span>
                                                 )}
                                             </h3>
@@ -134,18 +136,18 @@ export default function MyLevel() {
                                         </div>
 
                                         <div className="shrink-0 text-right">
-                                            <p className="text-xs text-text-secondary">desde</p>
-                                            <p className="font-mono font-bold">{n.min_points} pts</p>
+                                            <p className="text-xs text-text-secondary">{t('nivel.desde')}</p>
+                                            <p className="font-mono font-bold">{n.min_points} {t('nivel.pts')}</p>
                                         </div>
                                     </Card>
                                 );
                             })}
                         </div>
 
-                        <h2 className="mb-4 text-xl font-bold">Historial de niveles alcanzados</h2>
+                        <h2 className="mb-4 text-xl font-bold">{t('nivel.historial')}</h2>
                         {nivel.historial.length === 0 ? (
                             <Card className="p-8 text-center">
-                                <p className="text-text-secondary">Todavía no hay registros.</p>
+                                <p className="text-text-secondary">{t('comun.sin_datos')}</p>
                             </Card>
                         ) : (
                             <Card className="divide-y divide-gray-800 p-0">
@@ -154,14 +156,17 @@ export default function MyLevel() {
                                         <Shield className="h-5 w-5 shrink-0 text-brand-blue" />
                                         <div className="min-w-0 flex-1">
                                             <p className="font-semibold">
-                                                Nivel {h.level} – {h.level_name}
+                                                {t('comun.nivel')} {h.level} – {h.level_name}
                                             </p>
                                             <p className="text-xs text-text-secondary">
-                                                Alcanzado el {formatearFecha(h.reached_at)} con {h.points_at} puntos
+                                                {t('nivel.alcanzado_con', {
+                                                    fecha: formatearFecha(h.reached_at),
+                                                    puntos: h.points_at
+                                                })}
                                             </p>
                                         </div>
                                         <span className="shrink-0 font-mono text-sm text-text-secondary">
-                                            {h.min_points} pts
+                                            {h.min_points} {t('nivel.pts')}
                                         </span>
                                     </div>
                                 ))}

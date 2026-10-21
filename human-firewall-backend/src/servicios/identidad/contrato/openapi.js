@@ -66,6 +66,24 @@ const schemas = {
         required: ['id', 'email', 'role'],
         properties: { id: { type: 'integer' }, email: { type: 'string' }, role: { type: 'string', enum: ROLES } }
     },
+    CatalogoDeIdiomas: {
+        type: 'object',
+        required: ['idiomas', 'por_defecto'],
+        properties: {
+            idiomas: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    required: ['codigo', 'nombre'],
+                    properties: {
+                        codigo: { type: 'string', enum: IDIOMAS },
+                        nombre: { type: 'string', description: 'El nombre del idioma, escrito en ese idioma' }
+                    }
+                }
+            },
+            por_defecto: { type: 'string', enum: IDIOMAS }
+        }
+    },
     RegistroCreado: {
         type: 'object',
         required: ['msg', 'token'],
@@ -197,6 +215,20 @@ const paths = {
             acceso: 'publica',
             dto: esquemas.restablecerContrasena,
             respuestas: { 200: mensaje('Contrasena actualizada') }
+        })
+    },
+    '/api/users/idiomas': {
+        get: operacion({
+            resumen: 'Idiomas habilitados en la plataforma',
+            descripcion: 'Catalogo y idioma por defecto. Lo consume el selector de preferencias, para que '
+                       + 'la lista que se muestra salga de la misma fuente que valida PATCH /api/users/me.',
+            acceso: 'autenticado',
+            respuestas: {
+                200: {
+                    descripcion: 'Idiomas disponibles y cual rige sin preferencia configurada',
+                    esquema: ref('CatalogoDeIdiomas')
+                }
+            }
         })
     },
     '/api/users/me': {

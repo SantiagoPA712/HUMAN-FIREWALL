@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 /**
  * Panel del area de seguridad.
@@ -20,6 +21,7 @@ import { api, getUsuarioActual } from '../lib/api';
  * anomaly_rules, este archivo no se toca.
  */
 export default function SecurityPanel() {
+    const { t } = useIdioma();
     const usuario = getUsuarioActual();
     const autorizado = usuario && (usuario.role === 'security' || usuario.role === 'admin');
 
@@ -39,18 +41,18 @@ export default function SecurityPanel() {
             setDatos(data);
             setError(null);
         } catch (e) {
-            setError(e.response?.data?.msg || 'No se pudieron cargar las anomalías');
+            setError(e.response?.data?.msg || t('seguridad.error_anomalias'));
         }
-    }, [filtroEstado]);
+    }, [filtroEstado, t]);
 
     const cargarAuditoria = useCallback(async () => {
         try {
             const { data } = await api.get('/api/gamification/security/audit');
             setAuditoria(data);
         } catch (e) {
-            setError(e.response?.data?.msg || 'No se pudo cargar el log de auditoría');
+            setError(e.response?.data?.msg || t('seguridad.error_auditoria'));
         }
-    }, []);
+    }, [t]);
 
     // Carga inicial y al cambiar de pestaña.
     //
@@ -69,7 +71,7 @@ export default function SecurityPanel() {
             const { data } = await api.get(`/api/gamification/security/anomalies/${id}`);
             setDetalle(data);
         } catch (e) {
-            setError(e.response?.data?.msg || 'No se pudo abrir la alerta');
+            setError(e.response?.data?.msg || t('seguridad.error_abrir_alerta'));
         }
     };
 
@@ -77,12 +79,12 @@ export default function SecurityPanel() {
     const cambiarEstado = async (id, status) => {
         setGuardando(true);
         try {
-            const nota = window.prompt('Nota para el historial (opcional):') || null;
+            const nota = window.prompt(t('seguridad.prompt_nota')) || null;
             await api.patch(`/api/gamification/security/anomalies/${id}/status`, { status, note: nota });
             await cargarAnomalias();
             if (detalle?.id === id) await abrirDetalle(id);
         } catch (e) {
-            setError(e.response?.data?.errores?.[0]?.detalle || e.response?.data?.msg || 'No se pudo cambiar el estado');
+            setError(e.response?.data?.errores?.[0]?.detalle || e.response?.data?.msg || t('seguridad.error_cambiar_estado'));
         } finally {
             setGuardando(false);
         }
@@ -93,9 +95,9 @@ export default function SecurityPanel() {
             <Marco>
                 <Card className="border-l-4 border-l-red-500 p-8 text-center">
                     <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-red-500" />
-                    <p className="font-bold">Esta sección es solo para el área de seguridad</p>
+                    <p className="font-bold">{t('seguridad.sin_permiso_titulo')}</p>
                     <p className="mt-1 text-sm text-text-secondary">
-                        Tu cuenta no tiene permisos para ver el panel de anomalías.
+                        {t('seguridad.sin_permiso_detalle')}
                     </p>
                 </Card>
             </Marco>
@@ -106,10 +108,10 @@ export default function SecurityPanel() {
         <Marco>
             <div className="mb-6 flex gap-2">
                 <Pestana activa={vista === 'anomalias'} onClick={() => { setVista('anomalias'); setDetalle(null); }}>
-                    Anomalías detectadas
+                    {t('seguridad.tab_anomalias')}
                 </Pestana>
                 <Pestana activa={vista === 'auditoria'} onClick={() => { setVista('auditoria'); setDetalle(null); }}>
-                    Log de auditoría
+                    {t('seguridad.tab_auditoria')}
                 </Pestana>
             </div>
 
@@ -124,9 +126,10 @@ export default function SecurityPanel() {
                     <Resumen resumen={datos.resumen} />
 
                     <div className="mb-4 flex flex-wrap items-center gap-2">
-                        <span className="text-sm text-text-secondary">Estado:</span>
-                        {[['', 'Todas'], ['pending', 'Pendientes'], ['reviewed', 'Revisadas'], ['dismissed', 'Descartadas']]
-                            .map(([valor, etiqueta]) => (
+                        <span className="text-sm text-text-secondary">{t('seguridad.filtro_estado')}</span>
+                        {[['', 'seguridad.todas'], ['pending', 'seguridad.pendientes'],
+                          ['reviewed', 'seguridad.revisadas'], ['dismissed', 'seguridad.descartadas']]
+                            .map(([valor, clave]) => (
                                 <button
                                     key={valor || 'todas'}
                                     onClick={() => setFiltroEstado(valor)}
@@ -136,7 +139,7 @@ export default function SecurityPanel() {
                                             : 'border border-gray-700 text-text-secondary hover:text-white'
                                     }`}
                                 >
-                                    {etiqueta}
+                                    {t(clave)}
                                 </button>
                             ))}
                     </div>
@@ -144,9 +147,9 @@ export default function SecurityPanel() {
                     {datos.resultados.length === 0 ? (
                         <Card className="p-12 text-center">
                             <CheckCircle className="mx-auto mb-4 h-10 w-10 text-emerald-400" />
-                            <p className="font-semibold">Sin anomalías para este filtro</p>
+                            <p className="font-semibold">{t('seguridad.vacio_titulo')}</p>
                             <p className="mt-1 text-sm text-text-secondary">
-                                El motor revisa cada asignación de puntos y además reevalúa cada 15 minutos.
+                                {t('seguridad.vacio_detalle')}
                             </p>
                         </Card>
                     ) : (
@@ -162,9 +165,11 @@ export default function SecurityPanel() {
                                             </div>
                                             <p className="font-bold">{a.email}</p>
                                             <p className="text-sm text-text-secondary">
-                                                <strong className="text-brand-light">{a.total_en_ventana}</strong> puntos
-                                                {' '}(umbral {a.umbral}) en {a.movimientos}{' '}
-                                                {a.movimientos === 1 ? 'movimiento' : 'movimientos'} · regla{' '}
+                                                <strong className="text-brand-light">{a.total_en_ventana}</strong>{' '}
+                                                {t(a.movimientos === 1
+                                                    ? 'seguridad.anomalia_resumen_uno'
+                                                    : 'seguridad.anomalia_resumen_varios',
+                                                   { umbral: a.umbral, movimientos: a.movimientos })}{' '}
                                                 <code className="text-xs">{a.rule_triggered}</code>
                                             </p>
                                             <p className="mt-1 text-xs text-text-secondary">
@@ -175,19 +180,19 @@ export default function SecurityPanel() {
                                         <div className="flex shrink-0 flex-wrap gap-2">
                                             <Button variant="outline" className="h-8 border-gray-700 text-xs"
                                                     onClick={() => abrirDetalle(a.id)}>
-                                                Ver detalle <ChevronRight className="ml-1 h-3 w-3" />
+                                                {t('seguridad.ver_detalle')} <ChevronRight className="ml-1 h-3 w-3" />
                                             </Button>
                                             {a.status === 'pending' && (
                                                 <>
                                                     <Button variant="outline" disabled={guardando}
                                                             className="h-8 border-emerald-600 text-xs text-emerald-400"
                                                             onClick={() => cambiarEstado(a.id, 'reviewed')}>
-                                                        Marcar revisada
+                                                        {t('seguridad.marcar_revisada')}
                                                     </Button>
                                                     <Button variant="outline" disabled={guardando}
                                                             className="h-8 border-gray-700 text-xs"
                                                             onClick={() => cambiarEstado(a.id, 'dismissed')}>
-                                                        Descartar
+                                                        {t('seguridad.descartar')}
                                                     </Button>
                                                 </>
                                             )}
@@ -214,9 +219,17 @@ const COLOR_SEVERIDAD = {
     low: 'border-l-gray-500'
 };
 
-const ETIQUETA_SEVERIDAD = { critical: 'crítica', high: 'alta', medium: 'media', low: 'baja' };
+// Claves del diccionario, no textos: asi la insignia cambia de idioma sola.
+const ETIQUETA_SEVERIDAD = {
+    critical: 'seguridad.severidad_critical',
+    high: 'seguridad.severidad_high',
+    medium: 'seguridad.severidad_medium',
+    low: 'seguridad.severidad_low'
+};
 
 function Insignia({ severity }) {
+    const { t } = useIdioma();
+
     const clases = {
         critical: 'bg-red-500/20 text-red-400',
         high: 'bg-orange-500/20 text-orange-400',
@@ -225,33 +238,38 @@ function Insignia({ severity }) {
     };
     return (
         <span className={`rounded px-2 py-0.5 text-xs font-bold uppercase ${clases[severity] || clases.low}`}>
-            {ETIQUETA_SEVERIDAD[severity] || severity}
+            {ETIQUETA_SEVERIDAD[severity] ? t(ETIQUETA_SEVERIDAD[severity]) : severity}
         </span>
     );
 }
 
 function EstadoChip({ status }) {
+    const { t } = useIdioma();
+
     const mapa = {
-        pending:   ['Pendiente', 'bg-brand-blue/20 text-brand-light'],
-        reviewed:  ['Revisada', 'bg-emerald-500/20 text-emerald-400'],
-        dismissed: ['Descartada', 'bg-gray-700 text-text-secondary']
+        pending:   ['seguridad.estado_pending', 'bg-brand-blue/20 text-brand-light'],
+        reviewed:  ['seguridad.estado_reviewed', 'bg-emerald-500/20 text-emerald-400'],
+        dismissed: ['seguridad.estado_dismissed', 'bg-gray-700 text-text-secondary']
     };
-    const [texto, clase] = mapa[status] || [status, 'bg-gray-700'];
+    const [clave, clase] = mapa[status] || [null, 'bg-gray-700'];
+    const texto = clave ? t(clave) : status;
     return <span className={`rounded px-2 py-0.5 text-xs font-semibold ${clase}`}>{texto}</span>;
 }
 
 function Resumen({ resumen }) {
+    const { t } = useIdioma();
+
     const items = [
-        { etiqueta: 'Total', valor: resumen.total, color: 'text-text-primary' },
-        { etiqueta: 'Pendientes', valor: resumen.pendientes, color: 'text-brand-light' },
-        { etiqueta: 'Revisadas', valor: resumen.revisadas, color: 'text-emerald-400' },
-        { etiqueta: 'Descartadas', valor: resumen.descartadas, color: 'text-text-secondary' }
+        { clave: 'seguridad.total', valor: resumen.total, color: 'text-text-primary' },
+        { clave: 'seguridad.pendientes', valor: resumen.pendientes, color: 'text-brand-light' },
+        { clave: 'seguridad.revisadas', valor: resumen.revisadas, color: 'text-emerald-400' },
+        { clave: 'seguridad.descartadas', valor: resumen.descartadas, color: 'text-text-secondary' }
     ];
     return (
         <div className="mb-6 grid grid-ajustable [--ancho-columna:10rem] gap-4">
             {items.map(i => (
-                <Card key={i.etiqueta} className="p-5">
-                    <p className="text-sm text-text-secondary">{i.etiqueta}</p>
+                <Card key={i.clave} className="p-5">
+                    <p className="text-sm text-text-secondary">{t(i.clave)}</p>
                     <p className={`text-3xl font-black ${i.color}`}>{i.valor}</p>
                 </Card>
             ))}
@@ -268,6 +286,7 @@ function Resumen({ resumen }) {
  * cincuenta movimientos.
  */
 function ModalDetalle({ detalle, onCerrar }) {
+    const { t } = useIdioma();
     const fecha = (iso) => new Date(iso).toLocaleString('es');
 
     return (
@@ -285,7 +304,7 @@ function ModalDetalle({ detalle, onCerrar }) {
                         </div>
                         <h2 className="text-2xl font-bold">{detalle.email}</h2>
                         <p className="text-sm text-text-secondary">
-                            Regla <code>{detalle.rule_triggered}</code> · {fecha(detalle.detected_at)}
+                            {t('seguridad.regla_etiqueta')} <code>{detalle.rule_triggered}</code> · {fecha(detalle.detected_at)}
                         </p>
                     </div>
                     <button onClick={onCerrar} className="text-text-secondary hover:text-white">✕</button>
@@ -297,10 +316,13 @@ function ModalDetalle({ detalle, onCerrar }) {
                     </Card>
                 )}
 
-                <Seccion icono={<AlertTriangle className="h-4 w-4 text-yellow-500" />} titulo="Evidencia">
+                <Seccion icono={<AlertTriangle className="h-4 w-4 text-yellow-500" />} titulo={t('seguridad.evidencia')}>
                     <p className="mb-3 text-sm text-text-secondary">
-                        <strong className="text-brand-light">{detalle.evidence.total_en_ventana}</strong> puntos
-                        en {detalle.evidence.ventana_minutos} minutos, con un umbral de {detalle.evidence.umbral}.
+                        <strong className="text-brand-light">{detalle.evidence.total_en_ventana}</strong>{' '}
+                        {t('seguridad.evidencia_resumen', {
+                            minutos: detalle.evidence.ventana_minutos,
+                            umbral: detalle.evidence.umbral
+                        })}
                     </p>
                     <div className="space-y-1">
                         {detalle.evidence.movimientos.map(m => (
@@ -317,22 +339,22 @@ function ModalDetalle({ detalle, onCerrar }) {
                 </Seccion>
 
                 {detalle.ajustes_manuales.length > 0 && (
-                    <Seccion icono={<User className="h-4 w-4 text-orange-400" />} titulo="Ajustes manuales sobre este usuario">
+                    <Seccion icono={<User className="h-4 w-4 text-orange-400" />} titulo={t('seguridad.ajustes_sobre_usuario')}>
                         <div className="space-y-2">
                             {detalle.ajustes_manuales.map((a, i) => (
                                 <div key={i} className="rounded border border-orange-500/30 bg-orange-500/5 p-3 text-sm">
                                     <p className="font-semibold">
-                                        {a.change_type} · por {a.actor_email}
+                                        {a.change_type} · {t('seguridad.por')} {a.actor_email}
                                         <span className="ml-2 text-xs font-normal text-text-secondary">{fecha(a.created_at)}</span>
                                     </p>
-                                    <p className="mt-1 text-text-secondary">Motivo: {a.reason}</p>
+                                    <p className="mt-1 text-text-secondary">{t('seguridad.motivo_etiqueta')} {a.reason}</p>
                                 </div>
                             ))}
                         </div>
                     </Seccion>
                 )}
 
-                <Seccion icono={<Activity className="h-4 w-4 text-brand-blue" />} titulo="Línea de tiempo del usuario">
+                <Seccion icono={<Activity className="h-4 w-4 text-brand-blue" />} titulo={t('seguridad.linea_de_tiempo')}>
                     <div className="max-h-64 space-y-1 overflow-y-auto">
                         {detalle.linea_de_tiempo.map(m => (
                             <div key={m.id} className="flex items-center justify-between border-b border-gray-800 py-1.5 text-sm">
@@ -347,14 +369,14 @@ function ModalDetalle({ detalle, onCerrar }) {
                 </Seccion>
 
                 {detalle.historial_estados.length > 0 && (
-                    <Seccion icono={<Clock className="h-4 w-4 text-text-secondary" />} titulo="Historial de estados">
+                    <Seccion icono={<Clock className="h-4 w-4 text-text-secondary" />} titulo={t('seguridad.historial_estados')}>
                         <div className="space-y-2">
                             {detalle.historial_estados.map((h, i) => (
                                 <div key={i} className="text-sm">
                                     <p>
                                         <EstadoChip status={h.previous_status} /> → <EstadoChip status={h.new_status} />
                                         <span className="ml-2 text-xs text-text-secondary">
-                                            por {h.changed_by_email} · {fecha(h.changed_at)}
+                                            {t('seguridad.por')} {h.changed_by_email} · {fecha(h.changed_at)}
                                         </span>
                                     </p>
                                     {h.note && <p className="mt-1 text-text-secondary">{h.note}</p>}
@@ -379,13 +401,15 @@ function Seccion({ icono, titulo, children }) {
 
 /** Mockup 3: log de auditoria con filtros por actor y tipo de cambio. */
 function TablaAuditoria({ datos }) {
+    const { t } = useIdioma();
+
     if (datos.resultados.length === 0) {
         return (
             <Card className="p-12 text-center">
                 <FileText className="mx-auto mb-4 h-10 w-10 text-text-secondary" />
-                <p className="font-semibold">No hay ajustes manuales registrados</p>
+                <p className="font-semibold">{t('seguridad.auditoria_vacia_titulo')}</p>
                 <p className="mt-1 text-sm text-text-secondary">
-                    Todo cambio manual de puntos, nivel o insignias aparece acá, con su motivo.
+                    {t('seguridad.auditoria_vacia_detalle')}
                 </p>
             </Card>
         );
@@ -394,20 +418,20 @@ function TablaAuditoria({ datos }) {
     return (
         <Card className="p-6">
             <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-bold">Ajustes manuales</h2>
-                <span className="text-sm text-text-secondary">{datos.paginacion.total} registros</span>
+                <h2 className="font-bold">{t('seguridad.ajustes_manuales')}</h2>
+                <span className="text-sm text-text-secondary">{t('seguridad.registros', { total: datos.paginacion.total })}</span>
             </div>
 
             <div className="overflow-x-auto">
                 <table className="w-full min-w-[45rem] text-left text-sm">
                     <thead>
                         <tr className="border-b border-gray-700 text-text-secondary">
-                            <th className="p-3 font-medium">Cuándo</th>
-                            <th className="p-3 font-medium">Quién</th>
-                            <th className="p-3 font-medium">Sobre</th>
-                            <th className="p-3 font-medium">Tipo</th>
-                            <th className="p-3 font-medium">Cambio</th>
-                            <th className="p-3 font-medium">Motivo</th>
+                            <th className="p-3 font-medium">{t('seguridad.col_cuando')}</th>
+                            <th className="p-3 font-medium">{t('seguridad.col_quien')}</th>
+                            <th className="p-3 font-medium">{t('seguridad.col_sobre')}</th>
+                            <th className="p-3 font-medium">{t('seguridad.col_tipo')}</th>
+                            <th className="p-3 font-medium">{t('seguridad.col_cambio')}</th>
+                            <th className="p-3 font-medium">{t('seguridad.col_motivo')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -423,7 +447,7 @@ function TablaAuditoria({ datos }) {
                                 </td>
                                 <td className="p-3 font-mono text-xs text-text-secondary">
                                     {l.previous_value?.puntos != null && l.new_value?.puntos != null
-                                        ? `${l.previous_value.puntos} → ${l.new_value.puntos} pts`
+                                        ? t('seguridad.cambio_pts', { antes: l.previous_value.puntos, despues: l.new_value.puntos })
                                         : l.new_value?.reward_name || '—'}
                                 </td>
                                 <td className="p-3">{l.reason}</td>
@@ -448,22 +472,24 @@ function Pestana({ activa, onClick, children }) {
 }
 
 function Marco({ children }) {
+    const { t } = useIdioma();
+
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-5xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {t('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
                 <header className="mb-8">
                     <h1 className="flex items-center gap-3 text-3xl font-bold">
                         <ShieldAlert className="h-8 w-8 text-brand-blue" />
-                        Seguridad
+                        {t('seguridad.titulo')}
                     </h1>
                     <p className="mt-1 text-text-secondary">
-                        Patrones anómalos en la asignación de puntos y registro de ajustes manuales.
+                        {t('seguridad.subtitulo')}
                     </p>
                 </header>
                 {children}

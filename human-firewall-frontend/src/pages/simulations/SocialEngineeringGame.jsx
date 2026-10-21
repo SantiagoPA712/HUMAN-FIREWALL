@@ -4,8 +4,10 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { registrarDesafio } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
+import { useIdioma } from '../../context/useIdioma';
 
 export default function SocialEngineeringGame() {
+  const { t } = useIdioma();
   const { notificarPuntos } = usePuntos();
   const [gameState, setGameState] = useState('playing'); // playing, won, lost
 
@@ -56,10 +58,10 @@ export default function SocialEngineeringGame() {
            {gameState === 'playing' && (
              <div className="mt-auto flex flex-col gap-2 relative z-10 pt-4">
                 <Button className="bg-green-600 hover:bg-green-700" onClick={() => submitDecision(false)}>
-                  "¡Claro Jefe, enseguida le transfiero!"
+                  {t('juegos.se_transferir')}
                 </Button>
                 <Button variant="outline" className="border-red-600 border-2 text-red-600 hover:bg-red-50 font-bold bg-white" onClick={() => submitDecision(true)}>
-                  Bloquear número y Reportar
+                  {t('juegos.se_bloquear')}
                 </Button>
              </div>
            )}
@@ -69,20 +71,20 @@ export default function SocialEngineeringGame() {
         {gameState === 'won' && (
            <div className="absolute inset-0 bg-emerald-900/90 p-6 flex flex-col items-center justify-center text-center z-20">
              <ShieldCheck className="w-16 h-16 text-emerald-400 mb-4" />
-             <h3 className="text-2xl font-bold text-white mb-2">¡Ataque Evadido!</h3>
-             <p className="text-sm text-emerald-100 mb-6 font-medium">Detectaste un clásico ataque del "Fraude del CEO" (CEO Fraud Spear-Phishing). Los ciberdelincuentes usan el sentido de urgencia y confidencialidad para robar.</p>
-             <div className="bg-emerald-950 px-6 py-2 rounded font-bold text-emerald-400 mb-6">+250 PTS</div>
-             <Button onClick={() => window.location.href='/challenges'} className="w-full">Volver a Misiones</Button>
+             <h3 className="text-2xl font-bold text-white mb-2">{t('juegos.se_ganaste_titulo')}</h3>
+             <p className="text-sm text-emerald-100 mb-6 font-medium">{t('juegos.se_ganaste_detalle')}</p>
+             <div className="bg-emerald-950 px-6 py-2 rounded font-bold text-emerald-400 mb-6">{t('juegos.se_puntos')}</div>
+             <Button onClick={() => window.location.href='/challenges'} className="w-full">{t('juegos.volver_a_misiones')}</Button>
            </div>
         )}
 
         {gameState === 'lost' && (
            <div className="absolute inset-0 bg-red-900/95 p-6 flex flex-col items-center justify-center text-center z-20">
              <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
-             <h3 className="text-2xl font-bold text-white mb-2">Pérdida Financiera Crítica</h3>
-             <p className="text-sm text-red-100 mb-4 font-medium">Le acabas de enviar el dinero de la empresa a un atacante. La urgencia y pedir discreción son las mayores banderas rojas en la ingeniería social.</p>
-             <p className="mb-6 text-xs text-red-200">0 puntos. El intento quedó registrado en <strong>Mi desempeño</strong>.</p>
-             <Button variant="outline" onClick={() => window.location.href='/performance'} className="w-full text-red-100 border-red-500">Ver qué repasar</Button>
+             <h3 className="text-2xl font-bold text-white mb-2">{t('juegos.se_perdiste_titulo')}</h3>
+             <p className="text-sm text-red-100 mb-4 font-medium">{t('juegos.se_perdiste_detalle')}</p>
+             <p className="mb-6 text-xs text-red-200">{t('juegos.cero_puntos_registrado_en')} <strong>{t('desempeno.titulo')}</strong>.</p>
+             <Button variant="outline" onClick={() => window.location.href='/performance'} className="w-full text-red-100 border-red-500">{t('juegos.ver_que_repasar')}</Button>
            </div>
         )}
       </Card>

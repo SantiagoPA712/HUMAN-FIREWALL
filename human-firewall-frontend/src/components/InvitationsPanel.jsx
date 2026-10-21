@@ -3,8 +3,13 @@ import { MailPlus, RefreshCw, Send, Ban, Clock, CheckCircle2, XCircle, Hourglass
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { api } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
-const ROLES = { employee: 'Empleado', instructor: 'Instructor', rh: 'Recursos Humanos' };
+const ROLES = {
+    employee: 'invitaciones.rol_employee',
+    instructor: 'invitaciones.rol_instructor',
+    rh: 'invitaciones.rol_rh'
+};
 
 const ESTILO_ESTADO = {
     pendiente: { clase: 'bg-brand-blue/15 text-brand-light', icono: Hourglass },
@@ -14,8 +19,12 @@ const ESTILO_ESTADO = {
 };
 
 const ACCIONES = {
-    created: 'Creada', resent: 'Reenviada', cancelled: 'Cancelada',
-    accepted: 'Aceptada', expired: 'Venció', resend_requested: 'Pidió reenvío'
+    created: 'invitaciones.accion_created',
+    resent: 'invitaciones.accion_resent',
+    cancelled: 'invitaciones.accion_cancelled',
+    accepted: 'invitaciones.accion_accepted',
+    expired: 'invitaciones.accion_expired',
+    resend_requested: 'invitaciones.accion_resend_requested'
 };
 
 const fecha = (iso) => iso
@@ -33,6 +42,7 @@ const fecha = (iso) => iso
  * que responde 409 con el estado actual si algo cambio mientras tanto.
  */
 export default function InvitationsPanel() {
+    const { t } = useIdioma();
     const [datos, setDatos] = useState(null);
     const [filtro, setFiltro] = useState('');
     const [email, setEmail] = useState('');
@@ -47,9 +57,9 @@ export default function InvitationsPanel() {
             const { data } = await api.get('/api/invitations', { params: filtro ? { estado: filtro } : {} });
             setDatos(data);
         } catch (e) {
-            setAviso({ tipo: 'error', texto: e.response?.data?.msg || 'No se pudieron cargar las invitaciones' });
+            setAviso({ tipo: 'error', texto: e.response?.data?.msg || t('invitaciones.error_cargar') });
         }
-    }, [filtro]);
+    }, [filtro, t]);
 
     /* eslint-disable-next-line react-hooks/set-state-in-effect */
     useEffect(() => { cargar(); }, [cargar]);
@@ -66,18 +76,18 @@ export default function InvitationsPanel() {
         setAviso(null);
         try {
             const { data } = await api.post('/api/invitations', { email, role: rol, language: idioma || null });
-            setAviso({ tipo: 'ok', texto: `Invitación enviada a ${data.email}.` });
+            setAviso({ tipo: 'ok', texto: t('invitaciones.aviso_enviada', { email: data.email }) });
             setEmail('');
             cargar();
         } catch (err) {
-            setAviso({ tipo: 'error', texto: mensajeDeError(err, 'No se pudo crear la invitación') });
+            setAviso({ tipo: 'error', texto: mensajeDeError(err, t('invitaciones.error_crear')) });
         } finally {
             setTrabajando(false);
         }
     };
 
     const accion = async (inv, tipo) => {
-        if (tipo === 'cancelar' && !window.confirm(`¿Cancelar la invitación de ${inv.email}? El enlace dejará de funcionar.`)) {
+        if (tipo === 'cancelar' && !window.confirm(t('invitaciones.confirmar_cancelar', { email: inv.email }))) {
             return;
         }
         setAviso(null);
@@ -86,11 +96,11 @@ export default function InvitationsPanel() {
             setAviso({
                 tipo: 'ok',
                 texto: tipo === 'reenviar'
-                    ? `Se envió un enlace nuevo a ${inv.email}. El anterior ya no funciona.`
-                    : `Invitación de ${inv.email} cancelada.`
+                    ? t('invitaciones.aviso_reenviada', { email: inv.email })
+                    : t('invitaciones.aviso_cancelada', { email: inv.email })
             });
         } catch (err) {
-            setAviso({ tipo: 'error', texto: mensajeDeError(err, 'No se pudo completar la acción') });
+            setAviso({ tipo: 'error', texto: mensajeDeError(err, t('invitaciones.error_accion')) });
         } finally {
             cargar();
         }
@@ -100,37 +110,37 @@ export default function InvitationsPanel() {
         <div className="space-y-6">
             <Card className="p-6 hover:scale-100">
                 <h3 className="mb-1 flex items-center gap-2 text-lg font-bold">
-                    <MailPlus className="h-5 w-5 text-brand-blue" /> Invitar a una persona
+                    <MailPlus className="h-5 w-5 text-brand-blue" /> {t('invitaciones.invitar_persona')}
                 </h3>
                 <p className="mb-4 text-sm text-text-secondary">
-                    Le llega un correo con un enlace de un solo uso para definir su contraseña. No hace falta compartir credenciales.
+                    {t('invitaciones.invitar_ayuda')}
                 </p>
 
                 <form onSubmit={invitar} className="flex flex-wrap items-end gap-3">
                     <label className="flex min-w-[13.75rem] flex-1 flex-col gap-1 text-sm">
-                        <span className="text-text-secondary">Correo</span>
+                        <span className="text-text-secondary">{t('invitaciones.correo')}</span>
                         <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                               placeholder="nombre@empresa.com"
-                               className="rounded-lg border border-gray-700 bg-bg-deep/50 px-3 py-2 text-white" />
+                               placeholder={t('invitaciones.correo_placeholder')}
+                               className="rounded-lg border border-border-color bg-bg-deep/50 px-3 py-2 text-text-primary" />
                     </label>
                     <label className="flex flex-col gap-1 text-sm">
-                        <span className="text-text-secondary">Rol</span>
+                        <span className="text-text-secondary">{t('invitaciones.rol')}</span>
                         <select value={rol} onChange={e => setRol(e.target.value)}
-                                className="rounded-lg border border-gray-700 bg-bg-deep/50 px-3 py-2 text-white">
-                            {Object.entries(ROLES).map(([valor, nombre]) => <option key={valor} value={valor}>{nombre}</option>)}
+                                className="rounded-lg border border-border-color bg-bg-deep/50 px-3 py-2 text-text-primary">
+                            {Object.entries(ROLES).map(([valor, clave]) => <option key={valor} value={valor}>{t(clave)}</option>)}
                         </select>
                     </label>
                     <label className="flex flex-col gap-1 text-sm">
-                        <span className="text-text-secondary">Idioma del correo</span>
+                        <span className="text-text-secondary">{t('invitaciones.idioma_correo')}</span>
                         <select value={idioma} onChange={e => setIdioma(e.target.value)}
-                                className="rounded-lg border border-gray-700 bg-bg-deep/50 px-3 py-2 text-white">
-                            <option value="">Predeterminado</option>
-                            <option value="es">Español</option>
-                            <option value="en">English</option>
+                                className="rounded-lg border border-border-color bg-bg-deep/50 px-3 py-2 text-text-primary">
+                            <option value="">{t('invitaciones.idioma_predeterminado')}</option>
+                            <option value="es">{t('invitaciones.idioma_es')}</option>
+                            <option value="en">{t('invitaciones.idioma_en')}</option>
                         </select>
                     </label>
                     <Button type="submit" disabled={trabajando} className="py-2">
-                        <Send className="h-4 w-4" /> {trabajando ? 'Enviando…' : 'Enviar invitación'}
+                        <Send className="h-4 w-4" /> {trabajando ? t('invitaciones.enviando') : t('invitaciones.enviar')}
                     </Button>
                 </form>
 
@@ -147,37 +157,41 @@ export default function InvitationsPanel() {
 
             <Card className="p-6 hover:scale-100">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-lg font-bold">Invitaciones</h3>
+                    <h3 className="text-lg font-bold">{t('invitaciones.titulo')}</h3>
                     <div className="flex items-center gap-2">
                         {['', 'pendiente', 'aceptada', 'expirada', 'cancelada'].map(f => (
                             <button key={f || 'todas'} onClick={() => setFiltro(f)}
                                     className={`rounded-full border px-3 py-1 text-xs ${
                                         filtro === f ? 'border-brand-blue bg-brand-blue/15 text-brand-light' : 'border-gray-700 text-text-secondary'
                                     }`}>
-                                {f ? `${f[0].toUpperCase()}${f.slice(1)}s` : 'Todas'}
+                                {f ? t(`invitaciones.filtro_${f}`) : t('invitaciones.filtro_todas')}
                                 {f && datos ? ` (${datos.resumen[f]})` : ''}
                             </button>
                         ))}
-                        <button onClick={cargar} title="Actualizar" className="p-1 text-text-secondary hover:text-white">
+                        <button onClick={cargar} title={t('invitaciones.actualizar')} className="p-1 text-text-secondary hover:text-text-primary">
                             <RefreshCw className="h-4 w-4" />
                         </button>
                     </div>
                 </div>
 
                 {!datos ? (
-                    <p className="py-6 text-center text-sm text-text-secondary">Cargando…</p>
+                    <p className="py-6 text-center text-sm text-text-secondary">{t('invitaciones.cargando')}</p>
                 ) : datos.invitaciones.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-text-secondary">No hay invitaciones {filtro ? `en estado ${filtro}` : 'todavía'}.</p>
+                    <p className="py-6 text-center text-sm text-text-secondary">
+                        {t('invitaciones.sin_invitaciones', {
+                            detalle: filtro ? t('invitaciones.en_estado', { estado: filtro }) : t('invitaciones.todavia')
+                        })}
+                    </p>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full border-collapse text-left text-sm">
                             <thead>
                                 <tr className="border-b border-gray-700 text-gray-400">
-                                    <th className="p-3 font-medium">Correo</th>
-                                    <th className="p-3 font-medium">Rol</th>
-                                    <th className="p-3 font-medium">Estado</th>
-                                    <th className="p-3 font-medium">Vence</th>
-                                    <th className="p-3 font-medium text-right">Acciones</th>
+                                    <th className="p-3 font-medium">{t('invitaciones.correo')}</th>
+                                    <th className="p-3 font-medium">{t('invitaciones.rol')}</th>
+                                    <th className="p-3 font-medium">{t('invitaciones.estado')}</th>
+                                    <th className="p-3 font-medium">{t('invitaciones.vence')}</th>
+                                    <th className="p-3 font-medium text-right">{t('invitaciones.acciones')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -193,33 +207,36 @@ export default function InvitationsPanel() {
                                                         {inv.email}
                                                     </button>
                                                     <p className="text-xs text-gray-500">
-                                                        por {inv.invited_by_email || 'admin eliminado'} · {inv.send_count} envío{inv.send_count > 1 ? 's' : ''}
+                                                        {t(inv.send_count > 1 ? 'invitaciones.por_envios' : 'invitaciones.por_envio', {
+                                                            quien: inv.invited_by_email || t('invitaciones.admin_eliminado'),
+                                                            n: inv.send_count
+                                                        })}
                                                     </p>
                                                 </td>
-                                                <td className="p-3">{ROLES[inv.role] || inv.role}</td>
+                                                <td className="p-3">{ROLES[inv.role] ? t(ROLES[inv.role]) : inv.role}</td>
                                                 <td className="p-3">
                                                     <span className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-bold ${estilo.clase}`}>
                                                         <Icono className="h-3.5 w-3.5" /> {inv.estado}
                                                     </span>
                                                     {inv.resend_requested_at && inv.estado === 'expirada' && (
-                                                        <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-300" title="La persona pidió un enlace nuevo">
-                                                            <BellRing className="h-3.5 w-3.5" /> pidió reenvío
+                                                        <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-300" title={t('invitaciones.pidio_reenvio_titulo')}>
+                                                            <BellRing className="h-3.5 w-3.5" /> {t('invitaciones.pidio_reenvio')}
                                                         </span>
                                                     )}
                                                 </td>
                                                 <td className="p-3 text-xs text-text-secondary">
-                                                    {inv.estado === 'aceptada' ? `aceptada ${fecha(inv.accepted_at)}` : fecha(inv.expires_at)}
+                                                    {inv.estado === 'aceptada' ? t('invitaciones.aceptada_el', { fecha: fecha(inv.accepted_at) }) : fecha(inv.expires_at)}
                                                 </td>
                                                 <td className="p-3 text-right">
                                                     {accionable && (
                                                         <div className="inline-flex gap-2">
                                                             <button onClick={() => accion(inv, 'reenviar')}
                                                                     className="inline-flex items-center gap-1 rounded-lg border border-gray-600 px-2 py-1 text-xs hover:bg-gray-800">
-                                                                <Send className="h-3.5 w-3.5" /> Reenviar
+                                                                <Send className="h-3.5 w-3.5" /> {t('invitaciones.reenviar')}
                                                             </button>
                                                             <button onClick={() => accion(inv, 'cancelar')}
                                                                     className="inline-flex items-center gap-1 rounded-lg border border-red-500/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/10">
-                                                                <Ban className="h-3.5 w-3.5" /> Cancelar
+                                                                <Ban className="h-3.5 w-3.5" /> {t('invitaciones.cancelar')}
                                                             </button>
                                                         </div>
                                                     )}
@@ -228,12 +245,12 @@ export default function InvitationsPanel() {
                                             {abierta === inv.id && (
                                                 <tr className="border-b border-gray-800 bg-gray-900/40">
                                                     <td colSpan={5} className="px-6 py-3">
-                                                        <p className="mb-2 text-xs font-semibold text-text-secondary">Historial</p>
+                                                        <p className="mb-2 text-xs font-semibold text-text-secondary">{t('invitaciones.historial')}</p>
                                                         <ol className="space-y-1 text-xs">
                                                             {inv.historial.map((h, i) => (
                                                                 <li key={i} className="flex gap-3">
                                                                     <span className="w-28 text-text-secondary">{fecha(h.en)}</span>
-                                                                    <span>{ACCIONES[h.accion] || h.accion}</span>
+                                                                    <span>{ACCIONES[h.accion] ? t(ACCIONES[h.accion]) : h.accion}</span>
                                                                 </li>
                                                             ))}
                                                         </ol>

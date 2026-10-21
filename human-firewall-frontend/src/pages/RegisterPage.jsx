@@ -5,8 +5,10 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { ThemeToggle } from '../components/ThemeToggle';
 import api from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 export default function RegisterPage() {
+  const { t } = useIdioma();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,7 +36,7 @@ export default function RegisterPage() {
       localStorage.setItem('token', res.data.token);
       window.location.href = '/dashboard';
     } catch (err) {
-      setError(err.response?.data?.msg || "Error de conexión al servidor de registro.");
+      setError(err.response?.data?.msg || t('acceso.error_conexion_registro'));
     } finally {
       setIsLoading(false);
     }
@@ -52,8 +54,8 @@ export default function RegisterPage() {
         <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4 border border-brand-blue/30 shadow-[0_0_15px_rgba(37,99,235,0.2)]">
           <UserPlus className="w-8 h-8 text-brand-blue" />
         </div>
-        <h1 className="text-3xl font-bold">Únete a Human Firewall</h1>
-        <p className="text-text-secondary mt-2">Dile adiós a las vulnerabilidades humanas. Comienza tu entrenamiento.</p>
+        <h1 className="text-3xl font-bold">{t('acceso.registro_titulo')}</h1>
+        <p className="text-text-secondary mt-2">{t('acceso.registro_subtitulo')}</p>
       </div>
 
       <Card className="w-full max-w-md z-10 border border-gray-800 bg-bg-deep/80 backdrop-blur-xl">
@@ -66,9 +68,9 @@ export default function RegisterPage() {
 
           <Input
             icon={Mail}
-            label="Correo Corporativo"
+            label={t('acceso.correo_corporativo')}
             type="email"
-            placeholder="nuevo_usuario@empresa.com"
+            placeholder={t('acceso.correo_corporativo_placeholder')}
             className="bg-transparent"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -77,7 +79,7 @@ export default function RegisterPage() {
 
           <Input
             icon={Lock}
-            label="Contraseña"
+            label={t('acceso.contrasena')}
             type="password"
             placeholder="••••••••"
             className="bg-transparent"
@@ -88,7 +90,7 @@ export default function RegisterPage() {
 
           <Input
             icon={Lock}
-            label="Confirmar Contraseña"
+            label={t('acceso.confirmar_contrasena')}
             type="password"
             placeholder="••••••••"
             className="bg-transparent"
@@ -98,17 +100,17 @@ export default function RegisterPage() {
           />
 
           <Button type="submit" className="w-full mt-4 py-3 text-lg" disabled={isLoading}>
-            {isLoading ? "Creando perfil e Inscribiendo..." : "Crear mi cuenta gratuita"}
+            {isLoading ? t('acceso.creando_perfil') : t('acceso.crear_mi_cuenta')}
           </Button>
 
           <div className="relative flex items-center py-4">
             <div className="flex-grow border-t border-gray-800"></div>
-            <span className="flex-shrink-0 mx-4 text-text-secondary text-sm">¿Ya tienes cuenta?</span>
+            <span className="flex-shrink-0 mx-4 text-text-secondary text-sm">{t('acceso.ya_tenes_cuenta')}</span>
             <div className="flex-grow border-t border-gray-800"></div>
           </div>
 
           <Button type="button" variant="outline" className="w-full border-gray-700 text-gray-300 hover:bg-gray-800" onClick={() => window.location.href = '/login'}>
-            Inicia sesión aquí
+            {t('acceso.inicia_sesion_aqui')}
           </Button>
 
         </form>

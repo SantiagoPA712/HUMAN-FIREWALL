@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { api } from '../../lib/api';
 import { usePuntos } from '../../context/PuntosContext';
+import { useIdioma } from '../../context/useIdioma';
 
 /**
  * Reproductor de simulaciones guiadas.
@@ -28,6 +29,7 @@ import { usePuntos } from '../../context/PuntosContext';
  */
 export default function SimulationPlayer() {
     const { id } = useParams();
+    const { t } = useIdioma();
     const { notificarPuntos, refrescar } = usePuntos();
 
     const [simulacion, setSimulacion] = useState(null);
@@ -46,8 +48,8 @@ export default function SimulationPlayer() {
                 setSimulacion(data);
                 setError(null);
             })
-            .catch((e) => setError(e.response?.data?.msg || 'No se pudo cargar la simulación'));
-    }, [id]);
+            .catch((e) => setError(e.response?.data?.msg || t('juegos.sp_error_cargar')));
+    }, [id, t]);
 
     const pasos = simulacion?.steps || [];
     const paso = pasos[pasoActual];
@@ -75,7 +77,7 @@ export default function SimulationPlayer() {
                 notificarPuntos(data.puntos_estimados, simulacion.title);
             }
         } catch (e) {
-            setError(e.response?.data?.msg || 'No se pudo registrar tu decisión');
+            setError(e.response?.data?.msg || t('juegos.sp_error_decision'));
         } finally {
             setEnviando(false);
         }
@@ -99,7 +101,7 @@ export default function SimulationPlayer() {
             setResultado(data);
             refrescar();
         } catch (e) {
-            setError(e.response?.data?.msg || 'No se pudo cerrar la simulación');
+            setError(e.response?.data?.msg || t('juegos.sp_error_cerrar'));
         } finally {
             setEnviando(false);
         }
@@ -119,7 +121,7 @@ export default function SimulationPlayer() {
                 <Card className="border-l-4 border-l-red-500 p-6">
                     <p className="text-red-400">{error}</p>
                     <a href="/challenges" className="mt-4 inline-block text-brand-light hover:underline">
-                        Volver a desafíos
+                        {t('juegos.sp_volver_desafios')}
                     </a>
                 </Card>
             </Pantalla>
@@ -127,16 +129,16 @@ export default function SimulationPlayer() {
     }
 
     if (!simulacion) {
-        return <Pantalla><p className="text-text-secondary">Cargando simulación…</p></Pantalla>;
+        return <Pantalla><p className="text-text-secondary">{t('juegos.sp_cargando')}</p></Pantalla>;
     }
 
     if (pasos.length === 0) {
         return (
             <Pantalla>
                 <Card className="p-8 text-center">
-                    <p className="font-semibold">Esta simulación todavía no tiene pasos cargados</p>
+                    <p className="font-semibold">{t('juegos.sp_sin_pasos')}</p>
                     <p className="mt-1 text-sm text-text-secondary">
-                        Un instructor tiene que agregarle escenarios antes de que se pueda jugar.
+                        {t('juegos.sp_sin_pasos_ayuda')}
                     </p>
                 </Card>
             </Pantalla>
@@ -154,10 +156,10 @@ export default function SimulationPlayer() {
                         : <XCircle className="mx-auto mb-5 h-16 w-16 text-red-500" />}
 
                     <h2 className="mb-2 text-3xl font-bold">
-                        {aprobada ? '¡Simulación superada!' : 'Simulación no superada'}
+                        {aprobada ? t('juegos.sp_superada') : t('juegos.sp_no_superada')}
                     </h2>
                     <p className="mb-6 text-text-secondary">
-                        Acertaste {resultado.aciertos} de {resultado.pasos} decisiones.
+                        {t('juegos.sp_aciertos', { aciertos: resultado.aciertos, pasos: resultado.pasos })}
                     </p>
 
                     <div className={`mx-auto mb-6 w-fit rounded-full px-6 py-3 text-2xl font-black ${
@@ -168,16 +170,16 @@ export default function SimulationPlayer() {
 
                     <p className="mb-8 text-sm text-text-secondary">
                         {aprobada
-                            ? 'El intento quedó registrado en tu historial de desempeño.'
-                            : 'El intento quedó registrado. Vas a ver este tema en Mi desempeño, con las lecciones que conviene repasar.'}
+                            ? t('juegos.sp_registrado_aprobada')
+                            : t('juegos.sp_registrado_reprobada')}
                     </p>
 
                     <div className="flex flex-col gap-3 sm:flex-row">
                         <Button className="flex-1" onClick={() => window.location.href = '/performance'}>
-                            Ver mi desempeño
+                            {t('juegos.sp_ver_desempeno')}
                         </Button>
                         <Button variant="outline" className="flex-1 border-gray-700" onClick={reiniciar}>
-                            <RotateCcw className="mr-2 h-4 w-4" /> Intentar de nuevo
+                            <RotateCcw className="mr-2 h-4 w-4" /> {t('juegos.sp_intentar_de_nuevo')}
                         </Button>
                     </div>
                 </Card>
@@ -190,7 +192,7 @@ export default function SimulationPlayer() {
         <Pantalla>
             <div className="mb-6">
                 <div className="mb-2 flex items-center justify-between text-sm text-text-secondary">
-                    <span>Paso {pasoActual + 1} de {pasos.length}</span>
+                    <span>{t('juegos.sp_paso', { n: pasoActual + 1, total: pasos.length })}</span>
                     <span>{simulacion.difficulty}</span>
                 </div>
                 {/* Barra de avance por pasos, no por puntaje. */}
@@ -205,7 +207,7 @@ export default function SimulationPlayer() {
             <Card className="mb-6 p-8">
                 <div className="mb-4 flex items-center gap-2 text-brand-light">
                     <Target className="h-5 w-5" />
-                    <span className="text-sm font-semibold uppercase tracking-wider">Escenario</span>
+                    <span className="text-sm font-semibold uppercase tracking-wider">{t('juegos.sp_escenario')}</span>
                 </div>
                 <p className="text-lg leading-relaxed">{paso.scenario_text}</p>
             </Card>
@@ -245,10 +247,10 @@ export default function SimulationPlayer() {
             {respuesta && (
                 <Card className={`mt-6 p-6 ${respuesta.is_correct ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-red-500'}`}>
                     <p className={`mb-2 font-bold ${respuesta.is_correct ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {respuesta.is_correct ? 'Decisión correcta' : 'Decisión incorrecta'}
+                        {respuesta.is_correct ? t('juegos.sp_decision_correcta') : t('juegos.sp_decision_incorrecta')}
                         {respuesta.puntos_estimados > 0 && (
                             <span className="ml-2 text-sm font-normal text-brand-light">
-                                +{respuesta.puntos_estimados} pts
+                                {t('juegos.sp_mas_pts', { n: respuesta.puntos_estimados })}
                             </span>
                         )}
                     </p>
@@ -257,12 +259,12 @@ export default function SimulationPlayer() {
                     )}
                     {respuesta.ya_contabilizada && (
                         <p className="mt-2 text-xs text-text-secondary">
-                            Ya habías ganado los puntos de esta opción en un intento anterior.
+                            {t('juegos.sp_ya_contabilizada')}
                         </p>
                     )}
 
                     <Button className="mt-5 w-full" onClick={continuar} disabled={enviando}>
-                        {esUltimo ? 'Terminar simulación' : 'Siguiente paso'}
+                        {esUltimo ? t('juegos.sp_terminar') : t('juegos.sp_siguiente_paso')}
                     </Button>
                 </Card>
             )}
@@ -272,15 +274,17 @@ export default function SimulationPlayer() {
 
 /** Marco comun, para no repetir la cabecera en cada estado de la pantalla. */
 function Pantalla({ children }) {
+    const { t } = useIdioma();
+
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-3xl">
                 <a href="/challenges" className="mb-6 inline-flex items-center gap-2 text-text-secondary hover:text-white">
-                    <ArrowLeft className="h-4 w-4" /> Volver a desafíos
+                    <ArrowLeft className="h-4 w-4" /> {t('juegos.sp_volver_desafios')}
                 </a>
                 <div className="mb-8 flex items-center gap-3">
                     <ShieldCheck className="h-7 w-7 text-brand-blue" />
-                    <h1 className="text-2xl font-bold">Simulación interactiva</h1>
+                    <h1 className="text-2xl font-bold">{t('juegos.sp_titulo')}</h1>
                 </div>
                 {children}
             </div>

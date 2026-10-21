@@ -4,8 +4,13 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import api from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
-const ROLES = { employee: 'Empleado', instructor: 'Instructor', rh: 'Recursos Humanos' };
+const ROLES = {
+    employee: 'invitaciones.rol_employee',
+    instructor: 'invitaciones.rol_instructor',
+    rh: 'invitaciones.rol_rh'
+};
 
 /**
  * Completar el registro desde una invitacion (HU de invitaciones).
@@ -20,6 +25,7 @@ const ROLES = { employee: 'Empleado', instructor: 'Instructor', rh: 'Recursos Hu
  *   rechazada -> inexistente, ya usada o cancelada: sin formulario (CT 2)
  */
 export default function AcceptInvitationPage() {
+    const { t } = useIdioma();
     const token = new URLSearchParams(window.location.search).get('token') || '';
 
     const [estado, setEstado] = useState('cargando');
@@ -36,7 +42,7 @@ export default function AcceptInvitationPage() {
 
     const aplicarRechazo = (e) => {
         const cuerpo = e.response?.data;
-        setRechazo(cuerpo || { msg: 'No se pudo verificar la invitacion. Intenta mas tarde.' });
+        setRechazo(cuerpo || { msg: t('invitaciones.error_verificar') });
         if (cuerpo?.reenvio_solicitado) setReenvio('ya');
         setEstado(cuerpo?.motivo === 'expirada' ? 'expirada' : 'rechazada');
     };
@@ -44,7 +50,7 @@ export default function AcceptInvitationPage() {
     useEffect(() => {
         if (!token) {
             /* eslint-disable-next-line react-hooks/set-state-in-effect */
-            setRechazo({ msg: 'El enlace de invitacion esta incompleto. Abrilo tal cual llego en el correo.' });
+            setRechazo({ msg: t('invitaciones.enlace_incompleto') });
             setEstado('rechazada');
             return;
         }
@@ -55,6 +61,10 @@ export default function AcceptInvitationPage() {
                 setEstado('form');
             })
             .catch(aplicarRechazo);
+        // Corre una sola vez, al abrir el enlace. `t` y `aplicarRechazo` quedan
+        // fuera a proposito: meterlos volveria a validar el token contra el
+        // servidor cada vez que cambie el idioma, y el token se valida una vez.
+        /* eslint-disable-next-line react-hooks/exhaustive-deps */
     }, [token]);
 
     const completar = async (e) => {
@@ -62,7 +72,7 @@ export default function AcceptInvitationPage() {
         setError(null);
 
         if (password !== confirmacion) {
-            return setError('Las contraseñas no coinciden.');
+            return setError(t('invitaciones.password_no_coincide'));
         }
 
         setEnviando(true);
@@ -83,7 +93,7 @@ export default function AcceptInvitationPage() {
                 // El enlace dejo de servir mientras completaba el formulario.
                 aplicarRechazo(err);
             } else {
-                setError(cuerpo?.msg || 'No se pudo completar el registro.');
+                setError(cuerpo?.msg || t('invitaciones.error_registro'));
             }
         } finally {
             setEnviando(false);
@@ -95,7 +105,7 @@ export default function AcceptInvitationPage() {
             const { data } = await api.post('/api/invitations/solicitar-reenvio', { token });
             setReenvio(data.ya_solicitado ? 'ya' : 'enviado');
         } catch (err) {
-            setRechazo(err.response?.data || { msg: 'No se pudo enviar el pedido.' });
+            setRechazo(err.response?.data || { msg: t('invitaciones.error_pedido') });
         }
     };
 
@@ -107,23 +117,25 @@ export default function AcceptInvitationPage() {
                 <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4 border border-brand-blue/30 shadow-[0_0_15px_rgba(37,99,235,0.2)]">
                     <MailCheck className="w-8 h-8 text-brand-blue" />
                 </div>
-                <h1 className="text-3xl font-bold">Completá tu registro</h1>
-                <p className="text-text-secondary mt-2">Te invitaron a Human Firewall.</p>
+                <h1 className="text-3xl font-bold">{t('invitaciones.completa_registro')}</h1>
+                <p className="text-text-secondary mt-2">{t('invitaciones.te_invitaron')}</p>
             </div>
 
             <Card className="w-full max-w-md z-10 border border-gray-800 bg-bg-deep/80 backdrop-blur-xl hover:scale-100">
                 {estado === 'cargando' && (
-                    <p className="py-6 text-center text-text-secondary">Verificando tu invitación…</p>
+                    <p className="py-6 text-center text-text-secondary">{t('invitaciones.verificando')}</p>
                 )}
 
                 {estado === 'form' && invitacion && (
                     <form onSubmit={completar} className="flex flex-col gap-5">
                         <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-4 text-sm">
-                            <p><span className="text-text-secondary">Correo:</span> <strong>{invitacion.email}</strong></p>
-                            <p className="mt-1"><span className="text-text-secondary">Rol asignado:</span> <strong>{ROLES[invitacion.role] || invitacion.role}</strong></p>
+                            <p><span className="text-text-secondary">{t('invitaciones.correo_etiqueta')}</span> <strong>{invitacion.email}</strong></p>
+                            <p className="mt-1"><span className="text-text-secondary">{t('invitaciones.rol_asignado')}</span> <strong>{ROLES[invitacion.role] ? t(ROLES[invitacion.role]) : invitacion.role}</strong></p>
                             <p className="mt-1 flex items-center gap-1 text-xs text-text-secondary">
                                 <Clock className="h-3.5 w-3.5" />
-                                Vence el {new Date(invitacion.expires_at).toLocaleString('es', { dateStyle: 'long', timeStyle: 'short' })}
+                                {t('invitaciones.vence_el', {
+                                    fecha: new Date(invitacion.expires_at).toLocaleString('es', { dateStyle: 'long', timeStyle: 'short' })
+                                })}
                             </p>
                         </div>
 
@@ -133,33 +145,33 @@ export default function AcceptInvitationPage() {
                             </div>
                         )}
 
-                        <Input icon={User} label="Nombre completo" placeholder="Ana Pérez"
+                        <Input icon={User} label={t('invitaciones.nombre_completo')} placeholder={t('invitaciones.nombre_placeholder')}
                                className="bg-transparent" value={nombre}
                                onChange={e => setNombre(e.target.value)} required minLength={2} maxLength={150} />
 
-                        <Input icon={Lock} label="Contraseña" type="password" placeholder="••••••••"
+                        <Input icon={Lock} label={t('invitaciones.contrasena')} type="password" placeholder="••••••••"
                                className="bg-transparent" value={password}
                                onChange={e => setPassword(e.target.value)} required />
-                        <p className="-mt-3 text-xs text-text-secondary">Mínimo 8 caracteres, con al menos una mayúscula y un número.</p>
+                        <p className="-mt-3 text-xs text-text-secondary">{t('invitaciones.contrasena_ayuda')}</p>
 
-                        <Input icon={Lock} label="Confirmar contraseña" type="password" placeholder="••••••••"
+                        <Input icon={Lock} label={t('invitaciones.confirmar_contrasena')} type="password" placeholder="••••••••"
                                className="bg-transparent" value={confirmacion}
                                onChange={e => setConfirmacion(e.target.value)} required />
 
                         <label className="flex flex-col gap-2 text-sm">
                             <span className="flex items-center gap-2 font-semibold text-text-secondary">
-                                <Languages className="h-4 w-4" /> Idioma de los correos
+                                <Languages className="h-4 w-4" /> {t('invitaciones.idioma_correos')}
                             </span>
                             <select value={idioma} onChange={e => setIdioma(e.target.value)}
                                     className="rounded-lg border border-gray-700 bg-bg-deep/50 px-4 py-3 text-white">
-                                <option value="">Predeterminado de la plataforma</option>
-                                <option value="es">Español</option>
-                                <option value="en">English</option>
+                                <option value="">{t('invitaciones.idioma_plataforma')}</option>
+                                <option value="es">{t('invitaciones.idioma_es')}</option>
+                                <option value="en">{t('invitaciones.idioma_en')}</option>
                             </select>
                         </label>
 
                         <Button type="submit" className="w-full mt-2" disabled={enviando}>
-                            {enviando ? 'Activando tu cuenta…' : 'Activar mi cuenta'}
+                            {enviando ? t('invitaciones.activando') : t('invitaciones.activar')}
                         </Button>
                     </form>
                 )}
@@ -167,19 +179,19 @@ export default function AcceptInvitationPage() {
                 {estado === 'expirada' && (
                     <div className="flex flex-col items-center gap-4 text-center">
                         <Clock className="h-10 w-10 text-amber-400" />
-                        <h2 className="text-xl font-bold">Tu invitación venció</h2>
+                        <h2 className="text-xl font-bold">{t('invitaciones.vencio_titulo')}</h2>
                         <p className="text-sm text-text-secondary">{rechazo?.msg}</p>
 
                         {reenvio ? (
                             <p className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
                                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                                 {reenvio === 'ya'
-                                    ? 'Ya pediste una nueva invitación. El administrador te la va a reenviar a tu correo.'
-                                    : 'Listo: le avisamos al administrador. Te va a llegar una nueva invitación a tu correo.'}
+                                    ? t('invitaciones.reenvio_ya')
+                                    : t('invitaciones.reenvio_enviado')}
                             </p>
                         ) : (
                             <Button onClick={pedirReenvio} className="w-full">
-                                <Send className="h-4 w-4" /> Solicitar una nueva invitación
+                                <Send className="h-4 w-4" /> {t('invitaciones.solicitar_nueva')}
                             </Button>
                         )}
                     </div>
@@ -188,11 +200,11 @@ export default function AcceptInvitationPage() {
                 {estado === 'rechazada' && (
                     <div className="flex flex-col items-center gap-4 text-center">
                         <XCircle className="h-10 w-10 text-red-400" />
-                        <h2 className="text-xl font-bold">No podemos usar este enlace</h2>
+                        <h2 className="text-xl font-bold">{t('invitaciones.enlace_invalido_titulo')}</h2>
                         <p className="text-sm text-text-secondary">{rechazo?.msg}</p>
                         <Button variant="outline" className="w-full border-gray-700 text-gray-300 hover:bg-gray-800"
                                 onClick={() => { window.location.href = '/login'; }}>
-                            Ir a iniciar sesión
+                            {t('invitaciones.ir_a_login')}
                         </Button>
                     </div>
                 )}

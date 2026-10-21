@@ -3,21 +3,31 @@ import { ShieldCheck, ArrowLeft, Award, Lock, Trophy } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
-const TEXTO_CONDICION = {
-    points_total:      (n) => `Alcanzá ${n} puntos`,
-    lessons_completed: (n) => `Completá ${n} ${n === 1 ? 'lección' : 'lecciones'}`,
-    courses_completed: (n) => `Finalizá ${n} ${n === 1 ? 'curso' : 'cursos'}`,
-    quizzes_approved:  (n) => `Aprobá ${n} ${n === 1 ? 'evaluación' : 'evaluaciones'}`,
-    quiz_streak:       (n) => `Aprobá ${n} evaluaciones seguidas`
+// Los mapas guardan la CLAVE del texto, no el texto: asi se resuelven con t()
+// en cada render y cambian de idioma solos.
+//
+// `claveUno` es la forma en singular, para los umbrales de 1.
+const CONDICION = {
+    points_total:      { clave: 'recompensas.condicion_puntos' },
+    lessons_completed: { clave: 'recompensas.condicion_lecciones',    claveUno: 'recompensas.condicion_leccion' },
+    courses_completed: { clave: 'recompensas.condicion_cursos',       claveUno: 'recompensas.condicion_curso' },
+    quizzes_approved:  { clave: 'recompensas.condicion_evaluaciones', claveUno: 'recompensas.condicion_evaluacion' },
+    quiz_streak:       { clave: 'recompensas.condicion_racha' }
 };
 
 const ORIGEN = {
-    lesson: 'lección', quiz: 'evaluación', course: 'curso',
-    challenge: 'desafío', manual: 'asignación manual', points_assigned: 'puntos acumulados'
+    lesson: 'recompensas.origen_leccion',
+    quiz: 'recompensas.origen_evaluacion',
+    course: 'recompensas.origen_curso',
+    challenge: 'recompensas.origen_desafio',
+    manual: 'recompensas.origen_manual',
+    points_assigned: 'recompensas.origen_puntos'
 };
 
 export default function RewardsGallery() {
+    const { t, idioma } = useIdioma();
     const [datos, setDatos] = useState(null);
     const [error, setError] = useState(null);
     const [detalle, setDetalle] = useState(null);
@@ -27,21 +37,25 @@ export default function RewardsGallery() {
         if (!usuario) { window.location.href = '/login'; return; }
         api.get(`/api/gamification/rewards/${usuario.id}`)
             .then(({ data }) => { setDatos(data); setError(null); })
-            .catch((e) => setError(e.response?.data?.msg || 'No se pudieron cargar tus logros'));
-    }, [usuario?.id]);
+            .catch((e) => setError(e.response?.data?.msg || t('recompensas.error_carga')));
+    }, [usuario?.id, t]);
 
     const formatearFecha = (iso) =>
-        new Date(iso).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' });
+        new Date(iso).toLocaleDateString(idioma, { day: '2-digit', month: 'long', year: 'numeric' });
 
-    const describir = (tipo, umbral) =>
-        (TEXTO_CONDICION[tipo] || (() => 'Condición especial'))(umbral);
+    const describir = (tipo, umbral) => {
+        const condicion = CONDICION[tipo];
+        if (!condicion) return t('recompensas.condicion_especial');
+        const clave = (umbral === 1 && condicion.claveUno) ? condicion.claveUno : condicion.clave;
+        return t(clave, { n: umbral });
+    };
 
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-5xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {t('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
@@ -50,15 +64,15 @@ export default function RewardsGallery() {
                     <div>
                         <h1 className="flex items-center gap-3 text-3xl font-bold">
                             <ShieldCheck className="h-8 w-8 text-brand-blue" />
-                            Mis logros
+                            {t('recompensas.titulo')}
                         </h1>
                         <p className="mt-1 text-text-secondary">
-                            Las insignias que ganaste y las que todavía podés desbloquear.
+                            {t('recompensas.subtitulo')}
                         </p>
                     </div>
                     {datos && (
                         <div className="text-right">
-                            <p className="text-sm text-text-secondary">Obtenidas</p>
+                            <p className="text-sm text-text-secondary">{t('recompensas.obtenidas')}</p>
                             <p className="text-3xl font-black text-brand-blue">{datos.total_obtenidas}</p>
                         </div>
                     )}
@@ -69,17 +83,17 @@ export default function RewardsGallery() {
                         <p className="text-red-400">{error}</p>
                     </Card>
                 )}
-                {!error && !datos && <p className="text-text-secondary">Cargando…</p>}
+                {!error && !datos && <p className="text-text-secondary">{t('comun.cargando')}</p>}
 
                 {datos && (
                     <>
-                        <h2 className="mb-4 text-xl font-bold">Obtenidas</h2>
+                        <h2 className="mb-4 text-xl font-bold">{t('recompensas.obtenidas')}</h2>
                         {datos.obtenidas.length === 0 ? (
                             <Card className="mb-10 p-10 text-center">
                                 <Trophy className="mx-auto mb-4 h-10 w-10 text-text-secondary" />
-                                <p className="font-semibold">Todavía no desbloqueaste ninguna</p>
+                                <p className="font-semibold">{t('recompensas.sin_recompensas')}</p>
                                 <p className="mt-1 text-sm text-text-secondary">
-                                    Completá una lección para ganar tu primera insignia.
+                                    {t('recompensas.sin_recompensas_ayuda')}
                                 </p>
                             </Card>
                         ) : (
@@ -118,10 +132,10 @@ export default function RewardsGallery() {
                             </div>
                         )}
 
-                        <h2 className="mb-4 text-xl font-bold">Por desbloquear</h2>
+                        <h2 className="mb-4 text-xl font-bold">{t('recompensas.bloqueadas')}</h2>
                         {datos.bloqueadas.length === 0 ? (
                             <Card className="p-8 text-center">
-                                <p className="font-semibold">Las ganaste todas</p>
+                                <p className="font-semibold">{t('recompensas.todas_obtenidas')}</p>
                             </Card>
                         ) : (
                             <div className="grid grid-ajustable [--ancho-columna:16rem] gap-4">
@@ -179,16 +193,20 @@ export default function RewardsGallery() {
                         )}
                         <dl className="space-y-1 text-sm">
                             <div className="flex justify-between">
-                                <dt className="text-text-secondary">Obtenida el</dt>
+                                <dt className="text-text-secondary">{t('recompensas.obtenida_el')}</dt>
                                 <dd>{formatearFecha(detalle.earned_at)}</dd>
                             </div>
                             <div className="flex justify-between">
-                                <dt className="text-text-secondary">Origen</dt>
-                                <dd>{ORIGEN[detalle.source_type] || detalle.source_type || '—'}</dd>
+                                <dt className="text-text-secondary">{t('recompensas.origen')}</dt>
+                                <dd>
+                                    {ORIGEN[detalle.source_type]
+                                        ? t(ORIGEN[detalle.source_type])
+                                        : detalle.source_type || '—'}
+                                </dd>
                             </div>
                             {detalle.condition_snapshot?.threshold != null && (
                                 <div className="flex justify-between">
-                                    <dt className="text-text-secondary">Condición</dt>
+                                    <dt className="text-text-secondary">{t('recompensas.condicion')}</dt>
                                     <dd>{describir(detalle.condition_snapshot.condition_type, detalle.condition_snapshot.threshold)}</dd>
                                 </div>
                             )}
@@ -197,7 +215,7 @@ export default function RewardsGallery() {
                             onClick={() => setDetalle(null)}
                             className="mt-6 w-full rounded-lg border border-gray-700 px-4 py-2 hover:border-brand-blue/60"
                         >
-                            Cerrar
+                            {t('comun.cerrar')}
                         </button>
                     </div>
                 </div>

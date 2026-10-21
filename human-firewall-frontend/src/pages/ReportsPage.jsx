@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 /**
  * Reportes de desempeno para RH.
@@ -19,6 +20,10 @@ import { api, getUsuarioActual } from '../lib/api';
  * los umbrales de nivel o las reglas de puntuacion, este archivo no se toca.
  */
 export default function ReportsPage() {
+    // Entra como `traducir` y no como `t`: las listas de equipos y cursos ya
+    // usan `t` como parametro de sus .map, y el nombre corto quedaria tapado
+    // justo adentro de esos dos .map.
+    const { t: traducir } = useIdioma();
     const usuario = getUsuarioActual();
 
     const [filtros, setFiltros] = useState({ from: '', to: '', team_id: '', course_id: '' });
@@ -72,13 +77,13 @@ export default function ReportsPage() {
             if (e.response?.status === 400 && e.response.data?.errores) {
                 setErroresCampo(e.response.data.errores);
             } else {
-                setError(e.response?.data?.msg || 'No se pudo cargar el reporte');
+                setError(e.response?.data?.msg || traducir('reportes.error_cargar'));
             }
             setDatos(null);
         } finally {
             setCargando(false);
         }
-    }, [autorizado, parametros]);
+    }, [autorizado, parametros, traducir]);
 
     // Primera carga. Los cambios de filtro se aplican con el boton, no al
     // teclear: una consulta por cada tecla en un campo de fecha seria una
@@ -167,17 +172,17 @@ export default function ReportsPage() {
                 const info = JSON.parse(texto);
                 setAvisoExport({
                     tipo: 'encolado',
-                    mensaje: `El reporte tiene ${info.registros} registros y se está generando en segundo plano.`,
+                    mensaje: traducir('reportes.export_encolado', { registros: info.registros }),
                     exportId: info.export_id
                 });
                 return;
             }
 
             const nombre = guardarArchivo(respuesta, `reporte.${formato}`);
-            setAvisoExport({ tipo: 'listo', mensaje: `Descargado ${nombre}` });
+            setAvisoExport({ tipo: 'listo', mensaje: traducir('reportes.descargado', { nombre }) });
 
         } catch (e) {
-            setAvisoExport({ tipo: 'error', mensaje: await mensajeDeError(e, 'No se pudo exportar') });
+            setAvisoExport({ tipo: 'error', mensaje: await mensajeDeError(e, traducir('reportes.error_exportar')) });
         } finally {
             setExportando(null);
         }
@@ -211,12 +216,12 @@ export default function ReportsPage() {
                 { responseType: 'blob' }
             );
             const nombre = guardarArchivo(respuesta, 'reporte-desempeno');
-            setAvisoExport({ tipo: 'listo', mensaje: `Descargado ${nombre}` });
+            setAvisoExport({ tipo: 'listo', mensaje: traducir('reportes.descargado', { nombre }) });
 
         } catch (e) {
             setAvisoExport({
                 tipo: 'error',
-                mensaje: await mensajeDeError(e, 'No se pudo descargar el archivo'),
+                mensaje: await mensajeDeError(e, traducir('reportes.error_descargar')),
                 exportId
             });
         } finally {
@@ -229,12 +234,20 @@ export default function ReportsPage() {
         try {
             const { data } = await api.get(`/api/gamification/reports/exports/${exportId}`);
             if (data.listo) {
-                setAvisoExport({ tipo: 'descargable', mensaje: `Listo: ${data.registros} registros.`, exportId });
+                setAvisoExport({
+                    tipo: 'descargable',
+                    mensaje: traducir('reportes.export_listo', { registros: data.registros }),
+                    exportId
+                });
             } else {
-                setAvisoExport({ tipo: 'encolado', mensaje: `Todavía se está generando (${data.estado}).`, exportId });
+                setAvisoExport({
+                    tipo: 'encolado',
+                    mensaje: traducir('reportes.export_generando', { estado: data.estado }),
+                    exportId
+                });
             }
         } catch {
-            setAvisoExport({ tipo: 'error', mensaje: 'No se pudo consultar el estado' });
+            setAvisoExport({ tipo: 'error', mensaje: traducir('reportes.error_estado') });
         }
     };
 
@@ -243,9 +256,9 @@ export default function ReportsPage() {
             <Marco>
                 <Card className="border-l-4 border-l-red-500 p-8 text-center">
                     <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-red-500" />
-                    <p className="font-bold">Esta sección es solo para Recursos Humanos</p>
+                    <p className="font-bold">{traducir('reportes.sin_permiso_titulo')}</p>
                     <p className="mt-1 text-sm text-text-secondary">
-                        Tu cuenta no tiene permisos para ver reportes de la organización.
+                        {traducir('reportes.sin_permiso_detalle')}
                     </p>
                 </Card>
             </Marco>
@@ -254,7 +267,7 @@ export default function ReportsPage() {
 
     const fecha = (iso) =>
         iso ? new Date(iso).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })
-            : 'Sin actividad';
+            : traducir('reportes.sin_actividad');
 
     return (
         <Marco>
@@ -262,33 +275,33 @@ export default function ReportsPage() {
             <Card className="mb-6 p-6">
                 <div className="mb-4 flex items-center gap-2">
                     <Filter className="h-5 w-5 text-brand-blue" />
-                    <h2 className="font-bold">Filtros</h2>
+                    <h2 className="font-bold">{traducir('reportes.filtros')}</h2>
                 </div>
 
                 <div className="grid grid-ajustable [--ancho-columna:12rem] gap-4">
-                    <Campo etiqueta="Desde">
+                    <Campo etiqueta={traducir('reportes.desde')}>
                         <input type="date" value={filtros.from}
                                onChange={e => setFiltros({ ...filtros, from: e.target.value })}
                                className={entradaClase} />
                     </Campo>
-                    <Campo etiqueta="Hasta">
+                    <Campo etiqueta={traducir('reportes.hasta')}>
                         <input type="date" value={filtros.to}
                                onChange={e => setFiltros({ ...filtros, to: e.target.value })}
                                className={entradaClase} />
                     </Campo>
-                    <Campo etiqueta="Equipo">
+                    <Campo etiqueta={traducir('reportes.equipo')}>
                         <select value={filtros.team_id}
                                 onChange={e => setFiltros({ ...filtros, team_id: e.target.value })}
                                 className={entradaClase}>
-                            <option value="">Todos</option>
+                            <option value="">{traducir('reportes.todos')}</option>
                             {opciones.equipos.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                     </Campo>
-                    <Campo etiqueta="Curso">
+                    <Campo etiqueta={traducir('reportes.curso')}>
                         <select value={filtros.course_id}
                                 onChange={e => setFiltros({ ...filtros, course_id: e.target.value })}
                                 className={entradaClase}>
-                            <option value="">Todos</option>
+                            <option value="">{traducir('reportes.todos')}</option>
                             {opciones.cursos.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
                         </select>
                     </Campo>
@@ -306,23 +319,23 @@ export default function ReportsPage() {
 
                 <div className="mt-4 flex flex-wrap gap-3">
                     <Button onClick={() => consultar(1)} disabled={cargando}>
-                        {cargando ? 'Consultando…' : 'Aplicar filtros'}
+                        {cargando ? traducir('reportes.consultando') : traducir('reportes.aplicar_filtros')}
                     </Button>
                     <Button variant="outline" className="border-gray-700"
                             onClick={() => { setFiltros({ from: '', to: '', team_id: '', course_id: '' }); setErroresCampo([]); }}>
-                        Limpiar
+                        {traducir('reportes.limpiar')}
                     </Button>
 
                     <div className="ml-auto flex gap-2">
                         <Button variant="outline" className="border-gray-700"
                                 onClick={() => exportar('csv')} disabled={!!exportando}>
                             <FileSpreadsheet className="mr-2 h-4 w-4" />
-                            {exportando === 'csv' ? 'Generando…' : 'CSV'}
+                            {exportando === 'csv' ? traducir('reportes.generando') : traducir('reportes.formato_csv')}
                         </Button>
                         <Button variant="outline" className="border-gray-700"
                                 onClick={() => exportar('pdf')} disabled={!!exportando}>
                             <FileText className="mr-2 h-4 w-4" />
-                            {exportando === 'pdf' ? 'Generando…' : 'PDF'}
+                            {exportando === 'pdf' ? traducir('reportes.generando') : traducir('reportes.formato_pdf')}
                         </Button>
                     </div>
                 </div>
@@ -339,7 +352,7 @@ export default function ReportsPage() {
                             {avisoExport.exportId && avisoExport.tipo === 'encolado' && (
                                 <button onClick={() => revisarExportacion(avisoExport.exportId)}
                                         className="ml-auto underline">
-                                    Revisar estado
+                                    {traducir('reportes.revisar_estado')}
                                 </button>
                             )}
                             {/* Boton y no <a href>: la descarga tiene que pasar por
@@ -349,7 +362,7 @@ export default function ReportsPage() {
                                 <button onClick={() => descargarExportacion(avisoExport.exportId)}
                                         disabled={!!exportando}
                                         className="ml-auto underline disabled:opacity-50">
-                                    {exportando === 'archivo' ? 'Descargando…' : 'Descargar'}
+                                    {exportando === 'archivo' ? traducir('reportes.descargando') : traducir('reportes.descargar')}
                                 </button>
                             )}
                             {/* Un fallo de descarga deja el boton para reintentar,
@@ -358,7 +371,7 @@ export default function ReportsPage() {
                                 <button onClick={() => descargarExportacion(avisoExport.exportId)}
                                         disabled={!!exportando}
                                         className="ml-auto underline disabled:opacity-50">
-                                    Reintentar
+                                    {traducir('comun.reintentar')}
                                 </button>
                             )}
                         </div>
@@ -379,15 +392,16 @@ export default function ReportsPage() {
                         <div className="mb-6 grid grid-ajustable [--ancho-columna:22rem] gap-4">
                             <Card className="p-6">
                                 <h3 className="mb-4 flex items-center gap-2 font-bold">
-                                    <Users className="h-5 w-5 text-brand-blue" /> Por equipo
+                                    <Users className="h-5 w-5 text-brand-blue" /> {traducir('reportes.por_equipo')}
                                 </h3>
                                 <div className="space-y-2">
                                     {datos.agregados.por_equipo.map(e => (
                                         <div key={e.equipo} className="flex items-center justify-between text-sm">
                                             <span>{e.equipo}</span>
                                             <span className="text-text-secondary">
-                                                {e.usuarios} pers. · <strong className="text-brand-light">{e.puntos}</strong> pts
-                                                · prom. {e.promedio_puntos ?? 0}
+                                                {traducir('reportes.equipo_usuarios', { usuarios: e.usuarios })}{' '}
+                                                <strong className="text-brand-light">{e.puntos}</strong>{' '}
+                                                {traducir('reportes.equipo_puntos_promedio', { promedio: e.promedio_puntos ?? 0 })}
                                             </span>
                                         </div>
                                     ))}
@@ -396,10 +410,10 @@ export default function ReportsPage() {
 
                             <Card className="p-6">
                                 <h3 className="mb-4 flex items-center gap-2 font-bold">
-                                    <Trophy className="h-5 w-5 text-brand-blue" /> Por curso
+                                    <Trophy className="h-5 w-5 text-brand-blue" /> {traducir('reportes.por_curso')}
                                 </h3>
                                 {datos.agregados.por_curso.length === 0
-                                    ? <p className="text-sm text-text-secondary">Sin cursos asignados en este recorte.</p>
+                                    ? <p className="text-sm text-text-secondary">{traducir('reportes.sin_cursos')}</p>
                                     : (
                                         <div className="space-y-2">
                                             {datos.agregados.por_curso.map(c => (
@@ -420,9 +434,12 @@ export default function ReportsPage() {
                     {/* --- Tabla --- */}
                     <Card className="p-6">
                         <div className="mb-4 flex items-center justify-between">
-                            <h2 className="font-bold">Desempeño por usuario</h2>
+                            <h2 className="font-bold">{traducir('reportes.tabla_titulo')}</h2>
                             <span className="text-sm text-text-secondary">
-                                {datos.paginacion.total} {datos.paginacion.total === 1 ? 'registro' : 'registros'}
+                                {traducir(
+                                    datos.paginacion.total === 1 ? 'reportes.registro_uno' : 'reportes.registro_varios',
+                                    { total: datos.paginacion.total }
+                                )}
                             </span>
                         </div>
 
@@ -430,9 +447,9 @@ export default function ReportsPage() {
                         {datos.vacio ? (
                             <div className="py-12 text-center">
                                 <Filter className="mx-auto mb-4 h-10 w-10 text-text-secondary" />
-                                <p className="font-semibold">No hay datos para los filtros aplicados</p>
+                                <p className="font-semibold">{traducir('reportes.vacio_titulo')}</p>
                                 <p className="mt-1 text-sm text-text-secondary">
-                                    Probá ampliar el rango de fechas o quitar el filtro de equipo o curso.
+                                    {traducir('reportes.vacio_detalle')}
                                 </p>
                             </div>
                         ) : (
@@ -441,12 +458,12 @@ export default function ReportsPage() {
                                     <table className="w-full min-w-[45rem] text-left text-sm">
                                         <thead>
                                             <tr className="border-b border-gray-700 text-text-secondary">
-                                                <th className="p-3 font-medium">Usuario</th>
-                                                <th className="p-3 font-medium">Equipo</th>
-                                                <th className="p-3 font-medium text-right">Puntos</th>
-                                                <th className="p-3 font-medium">Nivel</th>
-                                                <th className="p-3 font-medium text-right">Insignias</th>
-                                                <th className="p-3 font-medium">Última actividad</th>
+                                                <th className="p-3 font-medium">{traducir('reportes.col_usuario')}</th>
+                                                <th className="p-3 font-medium">{traducir('reportes.col_equipo')}</th>
+                                                <th className="p-3 font-medium text-right">{traducir('reportes.col_puntos')}</th>
+                                                <th className="p-3 font-medium">{traducir('reportes.col_nivel')}</th>
+                                                <th className="p-3 font-medium text-right">{traducir('reportes.col_insignias')}</th>
+                                                <th className="p-3 font-medium">{traducir('reportes.col_ultima_actividad')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -478,8 +495,11 @@ export default function ReportsPage() {
                                 {/* --- Paginacion --- */}
                                 <div className="mt-4 flex items-center justify-between text-sm">
                                     <span className="text-text-secondary">
-                                        Página {datos.paginacion.page} de {datos.paginacion.total_paginas}
-                                        {' · '}{datos.paginacion.page_size} por página
+                                        {traducir('reportes.paginacion', {
+                                            page: datos.paginacion.page,
+                                            total: datos.paginacion.total_paginas,
+                                            tamano: datos.paginacion.page_size
+                                        })}
                                     </span>
                                     <div className="flex gap-2">
                                         <button
@@ -487,14 +507,14 @@ export default function ReportsPage() {
                                             disabled={page <= 1 || cargando}
                                             className="flex items-center gap-1 rounded-lg border border-gray-700 px-3 py-1.5 disabled:opacity-40"
                                         >
-                                            <ChevronLeft className="h-4 w-4" /> Anterior
+                                            <ChevronLeft className="h-4 w-4" /> {traducir('reportes.anterior')}
                                         </button>
                                         <button
                                             onClick={() => consultar(page + 1)}
                                             disabled={page >= datos.paginacion.total_paginas || cargando}
                                             className="flex items-center gap-1 rounded-lg border border-gray-700 px-3 py-1.5 disabled:opacity-40"
                                         >
-                                            Siguiente <ChevronRight className="h-4 w-4" />
+                                            {traducir('reportes.siguiente')} <ChevronRight className="h-4 w-4" />
                                         </button>
                                     </div>
                                 </div>
@@ -523,22 +543,24 @@ function Campo({ etiqueta, children }) {
 }
 
 function Marco({ children }) {
+    const { t: traducir } = useIdioma();
+
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-6xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {traducir('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
                 <header className="mb-8">
                     <h1 className="flex items-center gap-3 text-3xl font-bold">
                         <ShieldCheck className="h-8 w-8 text-brand-blue" />
-                        Reportes de desempeño
+                        {traducir('reportes.titulo')}
                     </h1>
                     <p className="mt-1 text-text-secondary">
-                        Puntos, niveles e insignias por usuario, equipo y curso.
+                        {traducir('reportes.subtitulo')}
                     </p>
                 </header>
                 {children}

@@ -38,6 +38,7 @@ Cuentas de usuario, autenticacion (correo/contrasena y Google), recuperacion de 
 | POST | `/api/auth/register` | publica | Registrarse como empleado |
 | POST | `/api/auth/forgot-password` | publica | Pedir recuperacion de contrasena |
 | POST | `/api/auth/reset-password` | publica | Restablecer contrasena con el token de recuperacion |
+| GET | `/api/users/idiomas` | autenticado | Idiomas habilitados en la plataforma |
 | GET | `/api/users/me` | autenticado | Perfil propio |
 | PATCH | `/api/users/me` | autenticado | Actualizar el perfil propio |
 | GET | `/api/users` | admin | Listar usuarios |

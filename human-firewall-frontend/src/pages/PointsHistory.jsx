@@ -3,19 +3,23 @@ import { ShieldCheck, ArrowLeft, BookOpen, Target, Trophy, Award } from 'lucide-
 import { Card } from '../components/ui/Card';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
+// El mapa guarda la CLAVE del texto, no el texto: asi se resuelve con t() en
+// cada render y la tabla cambia de idioma sola.
 const ETIQUETAS = {
-    lesson:     { texto: 'Lección',    icono: BookOpen, color: 'text-brand-light' },
-    quiz:       { texto: 'Evaluación', icono: Target,   color: 'text-purple-400' },
-    course:     { texto: 'Curso',      icono: Award,    color: 'text-emerald-400' },
-    challenge:  { texto: 'Desafío',    icono: Trophy,   color: 'text-yellow-400' },
-    simulation: { texto: 'Simulación', icono: Target,   color: 'text-purple-400' },
-    manual:     { texto: 'Ajuste',     icono: Award,    color: 'text-text-secondary' }
+    lesson:     { clave: 'puntos.origen_leccion',    icono: BookOpen, color: 'text-brand-light' },
+    quiz:       { clave: 'puntos.origen_evaluacion', icono: Target,   color: 'text-purple-400' },
+    course:     { clave: 'puntos.origen_curso',      icono: Award,    color: 'text-emerald-400' },
+    challenge:  { clave: 'puntos.origen_desafio',    icono: Trophy,   color: 'text-yellow-400' },
+    simulation: { clave: 'puntos.origen_simulacion', icono: Target,   color: 'text-purple-400' },
+    manual:     { clave: 'puntos.origen_ajuste',     icono: Award,    color: 'text-text-secondary' }
 };
 
 const LIMITE = 15;
 
 export default function PointsHistory() {
+    const { t, idioma } = useIdioma();
     const [datos, setDatos] = useState(null);
     const [pagina, setPagina] = useState(1);
     const [error, setError] = useState(null);
@@ -26,11 +30,11 @@ export default function PointsHistory() {
 
         api.get(`/api/gamification/points/${usuario.id}`, { params: { page: pagina, limit: LIMITE } })
             .then(({ data }) => { setDatos(data); setError(null); })
-            .catch((e) => setError(e.response?.data?.msg || 'No se pudo cargar el historial'));
-    }, [pagina, usuario?.id]);
+            .catch((e) => setError(e.response?.data?.msg || t('puntos.error_carga')));
+    }, [pagina, usuario?.id, t]);
 
     const formatearFecha = (iso) =>
-        new Date(iso).toLocaleString('es', {
+        new Date(iso).toLocaleString(idioma, {
             day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
         });
 
@@ -39,7 +43,7 @@ export default function PointsHistory() {
             <div className="mx-auto max-w-4xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {t('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
@@ -48,17 +52,17 @@ export default function PointsHistory() {
                     <div>
                         <h1 className="flex items-center gap-3 text-3xl font-bold">
                             <ShieldCheck className="h-8 w-8 text-brand-blue" />
-                            Historial de puntos
+                            {t('puntos.titulo')}
                         </h1>
                         <p className="mt-1 text-text-secondary">
-                            Cada punto que ganaste y de dónde salió.
+                            {t('puntos.subtitulo')}
                         </p>
                     </div>
                     {datos && (
                         <div className="text-right">
-                            <p className="text-sm text-text-secondary">Total acumulado</p>
+                            <p className="text-sm text-text-secondary">{t('puntos.total')}</p>
                             <p className="text-3xl font-black text-brand-blue">
-                                {datos.total_points.toLocaleString('es')}
+                                {datos.total_points.toLocaleString(idioma)}
                             </p>
                         </div>
                     )}
@@ -70,14 +74,14 @@ export default function PointsHistory() {
                     </Card>
                 )}
 
-                {!error && !datos && <p className="text-text-secondary">Cargando…</p>}
+                {!error && !datos && <p className="text-text-secondary">{t('comun.cargando')}</p>}
 
                 {datos && datos.historial.length === 0 && (
                     <Card className="p-10 text-center">
                         <Trophy className="mx-auto mb-4 h-10 w-10 text-text-secondary" />
-                        <p className="font-semibold">Todavía no ganaste puntos</p>
+                        <p className="font-semibold">{t('puntos.sin_movimientos')}</p>
                         <p className="mt-1 text-sm text-text-secondary">
-                            Completá una lección o superá un desafío para empezar.
+                            {t('puntos.sin_movimientos_ayuda')}
                         </p>
                     </Card>
                 )}
@@ -88,9 +92,9 @@ export default function PointsHistory() {
                             <table className="w-full text-left text-sm">
                                 <thead className="border-b border-gray-800 text-text-secondary">
                                     <tr>
-                                        <th className="px-5 py-3 font-medium">Fecha</th>
-                                        <th className="px-5 py-3 font-medium">Origen</th>
-                                        <th className="px-5 py-3 text-right font-medium">Puntos</th>
+                                        <th className="px-5 py-3 font-medium">{t('puntos.fecha')}</th>
+                                        <th className="px-5 py-3 font-medium">{t('puntos.origen')}</th>
+                                        <th className="px-5 py-3 text-right font-medium">{t('puntos.cantidad')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -105,7 +109,7 @@ export default function PointsHistory() {
                                                 <td className="px-5 py-3">
                                                     <span className={`inline-flex items-center gap-2 ${meta.color}`}>
                                                         <Icono className="h-4 w-4" />
-                                                        {meta.texto}
+                                                        {t(meta.clave)}
                                                     </span>
                                                     {m.source_id && (
                                                         <span className="ml-2 text-xs text-text-secondary">
@@ -125,8 +129,8 @@ export default function PointsHistory() {
 
                         <div className="mt-4 flex items-center justify-between text-sm">
                             <span className="text-text-secondary">
-                                Página {datos.paginacion.page} de {datos.paginacion.total_paginas}
-                                {' · '}{datos.movimientos} movimientos
+                                {t('puntos.pagina')} {datos.paginacion.page} {t('comun.de')} {datos.paginacion.total_paginas}
+                                {' · '}{datos.movimientos} {t('puntos.movimientos')}
                             </span>
                             <div className="flex gap-2">
                                 <button
@@ -134,14 +138,14 @@ export default function PointsHistory() {
                                     disabled={pagina <= 1}
                                     className="rounded-lg border border-gray-700 px-4 py-2 disabled:opacity-40 enabled:hover:border-brand-blue/60"
                                 >
-                                    Anterior
+                                    {t('puntos.anterior')}
                                 </button>
                                 <button
                                     onClick={() => setPagina((p) => p + 1)}
                                     disabled={pagina >= datos.paginacion.total_paginas}
                                     className="rounded-lg border border-gray-700 px-4 py-2 disabled:opacity-40 enabled:hover:border-brand-blue/60"
                                 >
-                                    Siguiente
+                                    {t('puntos.siguiente')}
                                 </button>
                             </div>
                         </div>

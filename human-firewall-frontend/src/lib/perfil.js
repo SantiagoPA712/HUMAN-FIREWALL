@@ -28,25 +28,28 @@ export function formularioDesde(perfil) {
 /**
  * Valida el formulario y lo deja listo para enviar.
  *
+ * Devuelve la CLAVE del mensaje y no el mensaje, para que la pantalla lo
+ * resuelva con t() en el idioma que este puesto. Las reglas no cambiaron.
+ *
  * @returns {{ errores: Record<string,string>, valores: object }}
- *          un mensaje por campo con problema, y los valores normalizados
- *          (telefono e idioma vacios -> null)
+ *          una clave de mensaje por campo con problema, y los valores
+ *          normalizados (telefono e idioma vacios -> null)
  */
 export function validarFormulario(formulario) {
     const errores = {};
     const nombre = normalizarNombre(formulario.full_name || '');
 
     if (nombre === '') {
-        errores.full_name = 'El nombre es obligatorio.';
+        errores.full_name = 'perfil.error_nombre_obligatorio';
     } else if (nombre.length < 2 || nombre.length > 150) {
-        errores.full_name = 'El nombre debe tener entre 2 y 150 caracteres.';
+        errores.full_name = 'perfil.error_nombre_largo';
     } else if (!FORMATO_NOMBRE.test(nombre)) {
-        errores.full_name = 'Usa solo letras, espacios, apóstrofos, puntos y guiones.';
+        errores.full_name = 'perfil.error_nombre_formato';
     }
 
     const telefono = normalizarTelefono(formulario.phone || '');
     if (telefono !== '' && !FORMATO_TELEFONO.test(telefono)) {
-        errores.phone = 'Debe tener entre 7 y 15 dígitos, con un + opcional al inicio. Ejemplo: +57 300 123 4567.';
+        errores.phone = 'perfil.error_telefono';
     }
 
     return {

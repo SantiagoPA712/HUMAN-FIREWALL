@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api, getUsuarioActual } from '../lib/api';
+import { useIdioma } from '../context/useIdioma';
 
 /**
  * Resultados organizacionales para gerencia.
@@ -22,6 +23,7 @@ import { api, getUsuarioActual } from '../lib/api';
  * lo que se muestra: un cero inventado seria peor que decir la verdad.
  */
 export default function OrganizationalPage() {
+    const { t } = useIdioma();
     const usuario = getUsuarioActual();
     const autorizado = usuario && (usuario.role === 'manager' || usuario.role === 'admin');
 
@@ -50,12 +52,12 @@ export default function OrganizationalPage() {
         } catch (e) {
             // El 404 de un area inexistente trae el area_id: se muestra tal
             // cual, que es mas util que "no se pudo cargar".
-            setError(e.response?.data?.msg || 'No se pudo cargar el reporte organizacional');
+            setError(e.response?.data?.msg || t('organizacional.error_cargar'));
             setDatos(null);
         } finally {
             setCargando(false);
         }
-    }, [autorizado, periodo, comparadoCon, areaId]);
+    }, [autorizado, periodo, comparadoCon, areaId, t]);
 
     // Sin sesion no hay nada que pedir: se vuelve al login.
     useEffect(() => {
@@ -84,9 +86,9 @@ export default function OrganizationalPage() {
             <Marco>
                 <Card className="border-l-4 border-l-red-500 p-8 text-center">
                     <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-red-500" />
-                    <p className="font-bold">Esta sección es solo para gerencia</p>
+                    <p className="font-bold">{t('organizacional.sin_permiso_titulo')}</p>
                     <p className="mt-1 text-sm text-text-secondary">
-                        Tu cuenta no tiene permisos para ver los resultados consolidados de la organización.
+                        {t('organizacional.sin_permiso_detalle')}
                     </p>
                 </Card>
             </Marco>
@@ -101,38 +103,38 @@ export default function OrganizationalPage() {
             <Card className="mb-6 p-6">
                 <div className="mb-4 flex items-center gap-2">
                     <Filter className="h-5 w-5 text-brand-blue" />
-                    <h2 className="font-bold">Periodo y segmentación</h2>
+                    <h2 className="font-bold">{t('organizacional.filtros_titulo')}</h2>
                 </div>
 
                 <div className="grid grid-ajustable [--ancho-columna:12rem] gap-4">
-                    <Campo etiqueta="Periodo">
+                    <Campo etiqueta={t('organizacional.periodo')}>
                         <input type="month" value={periodo}
                                onChange={e => setPeriodo(e.target.value)}
                                className={entradaClase} />
                     </Campo>
-                    <Campo etiqueta="Comparar contra">
+                    <Campo etiqueta={t('organizacional.comparar')}>
                         <input type="month" value={comparadoCon}
                                onChange={e => setComparadoCon(e.target.value)}
                                className={entradaClase} />
                     </Campo>
-                    <Campo etiqueta="Área">
+                    <Campo etiqueta={t('organizacional.area')}>
                         <select value={areaId}
                                 onChange={e => setAreaId(e.target.value)}
                                 className={entradaClase}>
-                            <option value="">Toda la organización</option>
+                            <option value="">{t('organizacional.toda_organizacion')}</option>
                             {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                         </select>
                     </Campo>
                     <div className="flex items-end gap-2">
                         <Button onClick={() => consultar()} disabled={cargando} className="px-4 py-2 text-sm">
-                            {cargando ? 'Consultando…' : 'Aplicar'}
+                            {cargando ? t('organizacional.consultando') : t('organizacional.aplicar')}
                         </Button>
                         {/* Criterio de aceptacion 3: "debo poder volver a la
                             vista consolidada general facilmente". */}
                         {areaId && (
                             <Button variant="outline" onClick={verConsolidado}
                                     className="border-gray-700 px-4 py-2 text-sm">
-                                Ver consolidado
+                                {t('organizacional.ver_consolidado')}
                             </Button>
                         )}
                     </div>
@@ -142,10 +144,10 @@ export default function OrganizationalPage() {
                     <p className="mt-4 flex items-center gap-2 text-xs text-text-secondary">
                         <Clock className="h-3.5 w-3.5" />
                         {datos.area
-                            ? <>Segmentado por <strong className="text-brand-light">{datos.area.name}</strong>.</>
-                            : <>Consolidado de toda la organización.</>}
+                            ? <>{t('organizacional.segmentado_por')} <strong className="text-brand-light">{datos.area.name}</strong>.</>
+                            : <>{t('organizacional.consolidado_general')}</>}
                         {datos.calculado_en
-                            ? <> Último cálculo: {new Date(datos.calculado_en).toLocaleString('es')}.</>
+                            ? <> {t('organizacional.ultimo_calculo')} {new Date(datos.calculado_en).toLocaleString('es')}.</>
                             : null}
                     </p>
                 )}
@@ -161,7 +163,7 @@ export default function OrganizationalPage() {
             {datos?.estado === 'pendiente_de_calculo' && (
                 <Card className="border-l-4 border-l-yellow-500 p-8 text-center">
                     <RefreshCw className="mx-auto mb-4 h-10 w-10 text-yellow-500" />
-                    <p className="font-bold">El cálculo de este periodo todavía está pendiente</p>
+                    <p className="font-bold">{t('organizacional.pendiente_titulo')}</p>
                     <p className="mt-1 text-sm text-text-secondary">{datos.mensaje}</p>
                 </Card>
             )}
@@ -177,10 +179,10 @@ export default function OrganizationalPage() {
                     <Card className="p-6">
                         <h2 className="mb-1 flex items-center gap-2 font-bold">
                             <TrendingUp className="h-5 w-5 text-brand-blue" />
-                            Tendencia de engagement
+                            {t('organizacional.tendencia_titulo')}
                         </h2>
                         <p className="mb-6 text-sm text-text-secondary">
-                            Acciones registradas por persona, mes a mes.
+                            {t('organizacional.tendencia_subtitulo')}
                         </p>
                         <GraficoTendencia serie={datos.tendencia} />
                     </Card>
@@ -198,6 +200,8 @@ export default function OrganizationalPage() {
  * comparables", que es lo que el backend devuelve y lo unico honesto.
  */
 function TarjetaKpi({ kpi, comparado }) {
+    const { t } = useIdioma();
+
     const sinComparacion = kpi.variacion == null;
     const sube = kpi.tendencia === 'positiva';
     const baja = kpi.tendencia === 'negativa';
@@ -221,8 +225,11 @@ function TarjetaKpi({ kpi, comparado }) {
             <div className={`mt-2 flex items-center gap-1 text-sm ${color}`}>
                 <Icono className="h-4 w-4" />
                 {sinComparacion
-                    ? <span>Sin datos comparables</span>
-                    : <span>{kpi.variacion_porcentaje > 0 ? '+' : ''}{kpi.variacion_porcentaje}% vs {comparado}</span>}
+                    ? <span>{t('organizacional.sin_comparacion')}</span>
+                    : <span>
+                        {kpi.variacion_porcentaje > 0 ? '+' : ''}
+                        {t('organizacional.variacion', { pct: kpi.variacion_porcentaje, comparado })}
+                    </span>}
             </div>
 
             <p className="mt-3 text-xs text-text-secondary">{kpi.descripcion}</p>
@@ -244,10 +251,12 @@ function TarjetaKpi({ kpi, comparado }) {
  * ejes, tooltips y zoom, ahi si conviene una libreria.
  */
 function GraficoTendencia({ serie = [] }) {
+    const { t } = useIdioma();
+
     if (serie.length === 0) {
         return (
             <p className="py-8 text-center text-sm text-text-secondary">
-                Todavía no hay periodos calculados para dibujar la tendencia.
+                {t('organizacional.tendencia_vacia')}
             </p>
         );
     }
@@ -312,22 +321,24 @@ function Campo({ etiqueta, children }) {
 }
 
 function Marco({ children }) {
+    const { t } = useIdioma();
+
     return (
         <div className="min-h-screen bg-bg-deep p-6 text-text-primary md:p-10">
             <div className="mx-auto max-w-6xl">
                 <div className="mb-6 flex items-center justify-between">
                     <a href="/dashboard" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary">
-                        <ArrowLeft className="h-4 w-4" /> Volver al panel
+                        <ArrowLeft className="h-4 w-4" /> {t('nav.volver_al_panel')}
                     </a>
                     <ThemeToggle />
                 </div>
                 <header className="mb-8">
                     <h1 className="flex items-center gap-3 text-3xl font-bold">
                         <Building2 className="h-8 w-8 text-brand-blue" />
-                        Resultados organizacionales
+                        {t('organizacional.titulo')}
                     </h1>
                     <p className="mt-1 text-text-secondary">
-                        Impacto del programa de gamificación sobre toda la organización.
+                        {t('organizacional.subtitulo')}
                     </p>
                 </header>
                 {children}
