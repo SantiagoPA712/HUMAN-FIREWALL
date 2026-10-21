@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText, User, Palette, MailPlus } from 'lucide-react';
+import { ShieldCheck, BookOpen, Target, Trophy, LogOut, Award, History, Shield, TrendingUp, BarChart3, ShieldAlert, CalendarClock, Building2, Bell, ScrollText, User, Palette, MailPlus, Type } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { PointsWidget } from '../components/PointsWidget';
 import { LevelBadge } from '../components/LevelBadge';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { ThemeSelector } from '../components/ThemeSelector';
+import { TextSizeSelector } from '../components/TextSizeSelector';
 import { UserProfileModal } from '../components/UserProfileModal';
 import { usePuntos } from '../context/PuntosContext';
 import { getUsuarioActual } from '../lib/api';
@@ -140,6 +141,11 @@ export default function DashboardPage() {
               </span>
             </div>
             <ThemeSelector variant="segmented" className="w-full justify-center" />
+            <span className="mt-3 mb-2 text-xs font-semibold text-text-secondary flex items-center gap-1.5">
+              <Type className="w-3.5 h-3.5 text-brand-blue" />
+              Tamaño del texto
+            </span>
+            <TextSizeSelector variant="segmented" className="w-full" />
             <button
               type="button"
               onClick={() => setIsProfileOpen(true)}
