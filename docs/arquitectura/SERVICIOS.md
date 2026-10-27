@@ -4,7 +4,7 @@
 > No editar a mano: se arma con los manifiestos, el contrato OpenAPI y el codigo de cada servicio,
 > y `tests/arquitectura.test.mjs` falla si queda desactualizado.
 
-Version del contrato publico: **1.1.0**. Contrato navegable en `/api/docs`.
+Version del contrato publico: **1.2.0**. Contrato navegable en `/api/docs`.
 
 | Servicio | Responsabilidad | Prefijos HTTP | Depende de |
 |----------|-----------------|---------------|------------|
@@ -57,7 +57,7 @@ Cuentas de usuario, autenticacion (correo/contrasena y Google), recuperacion de 
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `usuarioExiste`, `correoDe`, `idPorCorreo`, `obtenerContacto`, `responsablesRhDe`, `activosConRol`, `activosConRoles`, `usuariosActivos`, `resumenesDe`, `buscarEquipo`, `equiposActivos`, `rankingPorPuntos`, `cacheDeGamificacion`, `guardarCacheDePuntos`, `guardarCacheDeNivel`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `usuarioExiste`, `correoDe`, `idPorCorreo`, `obtenerContacto`, `responsablesRhDe`, `activosConRol`, `activosConRoles`, `usuariosActivos`, `resumenesDe`, `buscarEquipo`, `equiposActivos`, `rankingPorPuntos`, `cacheDeGamificacion`, `guardarCacheDePuntos`, `guardarCacheDeNivel`.
 
 ### Estructura
 
@@ -137,7 +137,7 @@ Catalogo de cursos y lecciones, asignacion de cursos a usuarios, progreso por le
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `obtenerTitulo`, `obtenerTitulos`, `idsDeCursosAsignados`, `obtenerLeccion`, `contarLeccionesCompletadas`, `contarCursosCompletados`, `listarConCriticidad`, `marcarCritico`, `buscarVencimientosProximos`, `titulosOrdenados`, `usuariosAsignadosA`, `asignacionesDe`, `accionesPorUsuarioEntre`, `ultimaActividadDe`, `cursosCompletadosPorUsuarioEntre`, `avanceDe`, `leccionesPendientes`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `obtenerTitulo`, `obtenerTitulos`, `idsDeCursosAsignados`, `obtenerLeccion`, `contarLeccionesCompletadas`, `contarCursosCompletados`, `listarConCriticidad`, `marcarCritico`, `buscarVencimientosProximos`, `titulosOrdenados`, `usuariosAsignadosA`, `asignacionesDe`, `accionesPorUsuarioEntre`, `ultimaActividadDe`, `cursosCompletadosPorUsuarioEntre`, `avanceDe`, `leccionesPendientes`.
 
 ### Estructura
 
@@ -201,7 +201,7 @@ Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal y e
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `nombreDeDesafio`, `tituloDeSimulacion`, `contarEvaluacionesAprobadas`, `ultimosResultados`, `resultadosConsolidados`, `pendientesDe`, `serieDeIntentos`, `accionesPorUsuarioEntre`, `ultimaActividadDe`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `nombreDeDesafio`, `tituloDeSimulacion`, `contarEvaluacionesAprobadas`, `ultimosResultados`, `resultadosConsolidados`, `pendientesDe`, `serieDeIntentos`, `accionesPorUsuarioEntre`, `ultimaActividadDe`.
 
 ### Estructura
 
@@ -274,7 +274,7 @@ Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `yaOtorgado`, `obtenerTotalesPorUsuarios`, `obtenerResumenPorUsuarios`, `obtenerEscalera`, `calcularProgreso`, `obtenerPuntos`, `obtenerNivelDeUsuario`, `contarRecompensasDe`, `buscarRecompensa`, `accionesPorUsuarioEntre`, `ultimaActividadDe`, `puntosPorUsuarioHasta`, `movimientosEnVentana`, `usuariosConMovimientosRecientes`, `ultimosMovimientos`, `registrarMovimiento`, `otorgarRecompensa`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `yaOtorgado`, `obtenerTotalesPorUsuarios`, `obtenerResumenPorUsuarios`, `obtenerEscalera`, `calcularProgreso`, `obtenerPuntos`, `obtenerNivelDeUsuario`, `contarRecompensasDe`, `buscarRecompensa`, `accionesPorUsuarioEntre`, `ultimaActividadDe`, `puntosPorUsuarioHasta`, `movimientosEnVentana`, `usuariosConMovimientosRecientes`, `ultimosMovimientos`, `registrarMovimiento`, `otorgarRecompensa`.
 
 ### Estructura
 
@@ -357,7 +357,7 @@ Avisos in-app, notificacion de resultados (con alerta a RH en cursos criticos), 
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `avisarEnBandeja`, `notificar`, `reenviarCorreo`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `avisarEnBandeja`, `notificar`, `reenviarCorreo`.
 
 ### Estructura
 
@@ -437,7 +437,7 @@ Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos progr
 
 ### Contrato interno (index.js)
 
-No expone funciones a otros servicios: su unico contrato es la API HTTP.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`.
 
 ### Estructura
 
@@ -518,7 +518,7 @@ Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y regist
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `registrarAccion`, `ACCIONES`, `MODULOS`, `auditarAjusteManual`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `registrarAccion`, `ACCIONES`, `MODULOS`, `auditarAjusteManual`.
 
 ### Estructura
 

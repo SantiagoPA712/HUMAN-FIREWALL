@@ -21,7 +21,8 @@ y el contrato navegable en `/api/docs`.
 | Una consulta de invitaciones o de recuperacion de contrasena | `infrastructure/persistence/invitaciones.repositorio.js` / `recuperacion.repositorio.js` |
 | Una regla de invitaciones (vigencia, estados, reenvio) | `domain/invitacion.js` |
 | Una variable de entorno (vigencias, Google) | `config/configuracion.js` |
-| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE identidad.<tabla>` y declararla en `manifiesto.js` |
+| Una tabla o columna nueva | `migrations/servicios/identidad/002_....sql` (y siguientes) con `CREATE TABLE identidad.<tabla>`, y declararla en `manifiesto.js` |
+| La base de datos del servicio | `config/configuracion.js` -> `baseDeDatos` (variable `IDENTIDAD_DATABASE_URL`) |
 
 ## Reglas que no hay que romper
 

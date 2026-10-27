@@ -19,6 +19,8 @@ const config = require('../../config/configuracion');
 const base = () => baseDe(config.baseDeDatos);
 
 module.exports = {
+    /** El pool de la base del servicio (el bus de eventos lee su cola). */
+    base,
     query: (...args) => base().query(...args),
     connect: () => base().connect(),
     /** Cierra la conexion (scripts sueltos, como seed_admin.js). */

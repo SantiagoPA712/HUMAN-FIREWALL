@@ -47,9 +47,9 @@ coordinacion de despliegues.
   |        |   contrato interno (index.js)   |   eventos (event_outbox)    |
   +--------|---------------------------------|-----------------------------+
            v                                 v
-          PostgreSQL: una base, un esquema por servicio
-          (identidad.*, cursos.*, evaluaciones.*, gamificacion.*,
-           notificaciones.*, reportes.*, seguridad.* + data.*)
+          PostgreSQL: una base por servicio
+          (<base>_identidad, <base>_cursos, <base>_evaluaciones, ...)
+          + la base de la plataforma (DATABASE_URL)
 ```
 
 ---
@@ -297,11 +297,56 @@ Cada servicio monta su propio router; ninguna URL cambio.
 
 ## 6. Datos
 
-**Una base PostgreSQL, un esquema por servicio** (migracion
-`090_esquemas_por_servicio.sql`). Es el punto medio entre "una base
-compartida sin limites" y "una base por servicio": el sistema se despliega
-como un solo proceso, pero los datos de cada microservicio estan separados en
-la base y no solo en el codigo.
+**Una base de datos por servicio**, como pide el material (seccion 1: "Base
+de datos por servicio"; seccion 11: `application.yml` "Configura conexion a
+base de datos propia"; seccion 14: "No compartir base de datos entre
+servicios").
+
+```
+                PostgreSQL (mismo servidor)
+  +-----------------------+  +--------------------+  +-------------------------+
+  | <base>_identidad      |  | <base>_cursos      |  | <base>_evaluaciones     |
+  |  identidad.*          |  |  cursos.*          |  |  evaluaciones.*         |
+  |  public.event_outbox  |  |  public.event_outbox|  |  public.event_outbox   |
+  +-----------------------+  +--------------------+  +-------------------------+
+  +-----------------------+  +--------------------+  +-------------------------+
+  | <base>_gamificacion   |  | <base>_notificaciones| | <base>_reportes        |
+  +-----------------------+  +--------------------+  +-------------------------+
+  +-----------------------+  +--------------------------------------------------+
+  | <base>_seguridad      |  | <base> (DATABASE_URL): plataforma               |
+  |  seguridad.* + data.* |  |  event_outbox sin transaccion, schema_migrations |
+  +-----------------------+  +--------------------------------------------------+
+```
+
+Como funciona:
+
+- **Cada servicio declara su base** en `config/configuracion.js`
+  (`baseDeDatos`): `<SERVICIO>_DATABASE_URL`, o por defecto la de
+  `DATABASE_URL` con el nombre del servicio al final
+  (`human_firewall` -> `human_firewall_cursos`).
+- **Sus repositorios solo usan esa conexion**
+  (`infrastructure/persistence/conexion.js`). Ningun repositorio importa el
+  pool compartido, y ninguna consulta nombra el esquema de otro servicio: lo
+  verifican las pruebas de arquitectura.
+- **Migraciones por base:** `migrations/servicios/<servicio>/001_base.sql` es
+  la estructura del servicio (sin llaves foraneas hacia otros servicios, que
+  estan en otra base). `npm run migrate` crea las bases que falten, les aplica
+  sus migraciones y la primera vez les copia los datos desde la base
+  compartida, asi nadie pierde lo que ya tenia.
+- **Eventos:** cada servicio publica en la `event_outbox` de SU base, en la
+  misma transaccion que sus datos (el patron outbox necesita que evento y
+  dato vivan en la misma base). El worker del bus lee las colas de todas las
+  bases (`eventBus.usarBases`, cableado en `servicios/suscriptores.js`).
+- **Modo de una sola base:** con `BASES_POR_SERVICIO=false` (pruebas, o un
+  proveedor como Supabase que no deja crear bases) todos usan la base de
+  `DATABASE_URL`, cada uno en su esquema. El codigo es el mismo: por eso los
+  esquemas tambien existen en las bases propias (`cursos.courses` en
+  `<base>_cursos`).
+
+La base compartida conserva, despues de la copia, las tablas que tenia antes
+de la separacion: quedan como respaldo y ya no se leen.
+
+Los esquemas de cada servicio (migracion `090_esquemas_por_servicio.sql`):
 
 | Esquema | Servicio | Tablas |
 |---------|----------|--------|
@@ -348,8 +393,7 @@ titulo de un curso, el correo y el idioma de un usuario, los RH de su equipo,
 los conteos que usan las recompensas, la existencia de un usuario.
 
 Ya **no quedan excepciones**: ningun servicio lee ni escribe tablas de otro
-(paso previo a la base de datos por servicio que pide el material, secciones
-1, 11 y 14: "No compartir base de datos entre servicios"). Lo que antes se
+(es lo que permite que cada uno tenga su propia base). Lo que antes se
 resolvia con un JOIN ahora se pide por contrato:
 
 | Antes (JOIN o UPDATE sobre otro esquema) | Ahora (contrato) |
@@ -526,9 +570,9 @@ notificaciones a su propio proceso:
 2. Los eventos que consume dejan de leerse del outbox local y pasan por un
    broker (RabbitMQ, SNS/SQS); el patron outbox se mantiene del lado de quien
    publica.
-3. Su esquema (`notificaciones.*`) pasa entero a su propia base
-   (`pg_dump --schema=notificaciones`); sus lecturas de tablas ajenas ya son
-   llamadas por contrato, asi que no hay JOINs que romper.
+3. Su base (`<base>_notificaciones`) ya es propia: solo cambia
+   `NOTIFICACIONES_DATABASE_URL` si se mueve a otro servidor. Sus lecturas de
+   otros servicios ya son llamadas por contrato.
 4. El contrato publico (`contract/openapi.js`) no cambia; delante de los
    servicios va un API Gateway que enruta por prefijo, la tabla de la seccion 5.
 

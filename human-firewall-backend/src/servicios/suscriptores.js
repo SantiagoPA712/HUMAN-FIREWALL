@@ -23,6 +23,9 @@ const { SERVICIOS } = require('./index');
 function conectarTodo({ iniciarWorker = true } = {}) {
     for (const servicio of SERVICIOS) servicio.registrarHandlers();
 
+    // Cada servicio publica en la cola de su propia base: el worker las lee todas.
+    eventBus.usarBases(SERVICIOS.map(s => s.baseDeDatos()));
+
     if (iniciarWorker) {
         eventBus.iniciarWorker();
         // Relojes y workers propios de cada servicio (scheduler de reportes,

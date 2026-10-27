@@ -37,8 +37,11 @@ PostgreSQL de su microservicio (`identidad.users`, `cursos.courses`,
 
 Para las migraciones nuevas:
 
-- Numeralas **desde la 100** (cualquier integrante): asi corren despues de la
-  090 tambien en una base nueva, cuando los esquemas ya existen.
+- Si el cambio es de un solo servicio (lo normal), va en
+  `migrations/servicios/<servicio>/002_...sql` (ver la seccion siguiente):
+  se aplica a la base propia de ese servicio.
+- Si es un cambio comun en la base compartida, numeralo **desde la 100**: asi
+  corre despues de la 090 tambien en una base nueva.
 - Usa siempre el nombre con esquema: `CREATE TABLE IF NOT EXISTS
   cursos.course_tags (...)`, `ALTER TABLE identidad.users ADD COLUMN ...`.
   Una tabla creada sin esquema cae en `public`, y la prueba de arquitectura

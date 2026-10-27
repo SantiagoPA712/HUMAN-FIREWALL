@@ -23,7 +23,8 @@ frontend; antes estaban dentro de `gamification.routes.js`.
 | Una consulta | `infrastructure/persistence/desempeno`, `organizacional`, `exportaciones` o `programados.repositorio.js` (los WHERE dinamicos se arman ahi) |
 | Periodos, frecuencias, formatos o la variacion entre periodos | `domain/periodo.js` y `domain/programacion.js` |
 | Limites e intervalos (`REPORT_*`, `ORG_KPI_*`) | `config/configuracion.js` |
-| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE reportes.<tabla>` y declararla en `manifiesto.js` |
+| Una tabla o columna nueva | `migrations/servicios/reportes/002_....sql` (y siguientes) con `CREATE TABLE reportes.<tabla>`, y declararla en `manifiesto.js` |
+| La base de datos del servicio | `config/configuracion.js` -> `baseDeDatos` (variable `REPORTES_DATABASE_URL`) |
 
 ## Reglas que no hay que romper
 

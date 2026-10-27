@@ -26,7 +26,9 @@ const compartida = require('./db');
 
 /** true si cada servicio usa su propia base. */
 function porServicio() {
-    return String(process.env.BASES_POR_SERVICIO || 'false').toLowerCase() === 'true';
+    // Por defecto si: es lo que pide el material. Con false, un esquema por
+    // servicio dentro de la base compartida.
+    return String(process.env.BASES_POR_SERVICIO || 'true').toLowerCase() !== 'false';
 }
 
 /** URL por defecto de la base de un servicio: la de DATABASE_URL con sufijo. */

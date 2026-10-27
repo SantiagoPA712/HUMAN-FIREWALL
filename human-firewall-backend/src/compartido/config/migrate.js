@@ -331,6 +331,11 @@ if (require.main === module) {
                 console.error('  Parece que la base no esta accesible.');
                 console.error('  Si usas el Postgres local, levantalo con:  docker compose up -d');
                 console.error('  Si usas Supabase, revisa DATABASE_URL en el .env.\n');
+            } else if (/permission denied to create database|must be owner|CREATE DATABASE/i.test(err.message)) {
+                console.error('  El usuario de la base no puede crear las bases de cada servicio.');
+                console.error('  Si usas Supabase u otro proveedor con una sola base, agrega al .env:');
+                console.error('      BASES_POR_SERVICIO=false');
+                console.error('  (cada servicio queda en su esquema dentro de la base de DATABASE_URL).\n');
             } else if (/password authentication failed/i.test(err.message)) {
                 console.error('  Usuario o contrasena incorrectos en DATABASE_URL.');
                 console.error('  Ojo: si tenes PostgreSQL instalado en tu maquina, el puerto 5432 ya');

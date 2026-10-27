@@ -3,6 +3,16 @@
 Formato: la version del contrato publico (`info.version` en `/api/docs/openapi.json`)
 y que cambio para quien consume la API. Ver [POLITICA.md](POLITICA.md).
 
+## 1.2.0 — 2026-10-27
+
+Base de datos por servicio. Compatible: solo se agrega un campo.
+
+### Nuevo
+
+- `GET /api/notifications/eventos/estado` suma `colas`: cuantas colas de
+  eventos lee el worker (una por base de datos). `por_estado` y
+  `ultimos_fallidos` ahora suman las colas de todas las bases.
+
 ## 1.1.0 — 2026-10-20
 
 HU de perfil editable. Compatible con el frontend actual.

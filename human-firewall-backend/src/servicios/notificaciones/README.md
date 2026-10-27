@@ -18,7 +18,8 @@ Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura
 | Una consulta | `infrastructure/persistence/notificaciones`, `resultados`, `correos` o `plantillas.repositorio.js` |
 | Reglas de plantillas, reintentos o canales | `domain/plantilla.js`, `domain/entrega.js`, `domain/notificacion.js` |
 | SMTP, remitente, URL base, idioma o zona horaria | `config/configuracion.js` (variables `SMTP_*`, `MAIL_FROM`, `APP_BASE_URL`...) |
-| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE notificaciones.<tabla>` y declararla en `manifiesto.js` |
+| Una tabla o columna nueva | `migrations/servicios/notificaciones/002_....sql` (y siguientes) con `CREATE TABLE notificaciones.<tabla>`, y declararla en `manifiesto.js` |
+| La base de datos del servicio | `config/configuracion.js` -> `baseDeDatos` (variable `NOTIFICACIONES_DATABASE_URL`) |
 
 ## Reglas que no hay que romper
 

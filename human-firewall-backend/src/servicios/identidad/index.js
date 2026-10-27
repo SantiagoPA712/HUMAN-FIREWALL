@@ -4,11 +4,15 @@
  */
 
 const manifiesto = require('./manifiesto');
+const conexion = require('./infrastructure/persistence/conexion');
 const usuarios = require('./infrastructure/persistence/usuarios.repositorio');
 const equipos = require('./infrastructure/persistence/equipos.repositorio');
 
 module.exports = {
     manifiesto,
+
+    /** Base de datos propia del servicio (el bus de eventos lee su event_outbox). */
+    baseDeDatos: () => conexion.base(),
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
     contrato: () => require('./contract/openapi'),

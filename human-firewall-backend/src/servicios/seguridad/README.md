@@ -23,7 +23,8 @@ contrasenas y tokens, y nunca hace fallar la accion original.
 | Una consulta | `infrastructure/persistence/anomalias`, `auditoria` o `logs.repositorio.js` |
 | Que datos se enmascaran en los logs | `domain/registro.js` |
 | Retencion, tamano de pagina, intervalo del job (`LOGS_*`, `ANOMALY_*`) | `config/configuracion.js` |
-| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE seguridad.<tabla>` y declararla en `manifiesto.js` |
+| Una tabla o columna nueva | `migrations/servicios/seguridad/002_....sql` (y siguientes) con `CREATE TABLE seguridad.<tabla>`, y declararla en `manifiesto.js` |
+| La base de datos del servicio | `config/configuracion.js` -> `baseDeDatos` (variable `SEGURIDAD_DATABASE_URL`) |
 
 ## Reglas que no hay que romper
 

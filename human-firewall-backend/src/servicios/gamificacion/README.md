@@ -18,7 +18,8 @@ Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura
 | Una consulta de un endpoint | `infrastructure/persistence/gamificacion.repositorio.js` |
 | Una consulta de puntos, niveles, recompensas o recomendaciones | `infrastructure/persistence/puntos`, `niveles`, `recompensas` o `recomendaciones.repositorio.js` |
 | Una regla pura (calculo de nivel, de puntos, areas de oportunidad) | `domain/nivel.js`, `domain/puntos.js`, `domain/recomendacion.js`, `domain/recompensa.js` |
-| Una tabla nueva | migracion `1NN_...sql` con `CREATE TABLE gamificacion.<tabla>` y declararla en `manifiesto.js` |
+| Una tabla o columna nueva | `migrations/servicios/gamificacion/002_....sql` (y siguientes) con `CREATE TABLE gamificacion.<tabla>`, y declararla en `manifiesto.js` |
+| La base de datos del servicio | `config/configuracion.js` -> `baseDeDatos` (variable `GAMIFICACION_DATABASE_URL`) |
 
 ## Reglas que no hay que romper
 

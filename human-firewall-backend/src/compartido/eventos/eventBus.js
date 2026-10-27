@@ -93,8 +93,8 @@ async function publish(eventName, payload, client = db) {
  *
  * @returns {Promise<boolean>} true si proceso alguno, false si no habia nada
  */
-async function procesarUno() {
-    const client = await db.connect();
+async function procesarUno(base = db) {
+    const client = await base.connect();
     let evento;
 
     try {
@@ -143,7 +143,7 @@ async function procesarUno() {
             await handler(evento.payload);
         }
 
-        await db.query(
+        await base.query(
             `UPDATE event_outbox SET status = 'done', processed_at = now() WHERE id = $1`,
             [evento.id]
         );
@@ -156,7 +156,7 @@ async function procesarUno() {
         // quemaria los cinco intentos en milisegundos.
         const esperaSegundos = Math.pow(2, intentos);
 
-        await db.query(
+        await base.query(
             `UPDATE event_outbox
                 SET status = $1,
                     last_error = $2,
@@ -173,13 +173,45 @@ async function procesarUno() {
     return true;
 }
 
-/** Drena la cola hasta que no queden pendientes. */
+// ---------------------------------------------------------------------
+// Una cola por base de datos
+// ---------------------------------------------------------------------
+//
+// Con una base por servicio, cada servicio publica sus eventos en la
+// event_outbox de SU base, dentro de la misma transaccion que sus datos (el
+// patron outbox exige que evento y dato se confirmen juntos, y eso solo es
+// posible en la misma base). Los publish sin transaccion van a la base
+// compartida. El worker recorre todas las colas.
+
+const colas = new Set([db]);
+
+/**
+ * Registra las bases cuyas colas tiene que leer el worker. Lo llama quien
+ * compone los servicios (servicios/suscriptores.js), porque compartido/ no
+ * conoce a los servicios. Las repetidas (modo compartido) se ignoran.
+ */
+function usarBases(lista) {
+    for (const base of lista) if (base) colas.add(base);
+}
+
+/** Drena las colas de todas las bases hasta que no queden pendientes. */
+let otraVuelta = false;
+
 async function procesarPendientes(maxPorTanda = 50) {
-    if (procesando) return;   // evita solapamiento entre el timer y setImmediate
+    // Evita solapamiento entre el timer y setImmediate. Si llega un evento
+    // nuevo mientras se esta drenando, no se pierde hasta el proximo tick del
+    // timer: se anota y se da otra vuelta al terminar (con varias colas, una
+    // vuelta tarda mas y esto se notaba como demora en los puntos).
+    if (procesando) { otraVuelta = true; return; }
     procesando = true;
     try {
-        let n = 0;
-        while (n < maxPorTanda && await procesarUno()) n++;
+        do {
+            otraVuelta = false;
+            for (const base of colas) {
+                let n = 0;
+                while (n < maxPorTanda && await procesarUno(base)) n++;
+            }
+        } while (otraVuelta);
     } finally {
         procesando = false;
     }
@@ -225,24 +257,35 @@ function eventosSuscritos() {
  * Estado de la cola. Alimenta GET /api/events/estado.
  */
 async function estadoDeLaCola() {
-    const { rows } = await db.query(
-        `SELECT status, COUNT(*)::int AS total
-           FROM event_outbox
-          GROUP BY status`
-    );
-
     const porEstado = { pending: 0, processing: 0, done: 0, failed: 0 };
-    for (const r of rows) porEstado[r.status] = r.total;
+    let fallidos = [];
 
-    const { rows: fallidos } = await db.query(
-        `SELECT id, event_name, attempts, last_error, created_at
-           FROM event_outbox
-          WHERE status = 'failed'
-          ORDER BY id DESC
-          LIMIT 10`
-    );
+    // Suma las colas de todas las bases (una por servicio, mas la compartida).
+    for (const base of colas) {
+        const { rows } = await base.query(
+            `SELECT status, COUNT(*)::int AS total
+               FROM event_outbox
+              GROUP BY status`
+        );
+        for (const r of rows) porEstado[r.status] = (porEstado[r.status] || 0) + r.total;
 
-    return { por_estado: porEstado, suscriptores: eventosSuscritos(), ultimos_fallidos: fallidos };
+        const { rows: ultimos } = await base.query(
+            `SELECT id, event_name, attempts, last_error, created_at
+               FROM event_outbox
+              WHERE status = 'failed'
+              ORDER BY id DESC
+              LIMIT 10`
+        );
+        fallidos = fallidos.concat(ultimos);
+    }
+
+    fallidos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return {
+        por_estado: porEstado,
+        colas: colas.size,
+        suscriptores: eventosSuscritos(),
+        ultimos_fallidos: fallidos.slice(0, 10)
+    };
 }
 
 module.exports = {
@@ -250,6 +293,7 @@ module.exports = {
     publish,
     procesarPendientes,
     procesarUno,
+    usarBases,
     iniciarWorker,
     detenerWorker,
     eventosSuscritos,
