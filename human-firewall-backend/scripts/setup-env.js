@@ -47,6 +47,13 @@ const contenido = `# Generado por "npm run setup". No se sube al repositorio.
 # panel en Settings > Database > Connection string (modo URI).
 DATABASE_URL=${URL_LOCAL}
 
+# --- Base de datos por servicio ---
+# Cada microservicio usa su propia base (postgres_identidad, postgres_cursos,
+# ...): npm run migrate las crea solas en el mismo servidor. Con Supabase u
+# otro proveedor que no deja crear bases, ponelo en false (todos en la base de
+# DATABASE_URL, cada uno en su esquema).
+BASES_POR_SERVICIO=true
+
 # --- Servidor ---
 PORT=3000
 

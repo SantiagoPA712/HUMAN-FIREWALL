@@ -1,5 +1,10 @@
 /**
- * Reglas del dominio de cursos. Funciones y constantes puras.
+ * Curso (servicio de cursos).
+ *
+ * Capa Domain (seccion 11 del material): las reglas del curso como funciones
+ * puras. crearCurso() cumple el papel de Product.create() del ejemplo: valida
+ * los invariantes antes de que nada llegue a la base. No toca la base, ni
+ * HTTP, ni otros servicios; la usa application/cursos.service.js.
  */
 
 /** Estados de una asignacion (course_assignments.status). */
@@ -14,8 +19,8 @@ const veTodoElCatalogo = (rol) => ROLES_GESTORES.includes(rol);
  * del material): el titulo es obligatorio y no puede pasar de 255.
  */
 function crearCurso({ title, description = null }, instructorId) {
-    if (typeof title !== 'string' || !title.trim()) throw new ReglaDeCurso('El título es obligatorio', 'title');
-    if (title.length > 255) throw new ReglaDeCurso('El título no puede superar 255 caracteres', 'title');
+    if (typeof title !== 'string' || !title.trim()) throw new ReglaDeCurso('El titulo es obligatorio', 'title');
+    if (title.length > 255) throw new ReglaDeCurso('El titulo no puede superar 255 caracteres', 'title');
     return { title, description: description ?? null, instructorId };
 }
 

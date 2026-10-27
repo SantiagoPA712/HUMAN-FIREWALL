@@ -14,7 +14,7 @@
  * para entornos donde se quiera otra.
  */
 require('dotenv').config();
-const db = require('../../../compartido/config/db');
+const db = require('./persistence/conexion');
 const { hashPassword } = require('../../../compartido/utils/hash');
 const entorno = require('../../../compartido/config/entorno');
 
@@ -27,7 +27,7 @@ async function crearAdmin() {
         const hashed = await hashPassword(password);
 
         const { rows } = await db.query(
-            "INSERT INTO users (email, password, role) VALUES ($1, $2, 'admin') RETURNING id, email",
+            "INSERT INTO identidad.users (email, password, role) VALUES ($1, $2, 'admin') RETURNING id, email",
             [email, hashed]
         );
 

@@ -11,5 +11,11 @@ module.exports = {
     obtenerTotalesPorUsuarios: (ids, rango) => gamificacion().obtenerTotalesPorUsuarios(ids, rango),
     obtenerResumenPorUsuarios: (ids, rango) => gamificacion().obtenerResumenPorUsuarios(ids, rango),
     obtenerEscalera: () => gamificacion().obtenerEscalera(),
-    calcularProgreso: (puntos, escalera) => gamificacion().calcularProgreso(puntos, escalera)
+    calcularProgreso: (puntos, escalera) => gamificacion().calcularProgreso(puntos, escalera),
+    /** [{ user_id, acciones }]: movimientos de puntos en [desde, hasta). */
+    accionesPorUsuarioEntre: (desde, hasta) => gamificacion().accionesPorUsuarioEntre(desde, hasta),
+    /** [{ user_id, ultima }]: ultimo movimiento. */
+    ultimaActividadDe: (userIds) => gamificacion().ultimaActividadDe(userIds),
+    /** [{ user_id, puntos }]: puntos acumulados antes de `fin`. */
+    puntosPorUsuarioHasta: (fin) => gamificacion().puntosPorUsuarioHasta(fin)
 };

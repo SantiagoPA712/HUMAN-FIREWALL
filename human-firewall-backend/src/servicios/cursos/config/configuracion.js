@@ -5,9 +5,17 @@
  */
 
 const entorno = require('../../../compartido/config/entorno');
+const bases = require('../../../compartido/config/bases');
 
 module.exports = {
     nombre: 'cursos',
+
+    /**
+     * Base de datos propia del servicio (el spring.datasource.url del
+     * application.yml del material): CURSOS_DATABASE_URL, o la de DATABASE_URL con el
+     * sufijo _cursos cuando BASES_POR_SERVICIO=true.
+     */
+    get baseDeDatos() { return entorno.texto('CURSOS_DATABASE_URL', bases.urlPorDefecto('cursos')); },
 
     /** Con cuanta anticipacion se avisa que vence un curso asignado. */
     get horasDeVentanaVencimiento() { return entorno.numero('EMAIL_DEADLINE_WINDOW_HOURS', 48); },

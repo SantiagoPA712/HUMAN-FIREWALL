@@ -16,11 +16,11 @@
  * (que es el caso por defecto del proyecto).
  */
 
-const db = require('../../../compartido/config/db');
 const config = require('../config/configuracion');
 const identidad = require('../infrastructure/client/identidad.cliente');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
+const repo = require('../infrastructure/persistence/notificaciones.repositorio');
 
 // nodemailer ya es dependencia del proyecto. Se carga perezosamente para que
 // el modulo se pueda importar en las pruebas sin arrastrar la libreria.
@@ -118,14 +118,7 @@ const PLANTILLAS = {
  * @returns {Promise<object|null>} la notificacion creada, o null si ya existia
  */
 async function crearSinEnviar(eventName, aviso, userId) {
-    const { rows } = await db.query(
-        `INSERT INTO notifications (user_id, event_name, title, body, payload, dedupe_key)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (dedupe_key) DO NOTHING
-         RETURNING id, user_id, title, body, created_at`,
-        [userId, eventName, aviso.title, aviso.body,
-         JSON.stringify(aviso.payload || {}), aviso.dedupeKey]
-    );
+    const rows = await repo.insertar(userId, eventName, aviso);
 
     return rows[0] || null;
 }
@@ -138,14 +131,7 @@ async function crearSinEnviar(eventName, aviso, userId) {
 async function notificar(eventName, aviso, userId) {
     // ON CONFLICT sobre dedupe_key: si el worker reintenta este evento porque
     // otro handler fallo, aca no se inserta nada y no sale un segundo correo.
-    const { rows } = await db.query(
-        `INSERT INTO notifications (user_id, event_name, title, body, payload, dedupe_key)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (dedupe_key) DO NOTHING
-         RETURNING id, user_id, title, body`,
-        [userId, eventName, aviso.title, aviso.body,
-         JSON.stringify(aviso.payload || {}), aviso.dedupeKey]
-    );
+    const rows = await repo.insertar(userId, eventName, aviso);
 
     if (rows.length === 0) return null;   // ya se habia notificado este hecho
 
@@ -173,15 +159,9 @@ async function notificar(eventName, aviso, userId) {
             text: aviso.body
         });
 
-        await db.query(
-            `UPDATE notifications SET email_status = 'sent' WHERE id = $1`,
-            [notificacion.id]
-        );
+        await repo.marcarCorreoEnviado(notificacion);
     } catch (err) {
-        await db.query(
-            `UPDATE notifications SET email_status = 'failed', email_error = $1 WHERE id = $2`,
-            [String(err.message).slice(0, 500), notificacion.id]
-        );
+        await repo.marcarCorreoFallido(err, notificacion);
         console.warn(`[notifications] no se pudo enviar el correo ${notificacion.id}: ${err.message}`);
     }
 
@@ -205,14 +185,7 @@ async function notificar(eventName, aviso, userId) {
  * @returns {Promise<'sent'|'failed'|'skipped'|'not_found'>} estado del correo
  */
 async function reenviarCorreo({ id = null, dedupeKey = null } = {}) {
-    const { rows } = await db.query(
-        `SELECT id, user_id, title, body, email_status
-           FROM notifications
-          WHERE ($1::bigint IS NOT NULL AND id = $1::bigint)
-             OR ($2::text   IS NOT NULL AND dedupe_key = $2::text)
-          LIMIT 1`,
-        [id, dedupeKey]
-    );
+    const rows = await repo.buscarParaReenvio(id, dedupeKey);
 
     const notificacion = rows[0];
     if (!notificacion) return 'not_found';
@@ -237,17 +210,11 @@ async function reenviarCorreo({ id = null, dedupeKey = null } = {}) {
             text: notificacion.body
         });
 
-        await db.query(
-            `UPDATE notifications SET email_status = 'sent', email_error = NULL WHERE id = $1`,
-            [notificacion.id]
-        );
+        await repo.marcarCorreoReenviado(notificacion);
         return 'sent';
 
     } catch (err) {
-        await db.query(
-            `UPDATE notifications SET email_status = 'failed', email_error = $1 WHERE id = $2`,
-            [String(err.message).slice(0, 500), notificacion.id]
-        );
+        await repo.marcarCorreoFallido(err, notificacion);
         console.warn(`[notifications] reintento fallido del correo ${notificacion.id}: ${err.message}`);
         return 'failed';
     }
@@ -267,21 +234,9 @@ async function manejar(eventName, payload) {
 
 /** Bandeja de un usuario. */
 async function obtenerBandeja(userId, { soloNoLeidas = false, limit = 30 } = {}) {
-    const { rows } = await db.query(
-        `SELECT id, event_name, title, body, payload, email_status, read_at, created_at
-           FROM notifications
-          WHERE user_id = $1
-            AND ($2::boolean = false OR read_at IS NULL)
-          ORDER BY created_at DESC, id DESC
-          LIMIT $3`,
-        [userId, soloNoLeidas, limit]
-    );
+    const rows = await repo.bandejaDe(userId, soloNoLeidas, limit);
 
-    const { rows: contador } = await db.query(
-        `SELECT COUNT(*)::int AS no_leidas
-           FROM notifications WHERE user_id = $1 AND read_at IS NULL`,
-        [userId]
-    );
+    const contador = await repo.contarNoLeidas(userId);
 
     return {
         user_id: userId,
@@ -292,13 +247,7 @@ async function obtenerBandeja(userId, { soloNoLeidas = false, limit = 30 } = {})
 
 /** Marca una notificacion como leida. Solo el dueno puede hacerlo. */
 async function marcarLeida(userId, notificationId) {
-    const { rows } = await db.query(
-        `UPDATE notifications
-            SET read_at = now()
-          WHERE id = $1 AND user_id = $2 AND read_at IS NULL
-          RETURNING id, read_at`,
-        [notificationId, userId]
-    );
+    const rows = await repo.marcarLeida(notificationId, userId);
     return rows[0] || null;
 }
 

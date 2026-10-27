@@ -37,7 +37,6 @@ const config = require('../config/configuracion');
 const path = require('path');
 const crypto = require('crypto');
 
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const reportsService = require('./reports.service');
@@ -69,7 +68,10 @@ const ROLES_TECNICOS = config.rolesTecnicos;
 
 /** Donde quedan los archivos generados. Fuera del control de versiones. */
 const { DIR_STORAGE } = require('../../../compartido/config/rutas');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { TIPOS, FRECUENCIAS, FORMATOS, semanaISO, calcularPeriodo, calcularProximaEjecucion } = require('../domain/programacion');
+const repo = require('../infrastructure/persistence/programados.repositorio');
+const identidad = require('../infrastructure/client/identidad.cliente');
 const DIR_REPORTES = path.join(DIR_STORAGE, 'reports');
 
 /** Roles que pueden estar suscritos. Mismo catalogo que el CHECK de users. */
@@ -106,27 +108,10 @@ let temporizador = null;
  * @returns {Promise<object|null>} lo encolado, o null si no habia nada vencido
  */
 async function dispararUna(ahora = new Date()) {
-    const client = await db.connect();
+    return conTransaccion(async (tx) => {
+        const programacion = await repo.bloquearVencida(ahora, tx);
+        if (!programacion) return null;
 
-    try {
-        await client.query('BEGIN');
-
-        const { rows } = await client.query(
-            `SELECT id, name, report_type, frequency, format, params, next_run_at
-               FROM report_schedules
-              WHERE is_active = true AND next_run_at <= $1::timestamptz
-              ORDER BY next_run_at
-              FOR UPDATE SKIP LOCKED
-              LIMIT 1`,
-            [ahora.toISOString()]
-        );
-
-        if (rows.length === 0) {
-            await client.query('COMMIT');
-            return null;
-        }
-
-        const programacion = rows[0];
         const periodo = calcularPeriodo(programacion.frequency, ahora);
         const proxima = calcularProximaEjecucion(
             programacion.frequency, programacion.next_run_at, ahora
@@ -135,12 +120,7 @@ async function dispararUna(ahora = new Date()) {
         // Criterio tecnico 1: "debo actualizar next_run_at segun la frecuencia
         // configurada INMEDIATAMENTE al encolar, para evitar disparos
         // duplicados". Va antes del publish, en la misma transaccion.
-        await client.query(
-            `UPDATE report_schedules
-                SET next_run_at = $2, last_run_at = $3, updated_at = now()
-              WHERE id = $1`,
-            [programacion.id, proxima.toISOString(), ahora.toISOString()]
-        );
+        await repo.adelantar(programacion.id, proxima, ahora, tx);
 
         // Los parametros viajan CONGELADOS dentro del evento. Si alguien edita
         // la programacion mientras el job espera en la cola, el reporte se
@@ -154,9 +134,7 @@ async function dispararUna(ahora = new Date()) {
             params: { ...(programacion.params || {}), from: periodo.from, to: periodo.to }
         };
 
-        await eventBus.publish(EVENTOS.REPORT_SCHEDULED_RUN, payload, client);
-
-        await client.query('COMMIT');
+        await eventBus.publish(EVENTOS.REPORT_SCHEDULED_RUN, payload, tx);
 
         console.log(
             `[reportes-auto] encolado schedule=${programacion.id} periodo=${periodo.clave} ` +
@@ -164,13 +142,7 @@ async function dispararUna(ahora = new Date()) {
         );
 
         return payload;
-
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
-    }
+    });
 }
 
 /** Dispara todas las programaciones vencidas de esta vuelta. */
@@ -261,11 +233,7 @@ async function generarArchivo({ tipo, formato, periodo, params }) {
  */
 async function generarReporteProgramado({ scheduleId, tipo, formato, periodo, params }) {
     // Criterio tecnico 2: primero se pregunta si ya existe.
-    const { rows: previos } = await db.query(
-        `SELECT id, status FROM report_history
-          WHERE schedule_id = $1 AND period = $2 AND status = 'success'`,
-        [scheduleId, periodo]
-    );
+    const previos = await repo.exitoDelPeriodo(scheduleId, periodo);
 
     if (previos.length > 0) {
         console.log(
@@ -283,15 +251,7 @@ async function generarReporteProgramado({ scheduleId, tipo, formato, periodo, pa
         // Criterio tecnico 3: una fila por corrida, con todo lo que pide el
         // criterio. ON CONFLICT contra el indice unico parcial: si dos
         // instancias generaron el mismo periodo a la vez, gana una sola.
-        const { rows } = await db.query(
-            `INSERT INTO report_history
-                (schedule_id, type, period, params_used, status, file_location, row_count, duration_ms)
-             VALUES ($1, $2, $3, $4, 'success', $5, $6, $7)
-             ON CONFLICT (schedule_id, period) WHERE status = 'success' DO NOTHING
-             RETURNING id, schedule_id, type, period, status, file_location, generated_at`,
-            [scheduleId, tipo, periodo, JSON.stringify(params || {}),
-             `storage/reports/${fileName}`, filas, Date.now() - arranque]
-        );
+        const rows = await repo.registrarExito(scheduleId, tipo, periodo, params, fileName, filas, arranque);
 
         if (rows.length === 0) {
             // Otra corrida gano la carrera. El archivo que acabamos de generar
@@ -341,14 +301,7 @@ async function registrarFallo({ scheduleId, tipo, periodo, params, error, arranq
 
     const resumen = `${error.name || 'Error'}: ${String(error.message).slice(0, 300)}`;
 
-    const { rows } = await db.query(
-        `INSERT INTO report_history
-            (schedule_id, type, period, params_used, status, error_summary, log_reference, duration_ms)
-         VALUES ($1, $2, $3, $4, 'error', $5, $6, $7)
-         RETURNING id, schedule_id, type, period, status, generated_at`,
-        [scheduleId, tipo, periodo, JSON.stringify(params || {}),
-         resumen, referencia, Date.now() - (arranque || Date.now())]
-    );
+    const rows = await repo.registrarFallo(scheduleId, tipo, periodo, params, resumen, referencia, arranque);
 
     await encolarAvisos(rows[0].id, 'error');
     await procesarNotificacionesPendientes();
@@ -374,30 +327,19 @@ async function registrarFallo({ scheduleId, tipo, periodo, params, error, arranq
 async function encolarAvisos(historyId, kind = 'ready') {
     const roles = kind === 'error'
         ? ROLES_TECNICOS
-        : (await db.query(
-            `SELECT COALESCE(s.subscriber_roles, ARRAY[]::text[]) AS roles
-               FROM report_history h
-               LEFT JOIN report_schedules s ON s.id = h.schedule_id
-              WHERE h.id = $1`,
-            [historyId]
-          )).rows[0]?.roles || [];
+        : (await repo.rolesSuscritos(historyId)).rows[0]?.roles || [];
 
     if (!roles || roles.length === 0) {
         console.warn(`[reportes-auto] history=${historyId} sin roles suscritos: no hay a quien avisar`);
         return [];
     }
 
-    const { rows } = await db.query(
-        `INSERT INTO report_notifications (history_id, user_id, kind, max_attempts)
-         SELECT $1, u.id, $2, $3
-           FROM users u
-          WHERE u.role = ANY($4::text[]) AND u.is_active = true
-         ON CONFLICT (history_id, user_id) DO NOTHING
-         RETURNING id, user_id`,
-        [historyId, kind, MAX_INTENTOS_AVISO, roles]
-    );
+    // Las cuentas son de identidad (otra base): se piden los destinatarios por
+    // su contrato y se encola un aviso por cada uno.
+    const destinatarios = await identidad.activosConRoles(roles);
+    if (destinatarios.length === 0) return [];
 
-    return rows;
+    return repo.encolarAvisos(historyId, kind, MAX_INTENTOS_AVISO, destinatarios);
 }
 
 /** Arma el texto del aviso. */
@@ -480,48 +422,24 @@ async function entregarAviso(fila) {
  * no tener reintentos.
  */
 async function procesarNotificacionesPendientes(limite = 50) {
-    const { rows } = await db.query(
-        `SELECT n.id, n.history_id, n.user_id, n.kind, n.attempts, n.max_attempts,
-                h.type, h.period, h.status, h.error_summary, h.log_reference,
-                h.schedule_id, h.generated_at,
-                s.name AS schedule_name
-           FROM report_notifications n
-           JOIN report_history h ON h.id = n.history_id
-           LEFT JOIN report_schedules s ON s.id = h.schedule_id
-          WHERE n.status = 'pending' AND n.next_attempt_at <= now()
-          ORDER BY n.next_attempt_at
-          LIMIT $1`,
-        [limite]
-    );
+    const rows = await repo.avisosPendientes(limite);
 
     let entregados = 0, fallidos = 0;
 
     for (const fila of rows) {
         try {
             await entregarAviso(fila);
-            await db.query(
-                `UPDATE report_notifications
-                    SET status = 'sent', attempts = attempts + 1, sent_at = now(), last_error = NULL
-                  WHERE id = $1`,
-                [fila.id]
-            );
+            await repo.marcarAvisoEnviado(fila);
             entregados++;
 
         } catch (err) {
             const intentos = fila.attempts + 1;
             const agotado = intentos >= fila.max_attempts;
             const espera = BACKOFF_BASE_SEGUNDOS * Math.pow(2, intentos);
+            const estado = agotado ? 'failed' : 'pending';
+            const error = String(err.message).slice(0, 500);
 
-            await db.query(
-                `UPDATE report_notifications
-                    SET status = $2,
-                        attempts = $3,
-                        last_error = $4,
-                        next_attempt_at = now() + ($5 || ' seconds')::interval
-                  WHERE id = $1`,
-                [fila.id, agotado ? 'failed' : 'pending', intentos,
-                 String(err.message).slice(0, 500), String(espera)]
-            );
+            await repo.reprogramarAviso(fila, estado, intentos, error, espera);
 
             if (agotado) fallidos++;
             console.warn(
@@ -649,16 +567,7 @@ async function validarProgramacion(entrada = {}, { parcial = false } = {}) {
 }
 
 async function listarProgramaciones() {
-    const { rows } = await db.query(
-        `SELECT s.id, s.name, s.report_type, s.frequency, s.format, s.params,
-                s.subscriber_roles, s.is_active, s.next_run_at, s.last_run_at,
-                s.created_at, s.updated_at,
-                (SELECT COUNT(*)::int FROM report_history h WHERE h.schedule_id = s.id) AS generados,
-                (SELECT MAX(h.generated_at) FROM report_history h
-                  WHERE h.schedule_id = s.id AND h.status = 'success') AS ultimo_exitoso
-           FROM report_schedules s
-          ORDER BY s.is_active DESC, s.next_run_at`
-    );
+    const rows = await repo.listarProgramaciones();
     return rows;
 }
 
@@ -667,26 +576,12 @@ async function listarProgramaciones() {
  * auditoria para dejar el valor anterior de una edicion.
  */
 async function obtenerProgramacion(id) {
-    const { rows } = await db.query(
-        `SELECT id, name, report_type, frequency, format, params,
-                subscriber_roles, is_active, next_run_at
-           FROM report_schedules
-          WHERE id = $1`,
-        [id]
-    );
+    const rows = await repo.buscarProgramacion(id);
     return rows[0] || null;
 }
 
 async function crearProgramacion(valores, userId) {
-    const { rows } = await db.query(
-        `INSERT INTO report_schedules
-            (name, report_type, frequency, format, params, subscriber_roles, next_run_at, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()), $8)
-         RETURNING *`,
-        [valores.name, valores.report_type, valores.frequency, valores.format || 'csv',
-         JSON.stringify(valores.params || {}), valores.subscriber_roles,
-         valores.next_run_at || null, userId]
-    );
+    const rows = await repo.insertarProgramacion(valores, userId);
     return rows[0];
 }
 
@@ -697,34 +592,7 @@ async function crearProgramacion(valores, userId) {
  * puede borrar los roles suscritos por omision.
  */
 async function actualizarProgramacion(id, valores) {
-    const campos = [];
-    const params = [];
-
-    const asignar = (columna, valor) => {
-        params.push(valor);
-        campos.push(`${columna} = $${params.length}`);
-    };
-
-    if (valores.name !== undefined) asignar('name', valores.name);
-    if (valores.report_type !== undefined) asignar('report_type', valores.report_type);
-    if (valores.frequency !== undefined) asignar('frequency', valores.frequency);
-    if (valores.format !== undefined) asignar('format', valores.format);
-    if (valores.params !== undefined) asignar('params', JSON.stringify(valores.params));
-    if (valores.subscriber_roles !== undefined) asignar('subscriber_roles', valores.subscriber_roles);
-    if (valores.is_active !== undefined) asignar('is_active', valores.is_active);
-    if (valores.next_run_at !== undefined) asignar('next_run_at', valores.next_run_at);
-
-    if (campos.length === 0) return null;
-
-    params.push(id);
-    const { rows } = await db.query(
-        `UPDATE report_schedules
-            SET ${campos.join(', ')}, updated_at = now()
-          WHERE id = $${params.length}
-          RETURNING *`,
-        params
-    );
-    return rows[0] || null;
+    return repo.actualizarProgramacion(id, valores);
 }
 
 // ---------------------------------------------------------------------
@@ -740,28 +608,7 @@ async function actualizarProgramacion(id, valores) {
  * para quien puede hacer algo con el.
  */
 async function listarHistorico({ scheduleId = null, limite = 50, incluirDetalleTecnico = false } = {}) {
-    const params = [];
-    let where = '';
-
-    if (scheduleId) {
-        params.push(scheduleId);
-        where = `WHERE h.schedule_id = $${params.length}`;
-    }
-
-    params.push(limite);
-
-    const { rows } = await db.query(
-        `SELECT h.id, h.schedule_id, h.type, h.period, h.params_used, h.status,
-                h.file_location, h.row_count, h.generated_at, h.duration_ms,
-                h.error_summary, h.log_reference,
-                s.name AS schedule_name, s.frequency
-           FROM report_history h
-           LEFT JOIN report_schedules s ON s.id = h.schedule_id
-           ${where}
-          ORDER BY h.generated_at DESC, h.id DESC
-          LIMIT $${params.length}`,
-        params
-    );
+    const rows = await repo.historico({ scheduleId, limite });
 
     return rows.map(fila => {
         const base = {
@@ -803,10 +650,7 @@ async function listarHistorico({ scheduleId = null, limite = 50, incluirDetalleT
  * saliendo de storage/reports.
  */
 async function obtenerArchivo(historyId) {
-    const { rows } = await db.query(
-        `SELECT id, file_location, status, type, period FROM report_history WHERE id = $1`,
-        [historyId]
-    );
+    const rows = await repo.generacionDe(historyId);
 
     const fila = rows[0];
     if (!fila || fila.status !== 'success' || !fila.file_location) return null;

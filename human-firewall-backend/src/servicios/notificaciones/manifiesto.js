@@ -5,10 +5,12 @@ module.exports = {
         'Avisos in-app, notificacion de resultados (con alerta a RH en cursos criticos), ' +
         'preferencias por canal y cola de correo con plantillas versionadas e idioma.',
     prefijos: ['/api/notifications'],
+    // Esquemas de PostgreSQL del servicio (migracion 090). Sus tablas viven ahi.
+    esquemas: ['notificaciones'],
     tablas: [
-        'notifications', 'notification_deliveries', 'notification_preferences',
-        'email_jobs', 'email_job_attempts', 'email_notification_types',
-        'email_preferences', 'email_templates'
+        'notificaciones.notifications', 'notificaciones.notification_deliveries', 'notificaciones.notification_preferences',
+        'notificaciones.email_jobs', 'notificaciones.email_job_attempts', 'notificaciones.email_notification_types',
+        'notificaciones.email_preferences', 'notificaciones.email_templates'
     ],
     publica: [],
     consume: [

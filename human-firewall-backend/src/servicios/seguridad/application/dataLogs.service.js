@@ -43,12 +43,13 @@
 
 const crypto = require('crypto');
 const config = require('../config/configuracion');
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { escaparCSV } = require('../../../compartido/utils/csv');
 const identidad = require('../infrastructure/client/identidad.cliente');
 const { CLAVE_SENSIBLE, VALOR_SENSIBLE, REDACTADO, enmascarar } = require('../domain/registro');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
+const repo = require('../infrastructure/persistence/logs.repositorio');
 
 // ---------------------------------------------------------------------
 // Catalogos
@@ -237,29 +238,7 @@ async function persistir(p) {
         }
     }
 
-    await db.query(
-        `INSERT INTO data.logs
-            (log_uid, user_id, actor_type, actor_email, action_type, module,
-             resource_type, resource_id, old_value, new_value, ip_address,
-             trace_id, occurred_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-         ON CONFLICT (log_uid) DO NOTHING`,
-        [
-            p.logUid,
-            p.actorType === 'system' ? null : userId,
-            p.actorType === 'system' ? 'system' : 'user',
-            actorEmail,
-            p.actionType,
-            p.module,
-            p.resourceType,
-            p.resourceId ?? null,
-            p.oldValue === null || p.oldValue === undefined ? null : JSON.stringify(p.oldValue),
-            p.newValue === null || p.newValue === undefined ? null : JSON.stringify(p.newValue),
-            p.ipAddress ?? null,
-            p.traceId ?? null,
-            p.occurredAt
-        ]
-    );
+    await repo.insertarLog({ ...p, userId, actorEmail });
 }
 
 // ---------------------------------------------------------------------
@@ -288,7 +267,7 @@ function leerFecha(texto) {
  * La usan el listado Y la exportacion. Criterio de aceptacion 4: "el archivo
  * exportado debe reflejar exactamente los filtros aplicados en pantalla". La
  * forma de garantizarlo es que no existan dos interpretaciones de los
- * filtros: una sola funcion, una sola consulta (construirWhere).
+ * filtros: una sola funcion, una sola consulta (construirWhere del repositorio).
  *
  * Query aceptado:
  *   from, to        YYYY-MM-DD (dia completo, inclusive) o fecha-hora ISO
@@ -406,45 +385,6 @@ function validarFiltros(query = {}) {
     return { errores, filtros };
 }
 
-/**
- * WHERE compartido por listado, conteo y exportacion.
- * Todo va parametrizado: ningun valor del query se pega en el SQL.
- */
-function construirWhere(filtros) {
-    const condiciones = [];
-    const params = [];
-    const agregar = (sql, valor) => { params.push(valor); condiciones.push(sql.replace('?', `$${params.length}`)); };
-
-    if (filtros.desde) {
-        agregar(
-            filtros.desde.tipo === 'fecha' ? 'l.occurred_at >= ?::date' : 'l.occurred_at >= ?::timestamptz',
-            filtros.desde.valor
-        );
-    }
-    if (filtros.hasta) {
-        // Con una fecha sola, "hasta el 22" incluye todo el dia 22.
-        agregar(
-            filtros.hasta.tipo === 'fecha' ? 'l.occurred_at < (?::date + 1)' : 'l.occurred_at <= ?::timestamptz',
-            filtros.hasta.valor
-        );
-    }
-    if (filtros.soloSistema) condiciones.push(`l.actor_type = 'system'`);
-    if (filtros.userId) agregar('l.user_id = ?', filtros.userId);
-    if (filtros.modulo) agregar('l.module = ?', filtros.modulo);
-    if (filtros.accion) agregar('l.action_type = ?', filtros.accion);
-    if (filtros.recurso) agregar('l.resource_type = ?', filtros.recurso);
-
-    return {
-        where: condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '',
-        params
-    };
-}
-
-/** ORDER BY a partir de un valor ya validado. id desempata filas del mismo instante. */
-const ordenSQL = (orden) => (orden === 'asc'
-    ? 'ORDER BY l.occurred_at ASC, l.id ASC'
-    : 'ORDER BY l.occurred_at DESC, l.id DESC');
-
 // ---------------------------------------------------------------------
 // Lectura: listado, detalle, opciones
 // ---------------------------------------------------------------------
@@ -458,22 +398,11 @@ const ordenSQL = (orden) => (orden === 'asc'
  * @param {object} filtros  la salida de validarFiltros().filtros
  */
 async function listar(filtros) {
-    const { where, params } = construirWhere(filtros);
-
-    const { rows: [{ total }] } = await db.query(
-        `SELECT COUNT(*)::int AS total FROM data.logs l ${where}`, params
-    );
-
-    const offset = (filtros.page - 1) * filtros.pageSize;
-    const { rows } = await db.query(
-        `SELECT l.id, l.occurred_at, l.user_id, l.actor_type, l.actor_email,
-                l.action_type, l.module, l.resource_type, l.resource_id
-           FROM data.logs l
-           ${where}
-           ${ordenSQL(filtros.orden)}
-          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-        [...params, filtros.pageSize, offset]
-    );
+    const total = await repo.contarLogs(filtros);
+    const rows = await repo.paginaDeLogs(filtros, {
+        limit: filtros.pageSize,
+        offset: (filtros.page - 1) * filtros.pageSize
+    });
 
     return {
         paginacion: {
@@ -489,16 +418,7 @@ async function listar(filtros) {
 
 /** Detalle completo de un log (criterio de aceptacion 3). null si no existe. */
 async function obtenerDetalle(id) {
-    const { rows } = await db.query(
-        `SELECT l.id, l.log_uid, l.occurred_at, l.recorded_at, l.user_id,
-                l.actor_type, l.actor_email, l.action_type, l.module,
-                l.resource_type, l.resource_id, l.old_value, l.new_value,
-                l.ip_address, l.trace_id
-           FROM data.logs l
-          WHERE l.id = $1`,
-        [id]
-    );
-    return rows[0] || null;
+    return repo.detalleDeLog(id);
 }
 
 /**
@@ -507,13 +427,7 @@ async function obtenerDetalle(id) {
  * que tenga acciones registradas.
  */
 async function opcionesDeFiltro() {
-    const { rows: usuarios } = await db.query(
-        `SELECT DISTINCT ON (l.user_id) l.user_id, l.actor_email
-           FROM data.logs l
-          WHERE l.user_id IS NOT NULL
-          ORDER BY l.user_id, l.occurred_at DESC
-          LIMIT 1000`
-    );
+    const usuarios = await repo.usuariosConAcciones();
 
     usuarios.sort((a, b) => String(a.actor_email || '').localeCompare(String(b.actor_email || '')));
 
@@ -553,19 +467,8 @@ const COLUMNAS_CSV = [
  * @throws  error con .campo = 'filtros' si el resultado supera el tope
  */
 async function exportarCSV(filtros) {
-    const { where, params } = construirWhere(filtros);
-
     // Se pide una fila de mas para saber si se paso del tope sin contar aparte.
-    const { rows } = await db.query(
-        `SELECT l.id, l.occurred_at, l.user_id, l.actor_type, l.actor_email,
-                l.action_type, l.module, l.resource_type, l.resource_id,
-                l.old_value, l.new_value, l.ip_address, l.trace_id
-           FROM data.logs l
-           ${where}
-           ${ordenSQL(filtros.orden)}
-          LIMIT $${params.length + 1}`,
-        [...params, MAXIMO_EXPORTACION + 1]
-    );
+    const rows = await repo.logsParaExportar(filtros, MAXIMO_EXPORTACION + 1);
 
     if (rows.length > MAXIMO_EXPORTACION) {
         const error = new Error(
@@ -635,75 +538,33 @@ async function aplicarRetencion({ meses = RETENCION_MESES, ahora = new Date() } 
         throw new Error(`Periodo de retencion invalido: ${meses}. Debe ser un entero positivo de meses.`);
     }
 
-    const client = await db.connect();
-    try {
-        await client.query('BEGIN');
+    const resultado = await conTransaccion(async (tx) => {
+        const purga = await repo.purgarAnterioresA({ ahora, meses }, tx);
+        if (purga.eliminados > 0) {
+            await repo.registrarPurga({ ...purga, meses, traceId: crypto.randomUUID() }, tx);
+        }
+        return purga;
+    });
 
-        // La unica llave que abre el DELETE (ver trigger de la migracion 011).
-        // SET LOCAL muere con la transaccion.
-        await client.query(`SET LOCAL app.retencion_logs = 'on'`);
-
-        const { rows: [resultado] } = await client.query(
-            `WITH corte AS (
-                 SELECT ($1::timestamptz - make_interval(months => $2::int)) AS instante
-             ),
-             borrados AS (
-                 DELETE FROM data.logs
-                  WHERE occurred_at < (SELECT instante FROM corte)
-              RETURNING occurred_at
-             )
-             SELECT (SELECT instante FROM corte)   AS corte,
-                    COUNT(*)::int                  AS eliminados,
-                    MIN(occurred_at)               AS desde,
-                    MAX(occurred_at)               AS hasta
-               FROM borrados`,
-            [ahora.toISOString(), meses]
+    if (resultado.eliminados > 0) {
+        console.log(
+            `[dataLogs] retencion: ${resultado.eliminados} logs anteriores a ` +
+            `${new Date(resultado.corte).toISOString()} eliminados (politica de ${meses} meses)`
         );
-
-        if (resultado.eliminados > 0) {
-            await client.query(
-                `INSERT INTO data.logs_purges
-                    (retention_months, cutoff, deleted_count, oldest_deleted, newest_deleted, trace_id)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [meses, resultado.corte, resultado.eliminados, resultado.desde, resultado.hasta, crypto.randomUUID()]
-            );
-        }
-
-        await client.query('COMMIT');
-
-        if (resultado.eliminados > 0) {
-            console.log(
-                `[dataLogs] retencion: ${resultado.eliminados} logs anteriores a ` +
-                `${new Date(resultado.corte).toISOString()} eliminados (politica de ${meses} meses)`
-            );
-        }
-
-        return {
-            eliminados: resultado.eliminados,
-            desde: resultado.desde,
-            hasta: resultado.hasta,
-            corte: resultado.corte,
-            meses
-        };
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
     }
+
+    return {
+        eliminados: resultado.eliminados,
+        desde: resultado.desde,
+        hasta: resultado.hasta,
+        corte: resultado.corte,
+        meses
+    };
 }
 
 /** Historial de purgas, lo mas reciente primero. */
 async function listarPurgas(limite = 50) {
-    const { rows } = await db.query(
-        `SELECT id, executed_at, retention_months, cutoff, deleted_count,
-                oldest_deleted, newest_deleted
-           FROM data.logs_purges
-          ORDER BY executed_at DESC, id DESC
-          LIMIT $1`,
-        [limite]
-    );
-    return rows;
+    return repo.purgas(limite);
 }
 
 let temporizadorRetencion = null;

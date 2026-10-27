@@ -11,7 +11,7 @@
  * usan el pool.
  */
 
-const db = require('../../../../compartido/config/db');
+const db = require('./conexion');
 
 const q = (ejecutor) => ejecutor || db;
 
@@ -21,7 +21,7 @@ const q = (ejecutor) => ejecutor || db;
 
 async function insertarCurso({ title, description, instructorId }) {
     const { rows } = await db.query(
-        'INSERT INTO courses (title, description, instructor_id) VALUES ($1, $2, $3) RETURNING *',
+        'INSERT INTO cursos.courses (title, description, instructor_id) VALUES ($1, $2, $3) RETURNING *',
         [title, description, instructorId]
     );
     return rows[0];
@@ -29,7 +29,7 @@ async function insertarCurso({ title, description, instructorId }) {
 
 async function insertarContenido({ courseId, contentType, body, orderIdx, pointsReward }) {
     const { rows } = await db.query(
-        `INSERT INTO course_contents (course_id, content_type, body, order_idx, points_reward)
+        `INSERT INTO cursos.course_contents (course_id, content_type, body, order_idx, points_reward)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
         [courseId, contentType, body, orderIdx, pointsReward]
     );
@@ -37,15 +37,15 @@ async function insertarContenido({ courseId, contentType, body, orderIdx, points
 }
 
 async function listarTodos() {
-    const { rows } = await db.query('SELECT * FROM courses');
+    const { rows } = await db.query('SELECT * FROM cursos.courses');
     return rows;
 }
 
 async function listarAsignadosA(userId) {
     const { rows } = await db.query(
         `SELECT c.*, ca.status
-           FROM courses c
-           JOIN course_assignments ca ON c.id = ca.course_id
+           FROM cursos.courses c
+           JOIN cursos.course_assignments ca ON c.id = ca.course_id
           WHERE ca.user_id = $1`,
         [userId]
     );
@@ -53,13 +53,13 @@ async function listarAsignadosA(userId) {
 }
 
 async function buscarPorId(courseId) {
-    const { rows } = await db.query('SELECT * FROM courses WHERE id = $1', [courseId]);
+    const { rows } = await db.query('SELECT * FROM cursos.courses WHERE id = $1', [courseId]);
     return rows[0] || null;
 }
 
 async function listarContenidos(courseId) {
     const { rows } = await db.query(
-        'SELECT * FROM course_contents WHERE course_id = $1 ORDER BY order_idx ASC',
+        'SELECT * FROM cursos.course_contents WHERE course_id = $1 ORDER BY order_idx ASC',
         [courseId]
     );
     return rows;
@@ -67,7 +67,7 @@ async function listarContenidos(courseId) {
 
 async function buscarContenido(contentId) {
     const { rows } = await db.query(
-        'SELECT id, course_id, points_reward FROM course_contents WHERE id = $1',
+        'SELECT id, course_id, points_reward FROM cursos.course_contents WHERE id = $1',
         [contentId]
     );
     return rows[0] || null;
@@ -77,20 +77,20 @@ async function buscarContenido(contentId) {
 async function titulosDe(ids) {
     if (!ids.length) return [];
     const { rows } = await db.query(
-        'SELECT id, title FROM courses WHERE id = ANY($1::int[])',
+        'SELECT id, title FROM cursos.courses WHERE id = ANY($1::int[])',
         [ids]
     );
     return rows;
 }
 
 async function listarConCriticidad() {
-    const { rows } = await db.query('SELECT id, title, is_critical FROM courses ORDER BY title');
+    const { rows } = await db.query('SELECT id, title, is_critical FROM cursos.courses ORDER BY title');
     return rows;
 }
 
 async function actualizarCriticidad(courseId, critico) {
     const { rows } = await db.query(
-        'UPDATE courses SET is_critical = $2 WHERE id = $1 RETURNING id, title, is_critical',
+        'UPDATE cursos.courses SET is_critical = $2 WHERE id = $1 RETURNING id, title, is_critical',
         [courseId, critico]
     );
     return rows[0] || null;
@@ -102,7 +102,7 @@ async function actualizarCriticidad(courseId, critico) {
 
 async function insertarAsignacion({ courseId, userId, dueDate }, ejecutor) {
     const { rows } = await q(ejecutor).query(
-        `INSERT INTO course_assignments (course_id, user_id, status, due_date)
+        `INSERT INTO cursos.course_assignments (course_id, user_id, status, due_date)
          VALUES ($1, $2, 'assigned', $3) RETURNING *`,
         [courseId, userId, dueDate]
     );
@@ -111,7 +111,7 @@ async function insertarAsignacion({ courseId, userId, dueDate }, ejecutor) {
 
 async function idsDeCursosAsignados(userId) {
     const { rows } = await db.query(
-        'SELECT DISTINCT course_id FROM course_assignments WHERE user_id = $1',
+        'SELECT DISTINCT course_id FROM cursos.course_assignments WHERE user_id = $1',
         [userId]
     );
     return rows.map(r => r.course_id);
@@ -120,7 +120,7 @@ async function idsDeCursosAsignados(userId) {
 async function contarCursosCompletados(userId) {
     const { rows } = await db.query(
         `SELECT COUNT(*)::int AS valor
-           FROM course_assignments
+           FROM cursos.course_assignments
           WHERE user_id = $1 AND status = 'completed'`,
         [userId]
     );
@@ -135,7 +135,7 @@ async function contarCursosCompletados(userId) {
 async function bloquearAsignacionesPorVencer({ desde, ventanaHoras, limite }, ejecutor) {
     const { rows } = await q(ejecutor).query(
         `SELECT id, user_id, course_id, due_date
-           FROM course_assignments
+           FROM cursos.course_assignments
           WHERE due_date IS NOT NULL
             AND deadline_notified_at IS NULL
             AND COALESCE(status, 'assigned') <> 'completed'
@@ -151,7 +151,7 @@ async function bloquearAsignacionesPorVencer({ desde, ventanaHoras, limite }, ej
 
 async function marcarVencimientoAvisado(ids, ejecutor) {
     await q(ejecutor).query(
-        'UPDATE course_assignments SET deadline_notified_at = now() WHERE id = ANY($1::int[])',
+        'UPDATE cursos.course_assignments SET deadline_notified_at = now() WHERE id = ANY($1::int[])',
         [ids]
     );
 }
@@ -159,7 +159,7 @@ async function marcarVencimientoAvisado(ids, ejecutor) {
 /** Cierra la asignacion si seguia abierta. Devuelve true si la cerro esta llamada. */
 async function cerrarAsignacion(courseId, userId) {
     const { rows } = await db.query(
-        `UPDATE course_assignments
+        `UPDATE cursos.course_assignments
             SET status = 'completed', completed_at = now()
           WHERE course_id = $1 AND user_id = $2 AND status <> 'completed'
           RETURNING id`,
@@ -175,7 +175,7 @@ async function cerrarAsignacion(courseId, userId) {
 /** ON CONFLICT DO NOTHING: devuelve null si la leccion ya estaba completada. */
 async function registrarLeccionCompletada(userId, contentId) {
     const { rows } = await db.query(
-        `INSERT INTO lesson_progress (user_id, content_id)
+        `INSERT INTO cursos.lesson_progress (user_id, content_id)
          VALUES ($1, $2)
          ON CONFLICT (user_id, content_id) DO NOTHING
          RETURNING id, completed_at`,
@@ -187,10 +187,10 @@ async function registrarLeccionCompletada(userId, contentId) {
 async function contarLeccionesPendientes(courseId, userId) {
     const { rows } = await db.query(
         `SELECT COUNT(*)::int AS faltan
-           FROM course_contents cc
+           FROM cursos.course_contents cc
           WHERE cc.course_id = $1
             AND NOT EXISTS (
-                SELECT 1 FROM lesson_progress lp
+                SELECT 1 FROM cursos.lesson_progress lp
                  WHERE lp.content_id = cc.id AND lp.user_id = $2
             )`,
         [courseId, userId]
@@ -200,7 +200,7 @@ async function contarLeccionesPendientes(courseId, userId) {
 
 async function contarLeccionesCompletadas(userId) {
     const { rows } = await db.query(
-        'SELECT COUNT(*)::int AS valor FROM lesson_progress WHERE user_id = $1',
+        'SELECT COUNT(*)::int AS valor FROM cursos.lesson_progress WHERE user_id = $1',
         [userId]
     );
     return rows[0].valor;
@@ -212,8 +212,8 @@ async function obtenerProgreso(courseId, userId) {
             COUNT(cc.id)::int                                   AS total_lecciones,
             COUNT(lc.id)::int                                   AS completadas,
             COALESCE(ARRAY_AGG(lc.content_id) FILTER (WHERE lc.id IS NOT NULL), '{}') AS ids_completados
-           FROM course_contents cc
-           LEFT JOIN lesson_progress lc
+           FROM cursos.course_contents cc
+           LEFT JOIN cursos.lesson_progress lc
                   ON lc.content_id = cc.id AND lc.user_id = $2
           WHERE cc.course_id = $1`,
         [courseId, userId]
@@ -221,7 +221,127 @@ async function obtenerProgreso(courseId, userId) {
     return rows[0];
 }
 
+// ---------------------------------------------------------------------
+// Consultas para otros servicios (base de datos por servicio)
+// ---------------------------------------------------------------------
+
+/** Todos los cursos { id, title } por titulo (panel de filtros de reportes). */
+async function titulosOrdenados() {
+    const { rows } = await db.query('SELECT id, title FROM cursos.courses ORDER BY title');
+    return rows;
+}
+
+/** Ids de los usuarios que tienen asignado un curso. */
+async function usuariosAsignadosA(courseId) {
+    const { rows } = await db.query(
+        'SELECT DISTINCT user_id FROM cursos.course_assignments WHERE course_id = $1',
+        [courseId]
+    );
+    return rows.map(r => r.user_id);
+}
+
+/** Asignaciones { user_id, course_id, status } de varios usuarios. */
+async function asignacionesDe(userIds) {
+    if (!userIds.length) return [];
+    const { rows } = await db.query(
+        `SELECT user_id, course_id, status
+           FROM cursos.course_assignments
+          WHERE user_id = ANY($1::int[])`,
+        [userIds]
+    );
+    return rows;
+}
+
+/** Lecciones completadas por usuario en [desde, hasta). Cualquiera de los dos puede ser null. */
+async function leccionesPorUsuarioEntre(desde = null, hasta = null) {
+    const { rows } = await db.query(
+        `SELECT user_id, COUNT(*)::int AS acciones
+           FROM cursos.lesson_progress
+          WHERE ($1::timestamptz IS NULL OR completed_at >= $1::timestamptz)
+            AND ($2::timestamptz IS NULL OR completed_at <  $2::timestamptz)
+          GROUP BY user_id`,
+        [desde, hasta]
+    );
+    return rows;
+}
+
+/** Ultima leccion completada de cada usuario. */
+async function ultimaLeccionDe(userIds) {
+    if (!userIds.length) return [];
+    const { rows } = await db.query(
+        `SELECT user_id, MAX(completed_at) AS ultima
+           FROM cursos.lesson_progress
+          WHERE user_id = ANY($1::int[])
+          GROUP BY user_id`,
+        [userIds]
+    );
+    return rows;
+}
+
+/** Cursos completados por usuario en [desde, hasta). */
+async function cursosCompletadosPorUsuarioEntre(desde, hasta) {
+    const { rows } = await db.query(
+        `SELECT user_id, COUNT(*)::int AS cursos
+           FROM cursos.course_assignments
+          WHERE status = 'completed'
+            AND completed_at >= $1::timestamptz
+            AND completed_at <  $2::timestamptz
+          GROUP BY user_id`,
+        [desde, hasta]
+    );
+    return rows;
+}
+
+/** Avance de lecciones por curso asignado a un usuario. */
+async function avanceDe(userId) {
+    const { rows } = await db.query(
+        `SELECT c.id AS course_id,
+                c.title AS curso,
+                ca.status,
+                COUNT(cc.id)::int AS lecciones_totales,
+                COUNT(lp.id)::int AS lecciones_completadas
+           FROM cursos.course_assignments ca
+           JOIN cursos.courses c ON c.id = ca.course_id
+           LEFT JOIN cursos.course_contents cc ON cc.course_id = c.id
+           LEFT JOIN cursos.lesson_progress lp ON lp.content_id = cc.id AND lp.user_id = $1
+          WHERE ca.user_id = $1
+          GROUP BY c.id, c.title, ca.status
+          ORDER BY c.title`,
+        [userId]
+    );
+    return rows;
+}
+
+/** Lecciones de esos cursos que el usuario todavia no completo. */
+async function leccionesPendientes(courseIds, userId) {
+    if (!courseIds.length) return [];
+    const { rows } = await db.query(
+        `SELECT cc.id AS content_id, cc.course_id, cc.content_type,
+                cc.order_idx, cc.points_reward,
+                c.title AS curso,
+                LEFT(cc.body, 120) AS extracto
+           FROM cursos.course_contents cc
+           JOIN cursos.courses c ON c.id = cc.course_id
+          WHERE cc.course_id = ANY($1::int[])
+            AND NOT EXISTS (
+                    SELECT 1 FROM cursos.lesson_progress lp
+                     WHERE lp.user_id = $2 AND lp.content_id = cc.id
+                )
+          ORDER BY cc.course_id, cc.order_idx, cc.id`,
+        [courseIds, userId]
+    );
+    return rows;
+}
+
 module.exports = {
+    titulosOrdenados,
+    usuariosAsignadosA,
+    asignacionesDe,
+    leccionesPorUsuarioEntre,
+    ultimaLeccionDe,
+    cursosCompletadosPorUsuarioEntre,
+    avanceDe,
+    leccionesPendientes,
     insertarCurso,
     insertarContenido,
     listarTodos,

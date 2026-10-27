@@ -212,7 +212,7 @@ console.log('\n--- FALLA AL GUARDAR (aceptacion 9, tecnico 10) ---');
 // transaccion: es el punto donde un guardado sin transaccion dejaria algo a
 // medias.
 const queryReal = pg.query.bind(pg);
-pg.query = (t, p) => (/^\s*UPDATE users SET/.test(t)
+pg.query = (t, p) => (/^\s*UPDATE (identidad\.)?users SET/.test(t)
     ? Promise.reject(new Error('canceling statement due to statement timeout'))
     : queryReal(t, p));
 

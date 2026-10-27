@@ -15,6 +15,10 @@ Ficha completa: [`docs/arquitectura/SERVICIOS.md`](../../../../docs/arquitectura
 | Una regla del caso de uso (que pasa al completar, que se publica) | `application/cursos.service.js` |
 | Una consulta | `infrastructure/persistence/cursos.repositorio.js` |
 | Que otro servicio consulte cursos | exponerlo en `index.js` |
+| Una regla del curso (titulo valido, fecha limite, avance) | `domain/curso.js` |
+| Una variable de entorno (ventana de vencimiento) | `config/configuracion.js` |
+| Una tabla o columna nueva | `migrations/servicios/cursos/002_....sql` (y siguientes) con `CREATE TABLE cursos.<tabla>`, y declararla en `manifiesto.js` |
+| La base de datos del servicio | `config/configuracion.js` -> `baseDeDatos` (variable `CURSOS_DATABASE_URL`) |
 
 ## Eventos
 

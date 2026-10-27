@@ -30,7 +30,8 @@
  *              mensaje que lo explica en vez de fallar con un error de base.
  */
 
-const db = require('../../../compartido/config/db');
+const repo = require('../infrastructure/persistence/auditoria.repositorio');
+const { conCuentas } = require('./cuentas');
 // Los puntos, niveles e insignias son de gamificacion: este servicio los
 // AUDITA y aplica los ajustes manuales por el contrato de gamificacion, sin
 // tocar sus tablas.
@@ -48,21 +49,11 @@ const TIPOS = ['points', 'level', 'badge'];
  * @param {*} [datos.previousValue]
  * @param {*} [datos.newValue]
  * @param {string} datos.reason        obligatorio
- * @param {object} [client]            para participar de una transaccion ajena
+ * @param {object} [tx]                para participar de una transaccion ajena
  */
 async function registrar({ actorId, targetUserId = null, changeType,
-                           previousValue = null, newValue = null, reason }, client = db) {
-    const { rows } = await client.query(
-        `INSERT INTO audit_log
-            (actor_id, target_user_id, change_type, previous_value, new_value, reason)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, actor_id, target_user_id, change_type, reason, created_at`,
-        [actorId, targetUserId, changeType,
-         previousValue === null ? null : JSON.stringify(previousValue),
-         newValue === null ? null : JSON.stringify(newValue),
-         reason]
-    );
-    return rows[0];
+                           previousValue = null, newValue = null, reason }, tx = null) {
+    return repo.insertar({ actorId, targetUserId, changeType, previousValue, newValue, reason }, tx);
 }
 
 /** Estado actual del usuario, para dejarlo como previous_value. */
@@ -201,37 +192,20 @@ async function aplicarAjuste({ actorId, targetUserId, changeType, valor, reason 
  */
 async function listar({ actorId = null, targetUserId = null, changeType = null,
                         page = 1, pageSize = 25 } = {}) {
-    const condiciones = [];
-    const params = [];
-
-    if (actorId)      { params.push(actorId);      condiciones.push(`l.actor_id = $${params.length}`); }
-    if (targetUserId) { params.push(targetUserId); condiciones.push(`l.target_user_id = $${params.length}`); }
-    if (changeType)   { params.push(changeType);   condiciones.push(`l.change_type = $${params.length}`); }
-
-    const where = condiciones.length > 0 ? `WHERE ${condiciones.join(' AND ')}` : '';
-
-    const { rows: totales } = await db.query(
-        `SELECT COUNT(*)::int AS total FROM audit_log l ${where}`, params
-    );
-
-    const offset = (page - 1) * pageSize;
-    const { rows } = await db.query(
-        `SELECT l.id, l.change_type, l.previous_value, l.new_value, l.reason, l.created_at,
-                l.actor_id,  a.email AS actor_email,
-                l.target_user_id, t.email AS target_email
-           FROM audit_log l
-           JOIN users a ON a.id = l.actor_id
-           LEFT JOIN users t ON t.id = l.target_user_id
-           ${where}
-          ORDER BY l.created_at DESC, l.id DESC
-          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-        [...params, pageSize, offset]
+    const filtros = { actorId, targetUserId, changeType };
+    const total = await repo.contar(filtros);
+    const rows = await conCuentas(
+        await repo.pagina(filtros, { limit: pageSize, offset: (page - 1) * pageSize }),
+        [
+            { campoId: 'actor_id', correo: 'actor_email', obligatoria: true },
+            { campoId: 'target_user_id', correo: 'target_email' }
+        ]
     );
 
     return {
         paginacion: {
-            page, page_size: pageSize, total: totales[0].total,
-            total_paginas: Math.max(1, Math.ceil(totales[0].total / pageSize))
+            page, page_size: pageSize, total,
+            total_paginas: Math.max(1, Math.ceil(total / pageSize))
         },
         resultados: rows
     };

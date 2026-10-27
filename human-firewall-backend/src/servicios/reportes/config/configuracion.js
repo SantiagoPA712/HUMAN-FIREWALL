@@ -5,9 +5,17 @@
  */
 
 const entorno = require('../../../compartido/config/entorno');
+const bases = require('../../../compartido/config/bases');
 
 module.exports = {
     nombre: 'reportes',
+
+    /**
+     * Base de datos propia del servicio (el spring.datasource.url del
+     * application.yml del material): REPORTES_DATABASE_URL, o la de DATABASE_URL con el
+     * sufijo _reportes cuando BASES_POR_SERVICIO=true.
+     */
+    get baseDeDatos() { return entorno.texto('REPORTES_DATABASE_URL', bases.urlPorDefecto('reportes')); },
 
     /** Hasta cuantas filas una exportacion se genera en el mismo request. */
     get limiteDeExportacionSincrona() { return entorno.numero('REPORT_EXPORT_SYNC_LIMIT', 5000); },

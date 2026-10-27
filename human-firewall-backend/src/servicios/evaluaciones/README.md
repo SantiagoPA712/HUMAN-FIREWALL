@@ -18,6 +18,8 @@ lo que hace es registrar un intento.
 | Un caso de uso nuevo | `application/simulaciones.service.js` o `application/desafios.service.js` |
 | Una consulta | `infrastructure/persistence/evaluaciones.repositorio.js` |
 | Saber los cursos asignados de alguien | `infrastructure/client/cursos.cliente.js` (no leer `course_assignments`) |
+| Una tabla o columna nueva | `migrations/servicios/evaluaciones/002_....sql` (y siguientes) con `CREATE TABLE evaluaciones.<tabla>`, y declararla en `manifiesto.js` |
+| La base de datos del servicio | `config/configuracion.js` -> `baseDeDatos` (variable `EVALUACIONES_DATABASE_URL`) |
 
 ## Eventos
 

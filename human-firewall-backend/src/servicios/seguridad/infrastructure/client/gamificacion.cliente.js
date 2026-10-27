@@ -14,5 +14,9 @@ module.exports = {
     obtenerEscalera: () => gamificacion().obtenerEscalera(),
     buscarRecompensa: (id) => gamificacion().buscarRecompensa(id),
     registrarMovimiento: (datos) => gamificacion().registrarMovimiento(datos),
-    otorgarRecompensa: (datos) => gamificacion().otorgarRecompensa(datos)
+    otorgarRecompensa: (datos) => gamificacion().otorgarRecompensa(datos),
+    /** Historial de puntos para detectar anomalias (base de datos por servicio). */
+    movimientosEnVentana: (userId, ventanaMinutos, hasta) => gamificacion().movimientosEnVentana(userId, ventanaMinutos, hasta),
+    usuariosConMovimientosRecientes: (minutos) => gamificacion().usuariosConMovimientosRecientes(minutos),
+    ultimosMovimientos: (userId, limite) => gamificacion().ultimosMovimientos(userId, limite)
 };

@@ -31,7 +31,6 @@ const config = require('../config/configuracion');
 const path = require('path');
 const crypto = require('crypto');
 
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const reportsService = require('./reports.service');
@@ -79,6 +78,9 @@ function aplanar(fila) {
 
 // escaparCSV se movio a compartido/utils/csv.js (tambien la usa seguridad).
 const { escaparCSV } = require('../../../compartido/utils/csv');
+const repo = require('../infrastructure/persistence/exportaciones.repositorio');
+const identidad = require('../infrastructure/client/identidad.cliente');
+const cursos = require('../infrastructure/client/cursos.cliente');
 
 function generarCSV(filas) {
     const lineas = [COLUMNAS.map(c => escaparCSV(c.titulo)).join(',')];
@@ -183,13 +185,7 @@ async function registrarSolicitud({ userId, formato, filtros, estado }) {
     // probar 40, 39, 38 y enumerar las exportaciones de otros.
     const exportUid = crypto.randomBytes(16).toString('hex');
 
-    const { rows } = await db.query(
-        `INSERT INTO report_exports
-            (export_uid, requested_by, report_type, format, filters, status)
-         VALUES ($1, $2, 'performance', $3, $4, $5)
-         RETURNING id, export_uid, status, created_at`,
-        [exportUid, userId, formato, JSON.stringify(filtros), estado]
-    );
+    const rows = await repo.insertarSolicitud(exportUid, userId, formato, filtros, estado);
 
     // Criterio 6: queda tambien en el log del servidor. Es el unico lugar
     // donde esta informacion aparece; nunca sale por la API.
@@ -202,21 +198,11 @@ async function registrarSolicitud({ userId, formato, filtros, estado }) {
 }
 
 async function marcarListo(exportUid, { fileName, filas }) {
-    await db.query(
-        `UPDATE report_exports
-            SET status = 'ready', file_name = $2, row_count = $3, completed_at = now()
-          WHERE export_uid = $1`,
-        [exportUid, fileName, filas]
-    );
+    await repo.marcarLista(exportUid, fileName, filas);
 }
 
 async function marcarFallido(exportUid, mensaje) {
-    await db.query(
-        `UPDATE report_exports
-            SET status = 'failed', error = $2, completed_at = now()
-          WHERE export_uid = $1`,
-        [exportUid, mensaje]
-    );
+    await repo.marcarFallida(exportUid, mensaje);
 }
 
 // ---------------------------------------------------------------------
@@ -226,13 +212,14 @@ async function marcarFallido(exportUid, mensaje) {
 /** Nombres legibles del equipo y el curso filtrados, para el encabezado del PDF. */
 async function resolverNombres(filtros) {
     const nombres = {};
+    // Equipos y cursos viven en otras bases: se piden por su contrato.
     if (filtros.teamId) {
-        const { rows } = await db.query('SELECT name FROM teams WHERE id = $1', [filtros.teamId]);
-        if (rows[0]) nombres.equipo = rows[0].name;
+        const equipo = await identidad.buscarEquipo(filtros.teamId);
+        if (equipo) nombres.equipo = equipo.name;
     }
     if (filtros.courseId) {
-        const { rows } = await db.query('SELECT title FROM courses WHERE id = $1', [filtros.courseId]);
-        if (rows[0]) nombres.curso = rows[0].title;
+        const curso = await cursos.obtenerTitulo(filtros.courseId);
+        if (curso) nombres.curso = curso.title;
     }
     return nombres;
 }
@@ -329,17 +316,11 @@ async function solicitarExportacion({ userId, formato, filtros }) {
  * ya quedo lista, no la vuelve a generar.
  */
 async function procesarExportacion({ exportUid, formato, filtros }) {
-    const { rows } = await db.query(
-        'SELECT status FROM report_exports WHERE export_uid = $1',
-        [exportUid]
-    );
+    const rows = await repo.estadoDe(exportUid);
     if (rows.length === 0) return null;
     if (rows[0].status === 'ready') return null;   // reintento de algo ya hecho
 
-    await db.query(
-        `UPDATE report_exports SET status = 'processing' WHERE export_uid = $1`,
-        [exportUid]
-    );
+    await repo.marcarProcesando(exportUid);
 
     try {
         const archivo = await generarArchivo({ exportUid, formato, filtros });
@@ -360,20 +341,13 @@ async function procesarExportacion({ exportUid, formato, filtros }) {
  * auditoria interna y no pueden salir en ninguna respuesta de la API.
  */
 async function obtenerEstado(exportUid) {
-    const { rows } = await db.query(
-        `SELECT export_uid, format, status, row_count, created_at, completed_at
-           FROM report_exports WHERE export_uid = $1`,
-        [exportUid]
-    );
+    const rows = await repo.buscar(exportUid);
     return rows[0] || null;
 }
 
 /** Ruta en disco de una exportacion lista, o null. */
 async function obtenerRutaDeArchivo(exportUid) {
-    const { rows } = await db.query(
-        `SELECT file_name, status, format FROM report_exports WHERE export_uid = $1`,
-        [exportUid]
-    );
+    const rows = await repo.archivoDe(exportUid);
     const registro = rows[0];
     if (!registro || registro.status !== 'ready' || !registro.file_name) return null;
 

@@ -7,7 +7,7 @@
  * en domain/usuario.js.
  */
 
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { hashPassword } = require('../../../compartido/utils/hash');
 const { cambiosDePerfil } = require('../domain/usuario');
 const usuarios = require('../infrastructure/persistence/usuarios.repositorio');

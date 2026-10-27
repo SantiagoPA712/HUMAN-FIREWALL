@@ -8,8 +8,18 @@
  * de despliegue. Aca quedan los parametros tecnicos del servicio.
  */
 
+const entorno = require('../../../compartido/config/entorno');
+const bases = require('../../../compartido/config/bases');
+
 module.exports = {
     nombre: 'gamificacion',
+
+    /**
+     * Base de datos propia del servicio (el spring.datasource.url del
+     * application.yml del material): GAMIFICACION_DATABASE_URL, o la de DATABASE_URL con el
+     * sufijo _gamificacion cuando BASES_POR_SERVICIO=true.
+     */
+    get baseDeDatos() { return entorno.texto('GAMIFICACION_DATABASE_URL', bases.urlPorDefecto('gamificacion')); },
 
     /** Cuantos resultados recientes se miran para calcular una racha. */
     resultadosParaRacha: 100

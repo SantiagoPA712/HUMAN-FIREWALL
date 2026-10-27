@@ -4,10 +4,15 @@
  */
 
 const manifiesto = require('./manifiesto');
+const conexion = require('./infrastructure/persistence/conexion');
 const usuarios = require('./infrastructure/persistence/usuarios.repositorio');
+const equipos = require('./infrastructure/persistence/equipos.repositorio');
 
 module.exports = {
     manifiesto,
+
+    /** Base de datos propia del servicio (el bus de eventos lee su event_outbox). */
+    baseDeDatos: () => conexion.base(),
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
     contrato: () => require('./contract/openapi'),
@@ -36,5 +41,23 @@ module.exports = {
     /** Ids de RH a avisar por un empleado (los de su equipo, o todos). */
     responsablesRhDe: (...args) => usuarios.responsablesRhDe(...args),
     /** Ids de las cuentas activas con un rol. */
-    activosConRol: (...args) => usuarios.activosConRol(...args)
+    activosConRol: (...args) => usuarios.activosConRol(...args),
+    /** Ids de las cuentas activas con alguno de esos roles. */
+    activosConRoles: (...args) => usuarios.activosConRoles(...args),
+    /** Cuentas activas con equipo y cache de puntos (reportes). */
+    usuariosActivos: (...args) => usuarios.activosConEquipo(...args),
+    /** [{ id, email, role }] de varias cuentas. */
+    resumenesDe: (...args) => usuarios.resumenesDe(...args),
+    /** Equipos (areas). */
+    buscarEquipo: (...args) => equipos.buscar(...args),
+    equiposActivos: (...args) => equipos.activos(...args),
+    /** Ranking y estado desde la cache de puntos y nivel de la cuenta. */
+    rankingPorPuntos: (...args) => usuarios.rankingPorPuntos(...args),
+    cacheDeGamificacion: (...args) => usuarios.cacheDeGamificacion(...args),
+
+    // --- Comandos para otros servicios ---
+
+    /** Gamificacion actualiza la cache de puntos y nivel de la cuenta. */
+    guardarCacheDePuntos: (...args) => usuarios.guardarCacheDePuntos(...args),
+    guardarCacheDeNivel: (...args) => usuarios.guardarCacheDeNivel(...args)
 };

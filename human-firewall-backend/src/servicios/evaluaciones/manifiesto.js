@@ -5,9 +5,11 @@ module.exports = {
         'Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal ' +
         'y el historial de intentos de evaluacion con su puntaje calculado en el servidor.',
     prefijos: ['/api/simulations', '/api/gamification/challenge'],
+    // Esquemas de PostgreSQL del servicio (migracion 090). Sus tablas viven ahi.
+    esquemas: ['evaluaciones'],
     tablas: [
-        'simulations', 'simulation_steps', 'simulation_options', 'simulation_results',
-        'challenges', 'user_challenge_results', 'quiz_attempts'
+        'evaluaciones.simulations', 'evaluaciones.simulation_steps', 'evaluaciones.simulation_options', 'evaluaciones.simulation_results',
+        'evaluaciones.challenges', 'evaluaciones.user_challenge_results', 'evaluaciones.quiz_attempts'
     ],
     publica: [
         'simulation.decision_made', 'simulation.completed', 'quiz.approved', 'quiz.failed'

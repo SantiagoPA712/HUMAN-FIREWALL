@@ -37,7 +37,7 @@ await pg.exec(`
 for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_tracking',
                  '004_event_outbox','005_rol_rh','006_rewards_catalog','007_user_rewards',
                  '008_desafios_faltantes','020_levels_config','021_user_level_history',
-                 '022_recommendation_rules','023_cursos_de_refuerzo','024_simulacion_de_ejemplo']) {
+                 '022_recommendation_rules','023_cursos_de_refuerzo','024_simulacion_de_ejemplo','090_esquemas_por_servicio','091_vista_puntos_por_servicio']) {
   try { await pg.exec(readFileSync(`${DIR}migrations/${f}.sql`, 'utf8')); }
   catch (e) { console.log(`ERROR en ${f}: ${msg(e)}`); fallos++; }
 }

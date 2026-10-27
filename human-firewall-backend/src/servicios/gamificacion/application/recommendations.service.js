@@ -17,20 +17,18 @@
  * no del codigo. Nada de machine learning en esta version.
  */
 
-const db = require('../../../compartido/config/db');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { REGLA_POR_DEFECTO, filtrarAreasDeOportunidad } = require('../domain/recomendacion');
+const repo = require('../infrastructure/persistence/recomendaciones.repositorio');
+// Intentos y cursos son de otros servicios (cada uno con su base): se piden
+// por su contrato en lugar de hacer JOIN con sus tablas.
+const servicioCursos = require('../infrastructure/client/cursos.cliente');
+const servicioEvaluaciones = require('../infrastructure/client/evaluaciones.cliente');
 
 /** Regla activa. Si la tabla esta vacia, se cae a los valores del enunciado. */
 async function obtenerRegla() {
-    const { rows } = await db.query(
-        `SELECT code, description, score_threshold, include_failed, max_suggestions
-           FROM recommendation_rules
-          WHERE is_active = true
-          ORDER BY code
-          LIMIT 1`
-    );
+    const rows = await repo.reglaActiva();
     return rows[0] || REGLA_POR_DEFECTO;
 }
 
@@ -43,38 +41,21 @@ async function obtenerRegla() {
  * quiz_ref a entero: castear reventaria al toparse con un ref como 'phishing'.
  */
 async function obtenerEvaluaciones(userId) {
-    const { rows } = await db.query(
-        `SELECT q.quiz_ref,
-                q.quiz_type,
-                MAX(q.course_id)                      AS course_id,
-                COALESCE(c.title, cur.title)          AS curso,
-                COALESCE(ch.name, s.title, q.quiz_ref) AS titulo,
-                COUNT(*)::int                         AS intentos,
-                MAX(q.score)::int                     AS mejor_puntaje,
-                MIN(q.score)::int                     AS peor_puntaje,
-                BOOL_OR(q.passed)                     AS aprobada,
-                MAX(q.passing_score)::int             AS puntaje_minimo,
-                MAX(q.created_at)                     AS ultimo_intento,
+    const rows = await servicioEvaluaciones.resultadosConsolidados(userId);
+    const titulos = await titulosDeCursos(rows.flatMap(r => [r.course_id, r.course_id_evaluacion]));
 
-                -- El ultimo intento, no solo el mejor. Sin esto, alguien que
-                -- aprobo una vez y despues fallo dos veces seguidas quedaba
-                -- fuera de las areas de oportunidad: el sistema le decia
-                -- "segui asi" justo cuando estaba desaprendiendo.
-                (ARRAY_AGG(q.score  ORDER BY q.created_at DESC, q.id DESC))[1]::int
-                                                      AS ultimo_puntaje,
-                (ARRAY_AGG(q.passed ORDER BY q.created_at DESC, q.id DESC))[1]
-                                                      AS ultimo_aprobado
-           FROM quiz_attempts q
-           LEFT JOIN challenges  ch ON q.quiz_type = 'challenge'  AND ch.id = q.quiz_ref
-           LEFT JOIN simulations s  ON q.quiz_type = 'simulation' AND s.id::varchar = q.quiz_ref
-           LEFT JOIN courses     c   ON c.id = q.course_id
-           LEFT JOIN courses     cur ON cur.id = COALESCE(ch.course_id, s.course_id)
-          WHERE q.user_id = $1
-          GROUP BY q.quiz_ref, q.quiz_type, c.title, cur.title, ch.name, s.title
-          ORDER BY MAX(q.score) ASC, MAX(q.created_at) DESC`,
-        [userId]
-    );
-    return rows;
+    return rows.map(({ course_id_evaluacion: cursoDeLaEvaluacion, ...r }) => ({
+        ...r,
+        curso: titulos.get(r.course_id) ?? titulos.get(cursoDeLaEvaluacion) ?? null
+    }));
+}
+
+/** Map id -> titulo de los cursos pedidos, por el contrato de cursos. */
+async function titulosDeCursos(ids) {
+    const unicos = [...new Set(ids.filter(id => id != null).map(Number))];
+    if (unicos.length === 0) return new Map();
+    const filas = await servicioCursos.obtenerTitulos(unicos);
+    return new Map(filas.map(c => [c.id, c.title]));
 }
 
 /**
@@ -90,33 +71,17 @@ async function obtenerEvaluaciones(userId) {
  * concreto, no del portal abierto (regla de negocio RN-01).
  */
 async function obtenerPendientes(userId) {
-    const { rows } = await db.query(
-        `SELECT ch.id::varchar AS quiz_ref, 'challenge' AS quiz_type,
-                ch.name AS titulo, ch.course_id, c.title AS curso,
-                ch.points_reward AS puntos
-           FROM challenges ch
-           LEFT JOIN courses c ON c.id = ch.course_id
-          WHERE NOT EXISTS (
-                    SELECT 1 FROM quiz_attempts q
-                     WHERE q.user_id = $1 AND q.quiz_type = 'challenge' AND q.quiz_ref = ch.id
-                )
-
-          UNION ALL
-
-         SELECT s.id::varchar, 'simulation', s.title, s.course_id, c.title, NULL
-           FROM simulations s
-           LEFT JOIN courses c ON c.id = s.course_id
-          WHERE NOT EXISTS (
-                    SELECT 1 FROM quiz_attempts q
-                     WHERE q.user_id = $1 AND q.quiz_type = 'simulation' AND q.quiz_ref = s.id::varchar
-                )
-            AND (s.course_id IS NULL OR s.course_id IN (
-                    SELECT course_id FROM course_assignments WHERE user_id = $1
-                ))
-          ORDER BY titulo`,
-        [userId]
-    );
-    return rows;
+    const asignados = await servicioCursos.idsDeCursosAsignados(userId);
+    const rows = await servicioEvaluaciones.pendientesDe(userId, asignados);
+    const titulos = await titulosDeCursos(rows.map(r => r.course_id));
+    return rows.map(r => ({
+        quiz_ref: r.quiz_ref,
+        quiz_type: r.quiz_type,
+        titulo: r.titulo,
+        course_id: r.course_id,
+        curso: titulos.get(r.course_id) ?? null,
+        puntos: r.puntos
+    }));
 }
 
 /**
@@ -128,16 +93,7 @@ async function obtenerPendientes(userId) {
  * usuarios (criterio de aceptacion 3).
  */
 async function obtenerEvolucion(userId, ventana = 5) {
-    const { rows: serie } = await db.query(
-        `SELECT q.quiz_ref, q.quiz_type, q.score, q.passed, q.created_at,
-                COALESCE(ch.name, s.title, q.quiz_ref) AS titulo
-           FROM quiz_attempts q
-           LEFT JOIN challenges  ch ON q.quiz_type = 'challenge'  AND ch.id = q.quiz_ref
-           LEFT JOIN simulations s  ON q.quiz_type = 'simulation' AND s.id::varchar = q.quiz_ref
-          WHERE q.user_id = $1
-          ORDER BY q.created_at ASC, q.id ASC`,
-        [userId]
-    );
+    const serie = await servicioEvaluaciones.serieDeIntentos(userId);
 
     const promedio = (lista) =>
         lista.length === 0 ? null : Math.round(lista.reduce((a, x) => a + x.score, 0) / lista.length);
@@ -180,21 +136,7 @@ async function obtenerEvolucion(userId, ventana = 5) {
 
 /** Avance de lecciones por curso asignado. */
 async function obtenerAvanceCursos(userId) {
-    const { rows } = await db.query(
-        `SELECT c.id AS course_id,
-                c.title AS curso,
-                ca.status,
-                COUNT(cc.id)::int AS lecciones_totales,
-                COUNT(lp.id)::int AS lecciones_completadas
-           FROM course_assignments ca
-           JOIN courses c ON c.id = ca.course_id
-           LEFT JOIN course_contents cc ON cc.course_id = c.id
-           LEFT JOIN lesson_progress lp ON lp.content_id = cc.id AND lp.user_id = $1
-          WHERE ca.user_id = $1
-          GROUP BY c.id, c.title, ca.status
-          ORDER BY c.title`,
-        [userId]
-    );
+    const rows = await servicioCursos.avanceDe(userId);
 
     return rows.map(r => ({
         ...r,
@@ -219,21 +161,7 @@ async function generarRecomendaciones(userId, areas, regla) {
     const cursos = [...new Set(areas.map(a => a.course_id).filter(Boolean))];
     if (cursos.length === 0) return [];
 
-    const { rows: lecciones } = await db.query(
-        `SELECT cc.id AS content_id, cc.course_id, cc.content_type,
-                cc.order_idx, cc.points_reward,
-                c.title AS curso,
-                LEFT(cc.body, 120) AS extracto
-           FROM course_contents cc
-           JOIN courses c ON c.id = cc.course_id
-          WHERE cc.course_id = ANY($1::int[])
-            AND NOT EXISTS (
-                    SELECT 1 FROM lesson_progress lp
-                     WHERE lp.user_id = $2 AND lp.content_id = cc.id
-                )
-          ORDER BY cc.course_id, cc.order_idx, cc.id`,
-        [cursos, userId]
-    );
+    const lecciones = await servicioCursos.leccionesPendientes(cursos, userId);
 
     // Cada leccion se sugiere por el area mas floja de su curso, para que el
     // motivo que se muestra sea el mas relevante.
@@ -340,17 +268,7 @@ async function precalcularRecomendaciones(userId, triggerEvent = null) {
     // acumula historial porque la version anterior no le sirve a nadie, y
     // dejarla crecer convertiria una cache en una tabla de auditoria que
     // nadie pidio.
-    const { rows } = await db.query(
-        `INSERT INTO user_recommendations (user_id, trigger_event, areas, recomendaciones, generated_at)
-         VALUES ($1, $2, $3, $4, now())
-         ON CONFLICT (user_id) DO UPDATE
-            SET trigger_event   = EXCLUDED.trigger_event,
-                areas           = EXCLUDED.areas,
-                recomendaciones = EXCLUDED.recomendaciones,
-                generated_at    = now()
-         RETURNING user_id, trigger_event, areas, recomendaciones, generated_at`,
-        [userId, triggerEvent, JSON.stringify(areas), JSON.stringify(recomendaciones)]
-    );
+    const rows = await repo.guardarProyeccion(userId, triggerEvent, areas, recomendaciones);
 
     return rows[0];
 }
@@ -361,11 +279,7 @@ async function precalcularRecomendaciones(userId, triggerEvent = null) {
  * para que la primera visita no devuelva una pantalla vacia.
  */
 async function obtenerRecomendacionesPrecalculadas(userId) {
-    const { rows } = await db.query(
-        `SELECT user_id, trigger_event, areas, recomendaciones, generated_at
-           FROM user_recommendations WHERE user_id = $1`,
-        [userId]
-    );
+    const rows = await repo.leerProyeccion(userId);
 
     if (rows.length > 0) return { ...rows[0], recien_calculada: false };
 

@@ -104,6 +104,18 @@ capas"):
 Un servicio solo llega a otro por su `index.js`, y solo es dueno de sus tablas.
 `tests/arquitectura.test.mjs` verifica esas reglas en cada `npm test`.
 
+**Datos: una base de datos por servicio** ("No compartir base de datos entre
+servicios", seccion 14 del material). Cada microservicio declara su base en
+`config/configuracion.js` y la usa solo por
+`infrastructure/persistence/conexion.js`: `<base>_identidad`,
+`<base>_cursos`, `<base>_evaluaciones`, `<base>_gamificacion`,
+`<base>_notificaciones`, `<base>_reportes` y `<base>_seguridad`. Ningun
+servicio consulta la base de otro: lo que necesita lo pide por su contrato
+(`index.js`). `npm run migrate` crea las bases y la primera vez les copia los
+datos. Con `BASES_POR_SERVICIO=false` (por ejemplo en Supabase) quedan todas
+en una sola base, cada servicio en su esquema. Detalle en la seccion 6 de
+[`docs/arquitectura/README.md`](docs/arquitectura/README.md).
+
 #### Estructura del microservicio por capas
 
 Este es el arbol real del proyecto despues de aplicar la seccion 11 (el
@@ -128,6 +140,7 @@ human-firewall-backend/
         │   │   └── curso.js
         │   ├── infrastructure/
         │   │   └── persistence/
+        │   │       ├── conexion.js
         │   │       └── cursos.repositorio.js
         │   ├── config/
         │   │   └── configuracion.js
@@ -150,6 +163,7 @@ human-firewall-backend/
         │   │   └── puntaje.js
         │   ├── infrastructure/
         │   │   ├── persistence/
+        │   │   │   ├── conexion.js
         │   │   │   └── evaluaciones.repositorio.js
         │   │   └── client/
         │   │       ├── cursos.cliente.js
@@ -179,7 +193,12 @@ human-firewall-backend/
         │   │   └── recompensa.js
         │   ├── infrastructure/
         │   │   ├── persistence/
-        │   │   │   └── gamificacion.repositorio.js
+        │   │   │   ├── conexion.js
+        │   │   │   ├── gamificacion.repositorio.js
+        │   │   │   ├── niveles.repositorio.js
+        │   │   │   ├── puntos.repositorio.js
+        │   │   │   ├── recomendaciones.repositorio.js
+        │   │   │   └── recompensas.repositorio.js
         │   │   └── client/
         │   │       ├── cursos.cliente.js
         │   │       ├── evaluaciones.cliente.js
@@ -213,6 +232,8 @@ human-firewall-backend/
         │   │   └── usuario.js
         │   ├── infrastructure/
         │   │   ├── persistence/
+        │   │   │   ├── conexion.js
+        │   │   │   ├── equipos.repositorio.js
         │   │   │   ├── invitaciones.repositorio.js
         │   │   │   ├── recuperacion.repositorio.js
         │   │   │   └── usuarios.repositorio.js
@@ -245,6 +266,12 @@ human-firewall-backend/
         │   │   ├── notificacion.js
         │   │   └── plantilla.js
         │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   ├── conexion.js
+        │   │   │   ├── correos.repositorio.js
+        │   │   │   ├── notificaciones.repositorio.js
+        │   │   │   ├── plantillas.repositorio.js
+        │   │   │   └── resultados.repositorio.js
         │   │   └── client/
         │   │       ├── cursos.cliente.js
         │   │       ├── evaluaciones.cliente.js
@@ -264,6 +291,7 @@ human-firewall-backend/
         │   │   ├── reportes.routes.js
         │   │   └── scheduledReports.controller.js
         │   ├── application/
+        │   │   ├── actividad.js
         │   │   ├── orgReports.service.js
         │   │   ├── reportExports.service.js
         │   │   ├── reports.service.js
@@ -272,8 +300,16 @@ human-firewall-backend/
         │   │   ├── periodo.js
         │   │   └── programacion.js
         │   ├── infrastructure/
+        │   │   ├── persistence/
+        │   │   │   ├── conexion.js
+        │   │   │   ├── exportaciones.repositorio.js
+        │   │   │   ├── organizacional.repositorio.js
+        │   │   │   └── programados.repositorio.js
         │   │   └── client/
+        │   │       ├── cursos.cliente.js
+        │   │       ├── evaluaciones.cliente.js
         │   │       ├── gamificacion.cliente.js
+        │   │       ├── identidad.cliente.js
         │   │       ├── notificaciones.cliente.js
         │   │       └── seguridad.cliente.js
         │   ├── config/
@@ -294,11 +330,17 @@ human-firewall-backend/
             ├── application/
             │   ├── anomalies.service.js
             │   ├── audit.service.js
+            │   ├── cuentas.js
             │   └── dataLogs.service.js
             ├── domain/
             │   ├── anomalia.js
             │   └── registro.js
             ├── infrastructure/
+            │   ├── persistence/
+            │   │   ├── anomalias.repositorio.js
+            │   │   ├── auditoria.repositorio.js
+            │   │   ├── conexion.js
+            │   │   └── logs.repositorio.js
             │   └── client/
             │       ├── gamificacion.cliente.js
             │       └── identidad.cliente.js
@@ -318,9 +360,9 @@ Como leerlo, comparado con el ejemplo del material:
 | `controller/ProductController.java` | `controller/*.controller.js` (+ `*.routes.js` y `dto.js`) |
 | `application/ProductService.java` | `application/*.service.js` |
 | `domain/Product.java`, `ProductStatus.java` | `domain/*.js` (reglas y estados del negocio) |
-| `infrastructure/persistence/ProductRepository.java` | `infrastructure/persistence/*.repositorio.js` |
+| `infrastructure/persistence/ProductRepository.java` | `infrastructure/persistence/*.repositorio.js` (todo el SQL del servicio, con su esquema) |
 | `infrastructure/client/InventoryClient` | `infrastructure/client/<otro>.cliente.js` |
-| `config/application.yml` | `config/configuracion.js` |
+| `config/application.yml` (incluida la conexion a su base) | `config/configuracion.js` (`baseDeDatos`) + `infrastructure/persistence/conexion.js` |
 | `ProductApplication.java` | `index.js` |
 
 - Documento de arquitectura: [`docs/arquitectura/README.md`](docs/arquitectura/README.md)
@@ -628,6 +670,11 @@ npm run serve
 
 Compila la interfaz, aplica las migraciones pendientes y levanta el monolito en
 **http://localhost:3000**. Todo el sistema con un comando, en un solo puerto.
+
+La primera vez tambien crea la base de datos de cada microservicio
+(`<tu_base>_identidad`, `<tu_base>_cursos`, ...) y les copia los datos que
+ya tenias. Si tu proveedor no deja crear bases (Supabase), agrega
+`BASES_POR_SERVICIO=false` al `.env`.
 
 ### 4. Entrar
 

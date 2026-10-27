@@ -11,8 +11,10 @@ const identidad = require('../infrastructure/client/identidad.cliente');
 
 module.exports = {
     usuarioExiste: (userId) => identidad.usuarioExiste(userId),
-    ranking: (limite) => repo.ranking(limite),
-    estadoDe: (userId) => repo.estadoDe(userId),
+    // Ranking y estado se leen de la cache de puntos y nivel de la cuenta,
+    // que vive en identidad (base de datos por servicio).
+    ranking: (limite) => identidad.rankingPorPuntos(limite),
+    estadoDe: (userId) => identidad.cacheDeGamificacion(userId),
     insigniasDe: (userId) => repo.insigniasDe(userId),
     insertarRecompensa: (datos) => repo.insertarRecompensa(datos),
     buscarRecompensa: (id) => repo.buscarRecompensa(id),

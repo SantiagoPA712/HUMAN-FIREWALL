@@ -10,7 +10,7 @@
 const crypto = require('crypto');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { hashPassword } = require('../../../compartido/utils/hash');
 const { ErrorHttp } = require('../../../compartido/http/errores');
 const { cumplePolitica, MENSAJE_POLITICA } = require('../domain/usuario');

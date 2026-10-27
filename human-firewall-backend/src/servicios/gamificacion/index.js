@@ -4,14 +4,19 @@
  */
 
 const manifiesto = require('./manifiesto');
+const conexion = require('./infrastructure/persistence/conexion');
 const points = require('./application/points.service');
 const rewards = require('./application/rewards.service');
 const levels = require('./application/levels.service');
 const recommendations = require('./application/recommendations.service');
 const repo = require('./infrastructure/persistence/gamificacion.repositorio');
+const puntos = require('./infrastructure/persistence/puntos.repositorio');
 
 module.exports = {
     manifiesto,
+
+    /** Base de datos propia del servicio (el bus de eventos lee su event_outbox). */
+    baseDeDatos: () => conexion.base(),
 
     /** Contrato publico (OpenAPI) de la API HTTP del servicio. */
     contrato: () => require('./contract/openapi'),
@@ -43,6 +48,15 @@ module.exports = {
     obtenerNivelDeUsuario: (...args) => levels.obtenerNivelDeUsuario(...args),
     contarRecompensasDe: (...args) => repo.contarRecompensasDe(...args),
     buscarRecompensa: (...args) => repo.buscarRecompensa(...args),
+
+    // Consultas de lectura sobre el historial de puntos para reportes y
+    // seguridad (base de datos por servicio: nadie mas lee points_ledger).
+    accionesPorUsuarioEntre: (...args) => puntos.movimientosPorUsuarioEntre(...args),
+    ultimaActividadDe: (...args) => puntos.ultimoMovimientoDe(...args),
+    puntosPorUsuarioHasta: (...args) => puntos.puntosPorUsuarioHasta(...args),
+    movimientosEnVentana: (...args) => puntos.movimientosEnVentana(...args),
+    usuariosConMovimientosRecientes: (...args) => puntos.usuariosConMovimientosRecientes(...args),
+    ultimosMovimientos: (...args) => puntos.ultimosMovimientos(...args),
 
     // --- Comandos para otros servicios (ajustes manuales auditados por seguridad) ---
 

@@ -29,4 +29,15 @@ const pool = new Pool({
     ssl: (esRemota || forzarSSL) ? { rejectUnauthorized: false } : false
 });
 
+// Un esquema por microservicio (migracion 090). Los repositorios escriben los
+// nombres calificados (identidad.users); este search_path es solo una red de
+// seguridad para SQL sin calificar (migraciones viejas, consultas a mano) por
+// si el proveedor no permitio fijarlo en la base con ALTER DATABASE.
+const SEARCH_PATH = 'public, identidad, cursos, evaluaciones, gamificacion, notificaciones, reportes, seguridad, data';
+pool.on('connect', (client) => {
+    client.query(`SET search_path TO ${SEARCH_PATH}`).catch((e) =>
+        console.error('[db] no se pudo fijar el search_path:', e.message));
+});
+
 module.exports = pool;
+module.exports.SEARCH_PATH = SEARCH_PATH;

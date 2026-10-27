@@ -10,13 +10,14 @@
  * rewards_catalog, no estan hardcodeadas.
  */
 
-const db = require('../../../compartido/config/db');
 const config = require('../config/configuracion');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const cursos = require('../infrastructure/client/cursos.cliente');
 const evaluaciones = require('../infrastructure/client/evaluaciones.cliente');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { umbralDe } = require('../domain/recompensa');
+const repo = require('../infrastructure/persistence/recompensas.repositorio');
 
 /**
  * Calculadores de condicion. Cada uno devuelve el progreso actual del usuario
@@ -27,11 +28,7 @@ const { umbralDe } = require('../domain/recompensa');
  */
 const CALCULADORES = {
     async points_total(userId) {
-        const { rows } = await db.query(
-            `SELECT COALESCE(total_points, 0) AS valor FROM v_user_points WHERE user_id = $1`,
-            [userId]
-        );
-        return rows[0]?.valor || 0;
+        return repo.puntosTotales(userId);
     },
 
     // Las cuatro condiciones siguientes miden datos de otros servicios
@@ -67,15 +64,7 @@ const CALCULADORES = {
 };
 
 /** Recompensas activas del catalogo. */
-async function obtenerCatalogoActivo() {
-    const { rows } = await db.query(
-        `SELECT id, name, description, icon_url, condition_type, condition_params, is_repeatable
-           FROM rewards_catalog
-          WHERE is_active = true
-          ORDER BY id`
-    );
-    return rows;
-}
+const obtenerCatalogoActivo = () => repo.catalogoActivo();
 
 /**
  * Otorga una recompensa guardando un snapshot de como estaba en el catalogo.
@@ -93,40 +82,21 @@ async function otorgarRecompensa({ recompensa, userId, sourceType, sourceId, val
         ? `reward:${recompensa.id}:${userId}:${sourceType}:${sourceId ?? 'x'}`
         : `reward:${recompensa.id}:${userId}`;
 
-    const client = await db.connect();
-    try {
-        await client.query('BEGIN');
+    return conTransaccion(async (tx) => {
+        const otorgada = await repo.insertarOtorgada({
+            userId,
+            recompensa,
+            sourceType,
+            sourceId,
+            snapshot: {
+                condition_type: recompensa.condition_type,
+                threshold: umbralDe(recompensa),
+                valor_alcanzado: valorAlcanzado
+            },
+            dedupeKey
+        }, tx);
 
-        const { rows } = await client.query(
-            `INSERT INTO user_rewards
-                (user_id, reward_id, reward_name, reward_description, reward_icon_url,
-                 source_type, source_id, condition_snapshot, dedupe_key)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             ON CONFLICT (dedupe_key) DO NOTHING
-             RETURNING id, reward_id, reward_name, reward_description, reward_icon_url, earned_at`,
-            [
-                userId,
-                recompensa.id,
-                recompensa.name,
-                recompensa.description,
-                recompensa.icon_url,
-                sourceType,
-                sourceId != null ? String(sourceId) : null,
-                JSON.stringify({
-                    condition_type: recompensa.condition_type,
-                    threshold: umbralDe(recompensa),
-                    valor_alcanzado: valorAlcanzado
-                }),
-                dedupeKey
-            ]
-        );
-
-        if (rows.length === 0) {
-            await client.query('COMMIT');
-            return null;   // ya la tenia
-        }
-
-        const otorgada = rows[0];
+        if (!otorgada) return null;   // ya la tenia
 
         // Evento para el frontend y para cualquier historia que quiera
         // reaccionar a un logro nuevo.
@@ -135,17 +105,10 @@ async function otorgarRecompensa({ recompensa, userId, sourceType, sourceId, val
             rewardId: recompensa.id,
             rewardName: recompensa.name,
             userRewardId: otorgada.id
-        }, client);
+        }, tx);
 
-        await client.query('COMMIT');
         return otorgada;
-
-    } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-    } finally {
-        client.release();
-    }
+    });
 }
 
 /**
@@ -213,18 +176,7 @@ async function obtenerResumenPorUsuarios(userIds, { from = null, to = null } = {
     const resultado = new Map();
     if (!Array.isArray(userIds) || userIds.length === 0) return resultado;
 
-    const { rows } = await db.query(
-        `SELECT user_id,
-                COUNT(*)::int                    AS total,
-                ARRAY_AGG(reward_name ORDER BY earned_at DESC) AS nombres,
-                MAX(earned_at)                   AS ultima
-           FROM user_rewards
-          WHERE user_id = ANY($1::int[])
-            AND ($2::timestamptz IS NULL OR earned_at >= $2::timestamptz)
-            AND ($3::timestamptz IS NULL OR earned_at < ($3::timestamptz + interval '1 day'))
-          GROUP BY user_id`,
-        [userIds, from, to]
-    );
+    const rows = await repo.resumenPorUsuarios(userIds, { from, to });
 
     for (const r of rows) {
         resultado.set(r.user_id, { total: r.total, nombres: r.nombres || [], ultima: r.ultima });
@@ -238,14 +190,7 @@ async function obtenerResumenPorUsuarios(userIds, { from = null, to = null } = {
  * mostrarlas en gris con el texto de que falta para desbloquearlas.
  */
 async function obtenerRecompensasDeUsuario(userId) {
-    const { rows: obtenidas } = await db.query(
-        `SELECT id, reward_id, reward_name, reward_description, reward_icon_url,
-                source_type, source_id, condition_snapshot, earned_at
-           FROM user_rewards
-          WHERE user_id = $1
-          ORDER BY earned_at DESC`,
-        [userId]
-    );
+    const obtenidas = await repo.obtenidasPor(userId);
 
     const catalogo = await obtenerCatalogoActivo();
     const idsObtenidos = new Set(obtenidas.map(o => o.reward_id).filter(Boolean));

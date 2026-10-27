@@ -59,13 +59,14 @@ for (const nombre of NOMBRES) {
     // Las capas de la seccion 11 del material: controller, application,
     // domain, infrastructure y la configuracion propia del servicio.
     const faltan = ['index.js', 'manifiesto.js', 'README.md', 'controller', 'application', 'domain', 'infrastructure',
-                    'config/configuracion.js', 'contract/openapi.js', 'controller/dto.js']
+                    'config/configuracion.js', 'infrastructure/persistence/conexion.js',
+                    `../../../../migrations/servicios/${nombre}/001_base.sql`, 'contract/openapi.js', 'controller/dto.js']
         .filter(p => !existsSync(path.join(base, p)));
     check(`${nombre}: tiene index, manifiesto, README, controller, application, domain, infrastructure, config, DTO y contrato`,
         faltan.length === 0, `(faltan: ${faltan.join(', ')})`);
 
     const m = manifiestos[nombre];
-    const campos = ['nombre', 'responsabilidad', 'prefijos', 'tablas', 'publica', 'consume', 'dependeDe',
+    const campos = ['nombre', 'responsabilidad', 'prefijos', 'esquemas', 'tablas', 'publica', 'consume', 'dependeDe',
                     'lecturasCompartidas', 'escriturasCompartidas', 'procesos'];
     check(`${nombre}: el manifiesto declara todos sus campos`, m && campos.every(c => m[c] !== undefined));
 
@@ -91,6 +92,32 @@ check('ningun archivo de la capa api tiene SQL', apiConSql.length === 0, lista(a
 const dominioImpuro = todos.filter(f => f.capa === 'domain' && f.requires.some(r => !r.destino.includes(`${path.sep}domain${path.sep}`)));
 check('la capa de dominio no depende de nada fuera del dominio (ni base, ni bus, ni HTTP)',
     dominioImpuro.length === 0, lista(dominioImpuro.map(f => `${f.relativo} -> ${f.requires.map(r => r.especificador)}`)));
+
+// Seccion 11: Application coordina; el SQL vive en infrastructure/persistence.
+// application/ no importa el pool (las transacciones las abre con
+// compartido/config/transaccion.js) ni escribe SQL.
+const aplicacionConBase = todos.filter(f => f.capa === 'application' && f.requires.some(r => r.destino === DB));
+check('ningun archivo de application/ importa la base de datos', aplicacionConBase.length === 0,
+    lista(aplicacionConBase.map(f => f.relativo)));
+
+const aplicacionConSql = todos.filter(f => f.capa === 'application' && (f.lecturas.length || f.escrituras.length));
+check('ningun archivo de application/ tiene SQL: todo esta en infrastructure/persistence/', aplicacionConSql.length === 0,
+    lista(aplicacionConSql.map(f => f.relativo)));
+
+const sqlFueraDePersistencia = todos.filter(f => (f.lecturas.length || f.escrituras.length) &&
+    !f.relativo.includes('/infrastructure/persistence/') && !f.relativo.endsWith('/infrastructure/seed_admin.js'));
+check('el SQL de cada servicio esta solo en infrastructure/persistence/', sqlFueraDePersistencia.length === 0,
+    lista(sqlFueraDePersistencia.map(f => f.relativo)));
+
+// Base de datos por servicio: cada repositorio usa la conexion de SU servicio
+// (infrastructure/persistence/conexion.js, que toma la URL de su config/), no
+// el pool compartido; y cada config declara su baseDeDatos.
+const persistenciaConPoolCompartido = todos.filter(f => f.relativo.includes('/infrastructure/') &&
+    !f.relativo.endsWith('/conexion.js') && f.requires.some(r => r.destino === DB));
+check('los repositorios usan la conexion de su propio servicio, no el pool compartido',
+    persistenciaConPoolCompartido.length === 0, lista(persistenciaConPoolCompartido.map(f => f.relativo)));
+const sinBasePropia = NOMBRES.filter(n => !('baseDeDatos' in require_(`./servicios/${n}/config/configuracion`)));
+check('cada servicio declara su base de datos en config/ (baseDeDatos)', sinBasePropia.length === 0, lista(sinBasePropia));
 
 const dominioConSql = todos.filter(f => f.capa === 'domain' && (f.lecturas.length || f.escrituras.length));
 check('la capa de dominio no tiene SQL', dominioConSql.length === 0, lista(dominioConSql.map(f => f.relativo)));
@@ -177,6 +204,38 @@ for (const t of ['event_outbox', 'schema_migrations']) dueno.set(t, 'compartido'
 
 check('ninguna tabla esta declarada en dos servicios', repetidas.length === 0, lista(repetidas));
 
+// Un esquema de PostgreSQL por servicio (migracion 090): cada tabla declarada
+// vive en uno de los esquemas del servicio, y ningun esquema es de dos servicios.
+const fueraDeSuEsquema = NOMBRES.flatMap(n => manifiestos[n].tablas
+    .filter(t => !manifiestos[n].esquemas.includes(t.split('.')[0]) || !t.includes('.'))
+    .map(t => `${n}: ${t}`));
+check('cada tabla del manifiesto vive en el esquema de su servicio', fueraDeSuEsquema.length === 0, lista(fueraDeSuEsquema));
+
+const duenoDeEsquema = new Map();
+const esquemasRepetidos = [];
+for (const n of NOMBRES) for (const e of manifiestos[n].esquemas) {
+    if (duenoDeEsquema.has(e)) esquemasRepetidos.push(`${e}: ${duenoDeEsquema.get(e)} y ${n}`);
+    duenoDeEsquema.set(e, n);
+}
+check('cada esquema es de un solo servicio', esquemasRepetidos.length === 0, lista(esquemasRepetidos));
+
+const sinEsquema = [];
+for (const f of todos) for (const t of [...f.lecturas, ...f.escrituras]) if (!t.includes('.')) sinEsquema.push(`${t} (${f.relativo})`);
+check('todo el SQL de los servicios nombra las tablas con su esquema (identidad.users)', sinEsquema.length === 0,
+    lista([...new Set(sinEsquema)]));
+
+// Base de datos por servicio (material, secciones 1, 11 y 14: "No compartir
+// base de datos entre servicios"): ninguna consulta toca el esquema de otro
+// servicio, ni para leer. Lo que se necesita de otro se pide por su contrato.
+const esquemaAjeno = [];
+for (const nombre of NOMBRES) for (const f of analisis[nombre]) for (const t of [...f.lecturas, ...f.escrituras]) {
+    if (t.includes('.') && !manifiestos[nombre].esquemas.includes(t.split('.')[0])) esquemaAjeno.push(`${f.relativo} usa ${t}`);
+}
+check('ninguna consulta usa el esquema de otro servicio (cada servicio solo ve su base)', esquemaAjeno.length === 0,
+    lista(esquemaAjeno));
+const conExcepciones = NOMBRES.filter(n => manifiestos[n].lecturasCompartidas.length || manifiestos[n].escriturasCompartidas.length);
+check('ningun manifiesto declara lecturas o escrituras en bases ajenas', conExcepciones.length === 0, lista(conExcepciones));
+
 const huerfanas = new Set();
 for (const f of todos) for (const t of [...f.lecturas, ...f.escrituras]) if (!dueno.has(t)) huerfanas.add(`${t} (${f.relativo})`);
 check('toda tabla usada en el SQL tiene un servicio dueno', huerfanas.size === 0, lista([...huerfanas]));
@@ -216,8 +275,8 @@ const declaracionesViejas = NOMBRES.flatMap(n =>
 check('no quedan lecturas declaradas que el codigo ya no hace', declaracionesViejas.length === 0, lista(declaracionesViejas));
 
 const escriturasDeclaradas = NOMBRES.flatMap(n => manifiestos[n].escriturasCompartidas.map(d => `${n}->${d.tabla}`));
-check('la unica escritura compartida es la cache de puntos y nivel en users',
-    JSON.stringify(escriturasDeclaradas) === JSON.stringify(['gamificacion->users']), `(${escriturasDeclaradas})`);
+check('ningun servicio escribe en la base de otro (la cache de puntos va por el contrato de identidad)',
+    escriturasDeclaradas.length === 0, `(${escriturasDeclaradas})`);
 
 // =====================================================================
 console.log('\n--- EVENTOS: EL MANIFIESTO DICE LA VERDAD ---');

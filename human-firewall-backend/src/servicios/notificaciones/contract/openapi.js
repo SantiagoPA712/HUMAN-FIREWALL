@@ -117,6 +117,7 @@ const schemas = {
         properties: {
             por_estado: { type: 'object', additionalProperties: { type: 'integer' } },
             suscriptores: { type: 'object', additionalProperties: { type: 'integer' }, description: 'evento -> cantidad de handlers' },
+            colas: { type: 'integer', description: 'Cuantas colas (event_outbox) lee el worker: una por base de datos.' },
             ultimos_fallidos: { type: 'array', items: { type: 'object' } }
         }
     }

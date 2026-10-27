@@ -22,9 +22,9 @@
  * Sin bucles ni expresiones: una plantilla con logica vuelve a ser codigo.
  */
 
-const db = require('../../../compartido/config/db');
 const config = require('../config/configuracion');
 const { IDIOMAS, escaparHtml, estaPresente, aplicar, renderizar } = require('../domain/plantilla');
+const repo = require('../infrastructure/persistence/plantillas.repositorio');
 
 /** Idioma de la plataforma cuando el usuario no eligio uno (criterio de aceptacion 3). */
 function idiomaPorDefecto() {
@@ -54,13 +54,7 @@ async function obtenerPlantilla(tipo, idioma) {
     const candidatos = [...new Set([idioma, idiomaPorDefecto()])];
 
     for (const lang of candidatos) {
-        const { rows } = await db.query(
-            `SELECT id, notification_type, language, version, subject, body_html, body_text
-               FROM email_templates
-              WHERE notification_type = $1 AND language = $2 AND is_active
-              LIMIT 1`,
-            [tipo, lang]
-        );
+        const rows = await repo.plantillaActiva(tipo, lang);
         if (rows[0]) return rows[0];
     }
 

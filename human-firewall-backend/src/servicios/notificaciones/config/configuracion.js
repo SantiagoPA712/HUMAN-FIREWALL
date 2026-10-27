@@ -8,9 +8,17 @@
  */
 
 const entorno = require('../../../compartido/config/entorno');
+const bases = require('../../../compartido/config/bases');
 
 module.exports = {
     nombre: 'notificaciones',
+
+    /**
+     * Base de datos propia del servicio (el spring.datasource.url del
+     * application.yml del material): NOTIFICACIONES_DATABASE_URL, o la de DATABASE_URL con el
+     * sufijo _notificaciones cuando BASES_POR_SERVICIO=true.
+     */
+    get baseDeDatos() { return entorno.texto('NOTIFICACIONES_DATABASE_URL', bases.urlPorDefecto('notificaciones')); },
 
     /** Servidor de correo. Sin host, los correos quedan en 'skipped'. */
     smtp: {

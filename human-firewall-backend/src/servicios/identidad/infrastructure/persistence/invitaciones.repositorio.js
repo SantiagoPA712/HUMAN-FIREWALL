@@ -7,7 +7,7 @@
  * application/invitations.service.js.
  */
 
-const db = require('../../../../compartido/config/db');
+const db = require('./conexion');
 
 const q = (tx) => tx || db;
 
@@ -17,7 +17,7 @@ const q = (tx) => tx || db;
  */
 async function registrarEvento(inv, accion, actorId = null, ocurrio = null, tx) {
     await q(tx).query(
-        `INSERT INTO user_invitation_events
+        `INSERT INTO identidad.user_invitation_events
              (invitation_id, action, actor_user_id, invited_by, email, role, occurred_at)
          VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()))`,
         [inv.id, accion, actorId, inv.invited_by, inv.email, inv.role, ocurrio]
@@ -27,7 +27,7 @@ async function registrarEvento(inv, accion, actorId = null, ocurrio = null, tx) 
 /** Pasa a 'expired' las pendientes vencidas. Devuelve las filas afectadas. */
 async function marcarVencidas(tx) {
     const { rows } = await q(tx).query(
-        `UPDATE user_invitations
+        `UPDATE identidad.user_invitations
             SET status = 'expired', expired_at = expires_at, updated_at = now()
           WHERE status = 'pending' AND expires_at <= now()
           RETURNING *`
@@ -38,7 +38,7 @@ async function marcarVencidas(tx) {
 /** La invitacion pendiente de ese correo (opcionalmente excluyendo una), o null. */
 async function pendientePorCorreo(email, excepto = null) {
     const { rows } = await db.query(
-        `SELECT id, expires_at FROM user_invitations
+        `SELECT id, expires_at FROM identidad.user_invitations
           WHERE email = $1 AND status = 'pending' AND ($2::bigint IS NULL OR id <> $2)`,
         [email, excepto]
     );
@@ -47,7 +47,7 @@ async function pendientePorCorreo(email, excepto = null) {
 
 async function insertar({ email, role, language, tokenHash, horasDeVigencia, invitedBy }, tx) {
     const { rows } = await q(tx).query(
-        `INSERT INTO user_invitations (email, role, language, token_hash, expires_at, invited_by)
+        `INSERT INTO identidad.user_invitations (email, role, language, token_hash, expires_at, invited_by)
          VALUES ($1, $2, $3, $4, now() + ($5 || ' hours')::interval, $6)
          RETURNING *`,
         [email, role, language, tokenHash, String(horasDeVigencia), invitedBy]
@@ -57,14 +57,14 @@ async function insertar({ email, role, language, tokenHash, horasDeVigencia, inv
 
 /** Lee y bloquea (FOR UPDATE) una invitacion por id. */
 async function bloquear(id, tx) {
-    const { rows } = await q(tx).query('SELECT * FROM user_invitations WHERE id = $1 FOR UPDATE', [id]);
+    const { rows } = await q(tx).query('SELECT * FROM identidad.user_invitations WHERE id = $1 FOR UPDATE', [id]);
     return rows[0] || null;
 }
 
 /** Enlace nuevo: hash nuevo, vigencia nueva, un envio mas. */
 async function renovar(id, { tokenHash, horasDeVigencia }, tx) {
     const { rows } = await q(tx).query(
-        `UPDATE user_invitations
+        `UPDATE identidad.user_invitations
             SET token_hash = $2,
                 expires_at = now() + ($3 || ' hours')::interval,
                 status = 'pending',
@@ -81,7 +81,7 @@ async function renovar(id, { tokenHash, horasDeVigencia }, tx) {
 
 async function cancelar(id, tx) {
     const { rows } = await q(tx).query(
-        `UPDATE user_invitations
+        `UPDATE identidad.user_invitations
             SET status = 'cancelled', cancelled_at = now(), updated_at = now()
           WHERE id = $1
           RETURNING *`,
@@ -100,9 +100,9 @@ async function listar(status = null) {
                     ) ORDER BY e.occurred_at, e.id) FILTER (WHERE e.id IS NOT NULL),
                     '[]'
                 ) AS historial
-           FROM user_invitations i
-           LEFT JOIN users u ON u.id = i.invited_by
-           LEFT JOIN user_invitation_events e ON e.invitation_id = i.id
+           FROM identidad.user_invitations i
+           LEFT JOIN identidad.users u ON u.id = i.invited_by
+           LEFT JOIN identidad.user_invitation_events e ON e.invitation_id = i.id
           WHERE ($1::text IS NULL OR i.status = $1)
           GROUP BY i.id, u.email
           ORDER BY i.created_at DESC, i.id DESC
@@ -114,13 +114,13 @@ async function listar(status = null) {
 
 async function contarPorEstado() {
     const { rows } = await db.query(
-        'SELECT status, COUNT(*)::int AS total FROM user_invitations GROUP BY status'
+        'SELECT status, COUNT(*)::int AS total FROM identidad.user_invitations GROUP BY status'
     );
     return rows;
 }
 
 async function buscarPorHash(tokenHash) {
-    const { rows } = await db.query('SELECT * FROM user_invitations WHERE token_hash = $1', [tokenHash]);
+    const { rows } = await db.query('SELECT * FROM identidad.user_invitations WHERE token_hash = $1', [tokenHash]);
     return rows[0] || null;
 }
 
@@ -130,7 +130,7 @@ async function buscarPorHash(tokenHash) {
  */
 async function aceptarPorHash(tokenHash, tx) {
     const { rows } = await q(tx).query(
-        `UPDATE user_invitations
+        `UPDATE identidad.user_invitations
             SET status = 'accepted', accepted_at = now(), updated_at = now()
           WHERE token_hash = $1 AND status = 'pending' AND expires_at > now()
           RETURNING *`,
@@ -140,13 +140,13 @@ async function aceptarPorHash(tokenHash, tx) {
 }
 
 async function asignarCuenta(id, userId, tx) {
-    await q(tx).query('UPDATE user_invitations SET accepted_user_id = $2 WHERE id = $1', [id, userId]);
+    await q(tx).query('UPDATE identidad.user_invitations SET accepted_user_id = $2 WHERE id = $1', [id, userId]);
 }
 
 /** Marca el pedido de reenvio una sola vez. Devuelve la fila, o null si ya estaba. */
 async function marcarReenvioSolicitado(id, tx) {
     const { rows } = await q(tx).query(
-        `UPDATE user_invitations SET resend_requested_at = now(), updated_at = now()
+        `UPDATE identidad.user_invitations SET resend_requested_at = now(), updated_at = now()
           WHERE id = $1 AND resend_requested_at IS NULL
           RETURNING *`,
         [id]

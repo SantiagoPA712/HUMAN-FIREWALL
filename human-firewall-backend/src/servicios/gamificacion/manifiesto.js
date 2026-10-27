@@ -5,11 +5,13 @@ module.exports = {
         'Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ' +
         'ranking y recomendaciones de refuerzo segun el desempeno.',
     prefijos: ['/api/gamification'],
+    // Esquemas de PostgreSQL del servicio (migracion 090). Sus tablas viven ahi.
+    esquemas: ['gamificacion'],
     tablas: [
-        'points_ledger', 'points_rules', 'v_user_points',
-        'rewards_catalog', 'user_rewards', 'badges', 'user_badges',
-        'levels_config', 'user_level_history',
-        'recommendation_rules', 'user_recommendations'
+        'gamificacion.points_ledger', 'gamificacion.points_rules', 'gamificacion.v_user_points',
+        'gamificacion.rewards_catalog', 'gamificacion.user_rewards', 'gamificacion.badges', 'gamificacion.user_badges',
+        'gamificacion.levels_config', 'gamificacion.user_level_history',
+        'gamificacion.recommendation_rules', 'gamificacion.user_recommendations'
     ],
     publica: ['points_assigned', 'level_up', 'reward_granted'],
     consume: [
@@ -17,28 +19,10 @@ module.exports = {
         'simulation.decision_made', 'simulation.completed', 'points_assigned'
     ],
     dependeDe: ['identidad', 'cursos', 'evaluaciones', 'seguridad'],
-    lecturasCompartidas: [
-        {
-            tabla: 'users', servicio: 'identidad',
-            motivo: 'El ranking ordena por las columnas de cache total_points y level, que vive en users ' +
-                    'y mantiene este mismo servicio (ver escriturasCompartidas).'
-        },
-        {
-            tablas: ['quiz_attempts', 'challenges', 'simulations'], servicio: 'evaluaciones',
-            motivo: 'El resumen de desempeno y las recomendaciones agregan el historial de intentos en ' +
-                    'una sola consulta. Es una proyeccion de lectura: nunca escribe en esas tablas.'
-        },
-        {
-            tablas: ['courses', 'course_contents', 'course_assignments', 'lesson_progress'], servicio: 'cursos',
-            motivo: 'Mismo caso: el avance por curso del resumen de desempeno se calcula con un JOIN.'
-        }
-    ],
-    escriturasCompartidas: [
-        {
-            tabla: 'users', servicio: 'identidad', columnas: ['total_points', 'level'],
-            motivo: 'Cache desnormalizada del total y del nivel. La fuente de verdad es points_ledger; ' +
-                    'identidad no escribe nunca estas dos columnas.'
-        }
-    ],
+    // Base de datos por servicio: no lee ni escribe tablas ajenas. La cache de
+    // puntos y nivel de la cuenta se actualiza por el contrato de identidad, y
+    // los intentos y cursos del resumen de desempeno se piden por contrato.
+    lecturasCompartidas: [],
+    escriturasCompartidas: [],
     procesos: []
 };

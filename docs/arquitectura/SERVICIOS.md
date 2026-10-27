@@ -4,7 +4,7 @@
 > No editar a mano: se arma con los manifiestos, el contrato OpenAPI y el codigo de cada servicio,
 > y `tests/arquitectura.test.mjs` falla si queda desactualizado.
 
-Version del contrato publico: **1.1.0**. Contrato navegable en `/api/docs`.
+Version del contrato publico: **1.2.0**. Contrato navegable en `/api/docs`.
 
 | Servicio | Responsabilidad | Prefijos HTTP | Depende de |
 |----------|-----------------|---------------|------------|
@@ -13,7 +13,7 @@ Version del contrato publico: **1.1.0**. Contrato navegable en `/api/docs`.
 | [evaluaciones](#evaluaciones) | Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal y el historial de intentos de evaluacion con su puntaje calculado en el servidor. | `/api/simulations`<br>`/api/gamification/challenge` | cursos, gamificacion |
 | [gamificacion](#gamificacion) | Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking y recomendaciones de refuerzo segun el desempeno. | `/api/gamification` | identidad, cursos, evaluaciones, seguridad |
 | [notificaciones](#notificaciones) | Avisos in-app, notificacion de resultados (con alerta a RH en cursos criticos), preferencias por canal y cola de correo con plantillas versionadas e idioma. | `/api/notifications` | identidad, cursos, evaluaciones |
-| [reportes](#reportes) | Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos programados con su historico y consolidado organizacional para gerencia. | `/api/gamification/reports` | gamificacion, notificaciones, seguridad |
+| [reportes](#reportes) | Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos programados con su historico y consolidado organizacional para gerencia. | `/api/gamification/reports` | identidad, cursos, evaluaciones, gamificacion, notificaciones, seguridad |
 | [seguridad](#seguridad) | Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y registro centralizado e inmutable de acciones criticas (data.logs). | `/api/gamification/security`<br>`/api/gamification/users`<br>`/api/logs` | identidad, gamificacion |
 
 ---
@@ -23,7 +23,7 @@ Version del contrato publico: **1.1.0**. Contrato navegable en `/api/docs`.
 Cuentas de usuario, autenticacion (correo/contrasena y Google), recuperacion de contrasena, roles, perfil propio, equipos e invitaciones.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/identidad/`
-- **Tablas propias:** `users`, `password_reset_tokens`, `user_invitations`, `user_invitation_events`, `teams`
+- **Tablas propias:** `identidad.users`, `identidad.password_reset_tokens`, `identidad.user_invitations`, `identidad.user_invitation_events`, `identidad.teams`
 - **Publica:** `user.registered`, `user.password_changed`, `user.invited`
 - **Consume:** -
 - **Depende de (por contrato interno):** seguridad, notificaciones
@@ -57,7 +57,7 @@ Cuentas de usuario, autenticacion (correo/contrasena y Google), recuperacion de 
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `usuarioExiste`, `correoDe`, `idPorCorreo`, `obtenerContacto`, `responsablesRhDe`, `activosConRol`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `usuarioExiste`, `correoDe`, `idPorCorreo`, `obtenerContacto`, `responsablesRhDe`, `activosConRol`, `activosConRoles`, `usuariosActivos`, `resumenesDe`, `buscarEquipo`, `equiposActivos`, `rankingPorPuntos`, `cacheDeGamificacion`, `guardarCacheDePuntos`, `guardarCacheDeNivel`.
 
 ### Estructura
 
@@ -99,6 +99,8 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde identidad.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde identidad.
 - `infrastructure/passport.js` — Integracion con Google OAuth (passport).
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de identidad.
+- `infrastructure/persistence/equipos.repositorio.js` — Repositorio de equipos (areas) del servicio de identidad.
 - `infrastructure/persistence/invitaciones.repositorio.js` — Repositorio de invitaciones (esquema identidad).
 - `infrastructure/persistence/recuperacion.repositorio.js` — Repositorio de tokens de recuperacion de contrasena (esquema identidad).
 - `infrastructure/persistence/usuarios.repositorio.js` — Repositorio de cuentas de usuario (esquema identidad).
@@ -115,7 +117,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Catalogo de cursos y lecciones, asignacion de cursos a usuarios, progreso por leccion, cierre del curso al completar la ultima leccion y aviso de fechas limite proximas.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/cursos/`
-- **Tablas propias:** `courses`, `course_contents`, `course_assignments`, `lesson_progress`
+- **Tablas propias:** `cursos.courses`, `cursos.course_contents`, `cursos.course_assignments`, `cursos.lesson_progress`
 - **Publica:** `course.assigned`, `lesson.completed`, `course.completed`, `course.deadline_approaching`
 - **Consume:** -
 - **Depende de (por contrato interno):** -
@@ -135,7 +137,7 @@ Catalogo de cursos y lecciones, asignacion de cursos a usuarios, progreso por le
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `obtenerTitulo`, `obtenerTitulos`, `idsDeCursosAsignados`, `obtenerLeccion`, `contarLeccionesCompletadas`, `contarCursosCompletados`, `listarConCriticidad`, `marcarCritico`, `buscarVencimientosProximos`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `obtenerTitulo`, `obtenerTitulos`, `idsDeCursosAsignados`, `obtenerLeccion`, `contarLeccionesCompletadas`, `contarCursosCompletados`, `listarConCriticidad`, `marcarCritico`, `buscarVencimientosProximos`, `titulosOrdenados`, `usuariosAsignadosA`, `asignacionesDe`, `accionesPorUsuarioEntre`, `ultimaActividadDe`, `cursosCompletadosPorUsuarioEntre`, `avanceDe`, `leccionesPendientes`.
 
 ### Estructura
 
@@ -160,10 +162,11 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 **domain/** — Domain: entidades y reglas de negocio
 
-- `domain/curso.js` — Reglas del dominio de cursos.
+- `domain/curso.js` — Curso (servicio de cursos).
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de cursos.
 - `infrastructure/persistence/cursos.repositorio.js` — Repositorio de cursos: el unico archivo del servicio que escribe SQL.
 
 **contract/** — Contrato publico OpenAPI
@@ -177,7 +180,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal y el historial de intentos de evaluacion con su puntaje calculado en el servidor.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/evaluaciones/`
-- **Tablas propias:** `simulations`, `simulation_steps`, `simulation_options`, `simulation_results`, `challenges`, `user_challenge_results`, `quiz_attempts`
+- **Tablas propias:** `evaluaciones.simulations`, `evaluaciones.simulation_steps`, `evaluaciones.simulation_options`, `evaluaciones.simulation_results`, `evaluaciones.challenges`, `evaluaciones.user_challenge_results`, `evaluaciones.quiz_attempts`
 - **Publica:** `simulation.decision_made`, `simulation.completed`, `quiz.approved`, `quiz.failed`
 - **Consume:** -
 - **Depende de (por contrato interno):** cursos, gamificacion
@@ -198,7 +201,7 @@ Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal y e
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `nombreDeDesafio`, `tituloDeSimulacion`, `contarEvaluacionesAprobadas`, `ultimosResultados`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `nombreDeDesafio`, `tituloDeSimulacion`, `contarEvaluacionesAprobadas`, `ultimosResultados`, `resultadosConsolidados`, `pendientesDe`, `serieDeIntentos`, `accionesPorUsuarioEntre`, `ultimaActividadDe`.
 
 ### Estructura
 
@@ -232,6 +235,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 - `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde evaluaciones.
 - `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde evaluaciones.
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de evaluaciones.
 - `infrastructure/persistence/evaluaciones.repositorio.js` — Repositorio de evaluaciones: simulaciones, desafios e intentos.
 
 **contract/** — Contrato publico OpenAPI
@@ -245,20 +249,11 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking y recomendaciones de refuerzo segun el desempeno.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/gamificacion/`
-- **Tablas propias:** `points_ledger`, `points_rules`, `v_user_points`, `rewards_catalog`, `user_rewards`, `badges`, `user_badges`, `levels_config`, `user_level_history`, `recommendation_rules`, `user_recommendations`
+- **Tablas propias:** `gamificacion.points_ledger`, `gamificacion.points_rules`, `gamificacion.v_user_points`, `gamificacion.rewards_catalog`, `gamificacion.user_rewards`, `gamificacion.badges`, `gamificacion.user_badges`, `gamificacion.levels_config`, `gamificacion.user_level_history`, `gamificacion.recommendation_rules`, `gamificacion.user_recommendations`
 - **Publica:** `points_assigned`, `level_up`, `reward_granted`
 - **Consume:** `lesson.completed`, `quiz.approved`, `course.completed`, `simulation.decision_made`, `simulation.completed`, `points_assigned`
 - **Depende de (por contrato interno):** identidad, cursos, evaluaciones, seguridad
 - **Procesos de fondo:** -
-
-**Acceso declarado a datos de otros servicios** (verificado por las pruebas de arquitectura):
-
-| Tipo | Tablas | Dueno | Motivo |
-|------|--------|-------|--------|
-| lee | `users` | identidad | El ranking ordena por las columnas de cache total_points y level, que vive en users y mantiene este mismo servicio (ver escriturasCompartidas). |
-| lee | `quiz_attempts`, `challenges`, `simulations` | evaluaciones | El resumen de desempeno y las recomendaciones agregan el historial de intentos en una sola consulta. Es una proyeccion de lectura: nunca escribe en esas tablas. |
-| lee | `courses`, `course_contents`, `course_assignments`, `lesson_progress` | cursos | Mismo caso: el avance por curso del resumen de desempeno se calcula con un JOIN. |
-| escribe | `users` (total_points, level) | identidad | Cache desnormalizada del total y del nivel. La fuente de verdad es points_ledger; identidad no escribe nunca estas dos columnas. |
 
 ### Endpoints
 
@@ -279,7 +274,7 @@ Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `yaOtorgado`, `obtenerTotalesPorUsuarios`, `obtenerResumenPorUsuarios`, `obtenerEscalera`, `calcularProgreso`, `obtenerPuntos`, `obtenerNivelDeUsuario`, `contarRecompensasDe`, `buscarRecompensa`, `registrarMovimiento`, `otorgarRecompensa`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `yaOtorgado`, `obtenerTotalesPorUsuarios`, `obtenerResumenPorUsuarios`, `obtenerEscalera`, `calcularProgreso`, `obtenerPuntos`, `obtenerNivelDeUsuario`, `contarRecompensasDe`, `buscarRecompensa`, `accionesPorUsuarioEntre`, `ultimaActividadDe`, `puntosPorUsuarioHasta`, `movimientosEnVentana`, `usuariosConMovimientosRecientes`, `ultimosMovimientos`, `registrarMovimiento`, `otorgarRecompensa`.
 
 ### Estructura
 
@@ -319,7 +314,12 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde gamificacion.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde gamificacion.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde gamificacion.
-- `infrastructure/persistence/gamificacion.repositorio.js` — Repositorio de las consultas que antes escribia a mano gamification.controller.js.
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de gamificacion.
+- `infrastructure/persistence/gamificacion.repositorio.js` — Repositorio de las consultas de los endpoints de gamificacion (insignias, catalogo de recompensas, reglas de puntos).
+- `infrastructure/persistence/niveles.repositorio.js` — Repositorio de niveles: levels_config, user_level_history y la cache users.level.
+- `infrastructure/persistence/puntos.repositorio.js` — Repositorio de puntos: points_rules, points_ledger (historial inmutable), la vista v_user_points y la cache users.total_points.
+- `infrastructure/persistence/recomendaciones.repositorio.js` — Repositorio de recomendaciones (servicio de gamificacion).
+- `infrastructure/persistence/recompensas.repositorio.js` — Repositorio de recompensas: rewards_catalog y user_rewards (con el snapshot de la recompensa al momento de otorgarse).
 
 **contract/** — Contrato publico OpenAPI
 
@@ -332,7 +332,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Avisos in-app, notificacion de resultados (con alerta a RH en cursos criticos), preferencias por canal y cola de correo con plantillas versionadas e idioma.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/notificaciones/`
-- **Tablas propias:** `notifications`, `notification_deliveries`, `notification_preferences`, `email_jobs`, `email_job_attempts`, `email_notification_types`, `email_preferences`, `email_templates`
+- **Tablas propias:** `notificaciones.notifications`, `notificaciones.notification_deliveries`, `notificaciones.notification_preferences`, `notificaciones.email_jobs`, `notificaciones.email_job_attempts`, `notificaciones.email_notification_types`, `notificaciones.email_preferences`, `notificaciones.email_templates`
 - **Publica:** -
 - **Consume:** `user.registered`, `level_up`, `reward_granted`, `quiz.approved`, `quiz.failed`, `course.completed`, `simulation.completed`, `course.assigned`, `course.deadline_approaching`, `user.password_changed`, `user.invited`
 - **Depende de (por contrato interno):** identidad, cursos, evaluaciones
@@ -357,7 +357,7 @@ Avisos in-app, notificacion de resultados (con alerta a RH en cursos criticos), 
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `avisarEnBandeja`, `notificar`, `reenviarCorreo`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `avisarEnBandeja`, `notificar`, `reenviarCorreo`.
 
 ### Estructura
 
@@ -396,6 +396,11 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde notificaciones.
 - `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde notificaciones.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde notificaciones.
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de notificaciones.
+- `infrastructure/persistence/correos.repositorio.js` — Repositorio de la cola de correos (servicio de notificaciones).
+- `infrastructure/persistence/notificaciones.repositorio.js` — Repositorio de la bandeja de notificaciones (servicio de notificaciones).
+- `infrastructure/persistence/plantillas.repositorio.js` — Repositorio de plantillas de correo (servicio de notificaciones).
+- `infrastructure/persistence/resultados.repositorio.js` — Repositorio de notificaciones de resultados (servicio de notificaciones).
 
 **contract/** — Contrato publico OpenAPI
 
@@ -408,20 +413,11 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos programados con su historico y consolidado organizacional para gerencia.
 
 - **Carpeta:** `human-firewall-backend/src/servicios/reportes/`
-- **Tablas propias:** `report_exports`, `report_schedules`, `report_history`, `report_notifications`, `org_kpi_snapshots`, `org_report_access_log`
+- **Tablas propias:** `reportes.report_exports`, `reportes.report_schedules`, `reportes.report_history`, `reportes.report_notifications`, `reportes.org_kpi_snapshots`, `reportes.org_report_access_log`
 - **Publica:** `report.export_requested`, `report.scheduled_run`, `report.auto_generated`
 - **Consume:** `report.export_requested`, `report.scheduled_run`, `report.auto_generated`
-- **Depende de (por contrato interno):** gamificacion, notificaciones, seguridad
+- **Depende de (por contrato interno):** identidad, cursos, evaluaciones, gamificacion, notificaciones, seguridad
 - **Procesos de fondo:** Scheduler de reportes programados; Job de KPIs organizacionales
-
-**Acceso declarado a datos de otros servicios** (verificado por las pruebas de arquitectura):
-
-| Tipo | Tablas | Dueno | Motivo |
-|------|--------|-------|--------|
-| lee | `users`, `teams` | identidad | Servicio de lectura analitica: los reportes agregan por persona y por equipo en SQL. Solo lee; no escribe nunca fuera de sus tablas. |
-| lee | `points_ledger` | gamificacion | Los snapshots organizacionales se recalculan por un job sobre el historial de puntos. |
-| lee | `quiz_attempts` | evaluaciones | Tasa de aprobacion por periodo y por equipo. |
-| lee | `courses`, `course_assignments`, `lesson_progress` | cursos | Avance y cumplimiento de cursos por periodo y por equipo. |
 
 ### Endpoints
 
@@ -441,7 +437,7 @@ Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos progr
 
 ### Contrato interno (index.js)
 
-No expone funciones a otros servicios: su unico contrato es la API HTTP.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`.
 
 ### Estructura
 
@@ -464,6 +460,7 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 
 **application/** — Application / Service: casos de uso
 
+- `application/actividad.js` — Actividad de los usuarios, armada con los contratos de los servicios que la registran.
 - `application/orgReports.service.js` — Resultados organizacionales consolidados.
 - `application/reportExports.service.js` — Exportacion de reportes a CSV y PDF.
 - `application/reports.service.js` — Reportes de desempeno para RH.
@@ -476,9 +473,16 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
+- `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde reportes.
+- `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde reportes.
 - `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde reportes.
+- `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde reportes.
 - `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde reportes.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde reportes.
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de reportes.
+- `infrastructure/persistence/exportaciones.repositorio.js` — Repositorio de exportaciones de reportes (servicio de reportes).
+- `infrastructure/persistence/organizacional.repositorio.js` — Repositorio del reporte organizacional (servicio de reportes).
+- `infrastructure/persistence/programados.repositorio.js` — Repositorio de reportes programados (servicio de reportes).
 
 **contract/** — Contrato publico OpenAPI
 
@@ -491,18 +495,11 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y registro centralizado e inmutable de acciones criticas (data.logs).
 
 - **Carpeta:** `human-firewall-backend/src/servicios/seguridad/`
-- **Tablas propias:** `anomaly_rules`, `anomaly_events`, `anomaly_status_history`, `audit_log`, `data.logs`, `data.logs_purges`, `activity_logs`
+- **Tablas propias:** `seguridad.anomaly_rules`, `seguridad.anomaly_events`, `seguridad.anomaly_status_history`, `seguridad.audit_log`, `data.logs`, `data.logs_purges`, `seguridad.activity_logs`
 - **Publica:** `audit.log_recorded`
 - **Consume:** `points_assigned`, `audit.log_recorded`
 - **Depende de (por contrato interno):** identidad, gamificacion
 - **Procesos de fondo:** Job de respaldo de deteccion de anomalias; Job de retencion de data.logs
-
-**Acceso declarado a datos de otros servicios** (verificado por las pruebas de arquitectura):
-
-| Tipo | Tablas | Dueno | Motivo |
-|------|--------|-------|--------|
-| lee | `points_ledger` | gamificacion | La deteccion de anomalias analiza ventanas de movimientos del historial de puntos. Solo lee: los ajustes manuales se aplican por el contrato de gamificacion. |
-| lee | `users` | identidad | Los listados del panel muestran el correo del actor y del afectado con un JOIN. |
 
 ### Endpoints
 
@@ -521,7 +518,7 @@ Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y regist
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `registrarAccion`, `ACCIONES`, `MODULOS`, `auditarAjusteManual`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `baseDeDatos`, `registrarAccion`, `ACCIONES`, `MODULOS`, `auditarAjusteManual`.
 
 ### Estructura
 
@@ -547,6 +544,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 - `application/anomalies.service.js` — Deteccion de anomalias en la asignacion de puntos.
 - `application/audit.service.js` — Auditoria de ajustes manuales.
+- `application/cuentas.js` — Correos de las cuentas para los listados de seguridad.
 - `application/dataLogs.service.js` — Registro centralizado de logs de auditoria (data.logs).
 
 **domain/** — Domain: entidades y reglas de negocio
@@ -558,6 +556,10 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 - `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde seguridad.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde seguridad.
+- `infrastructure/persistence/anomalias.repositorio.js` — Repositorio de anomalias (servicio de seguridad).
+- `infrastructure/persistence/auditoria.repositorio.js` — Repositorio de auditoria de ajustes manuales (servicio de seguridad).
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de seguridad.
+- `infrastructure/persistence/logs.repositorio.js` — Repositorio del registro de actividad (servicio de seguridad).
 
 **contract/** — Contrato publico OpenAPI
 

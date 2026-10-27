@@ -26,6 +26,50 @@ Para que los numeros no choquen, cada integrante tiene su propio rango:
 | Santi      | 001 - 019 | Puntos automaticos + Recompensas   |
 | Companero  | 020 - 039 | (sus dos historias)                |
 | Comunes    | 090 - 099 | Cambios acordados entre los dos    |
+| Todos      | 100 en adelante | Migraciones posteriores a los esquemas por servicio (ver abajo) |
+
+## Un esquema por servicio (desde la 090)
+
+La migracion `090_esquemas_por_servicio.sql` movio cada tabla al esquema de
+PostgreSQL de su microservicio (`identidad.users`, `cursos.courses`,
+`gamificacion.points_ledger`...). La tabla completa esta en
+`docs/arquitectura/README.md`, seccion 6.
+
+Para las migraciones nuevas:
+
+- Si el cambio es de un solo servicio (lo normal), va en
+  `migrations/servicios/<servicio>/002_...sql` (ver la seccion siguiente):
+  se aplica a la base propia de ese servicio.
+- Si es un cambio comun en la base compartida, numeralo **desde la 100**: asi
+  corre despues de la 090 tambien en una base nueva.
+- Usa siempre el nombre con esquema: `CREATE TABLE IF NOT EXISTS
+  cursos.course_tags (...)`, `ALTER TABLE identidad.users ADD COLUMN ...`.
+  Una tabla creada sin esquema cae en `public`, y la prueba de arquitectura
+  no la acepta.
+- La tabla nueva se declara en el `manifiesto.js` del servicio, con su
+  esquema.
+
+## Base de datos por servicio (`migrations/servicios/`)
+
+Cada microservicio tiene su carpeta con las migraciones de **su propia base**:
+
+```
+migrations/servicios/
+|-- identidad/001_base.sql
+|-- cursos/001_base.sql
+|-- ...
+```
+
+`001_base.sql` es la estructura completa del servicio despues de todo el
+historial (000 a 091), sin llaves foraneas hacia otros servicios y con su
+propia `event_outbox`. Los cambios nuevos de un servicio van en esa carpeta:
+`cursos/002_etiquetas.sql`, `cursos/003_...`.
+
+- Con `BASES_POR_SERVICIO=true`, `npm run migrate` crea la base de cada
+  servicio (`<base>_identidad`, `<base>_cursos`...), le aplica sus
+  migraciones y la primera vez le copia los datos desde la base compartida.
+- Con `BASES_POR_SERVICIO=false`, se aplican sobre la base compartida (la
+  `001_base` ya esta cubierta por el historial).
 
 ## Reglas
 
