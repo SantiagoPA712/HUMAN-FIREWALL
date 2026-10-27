@@ -149,16 +149,15 @@ async function rolesSuscritos(historyId) {
           );
 }
 
-/** Un aviso por cada usuario activo con alguno de esos roles. */
-async function encolarAvisos(historyId, kind, MAX_INTENTOS_AVISO, roles) {
+/** Un aviso por destinatario (los ids los da el contrato de identidad). Sin duplicados. */
+async function encolarAvisos(historyId, kind, maxIntentos, userIds) {
     const { rows } = await db.query(
         `INSERT INTO reportes.report_notifications (history_id, user_id, kind, max_attempts)
-         SELECT $1, u.id, $2, $3
-           FROM identidad.users u
-          WHERE u.role = ANY($4::text[]) AND u.is_active = true
+         SELECT $1, destinatario, $2, $3
+           FROM unnest($4::int[]) AS destinatario
          ON CONFLICT (history_id, user_id) DO NOTHING
          RETURNING id, user_id`,
-        [historyId, kind, MAX_INTENTOS_AVISO, roles]
+        [historyId, kind, maxIntentos, userIds]
     );
     return rows;
 }

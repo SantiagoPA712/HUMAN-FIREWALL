@@ -13,7 +13,7 @@ Version del contrato publico: **1.1.0**. Contrato navegable en `/api/docs`.
 | [evaluaciones](#evaluaciones) | Simulaciones de phishing (pasos, opciones y decisiones), desafios del portal y el historial de intentos de evaluacion con su puntaje calculado en el servidor. | `/api/simulations`<br>`/api/gamification/challenge` | cursos, gamificacion |
 | [gamificacion](#gamificacion) | Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking y recomendaciones de refuerzo segun el desempeno. | `/api/gamification` | identidad, cursos, evaluaciones, seguridad |
 | [notificaciones](#notificaciones) | Avisos in-app, notificacion de resultados (con alerta a RH en cursos criticos), preferencias por canal y cola de correo con plantillas versionadas e idioma. | `/api/notifications` | identidad, cursos, evaluaciones |
-| [reportes](#reportes) | Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos programados con su historico y consolidado organizacional para gerencia. | `/api/gamification/reports` | gamificacion, notificaciones, seguridad |
+| [reportes](#reportes) | Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos programados con su historico y consolidado organizacional para gerencia. | `/api/gamification/reports` | identidad, cursos, evaluaciones, gamificacion, notificaciones, seguridad |
 | [seguridad](#seguridad) | Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y registro centralizado e inmutable de acciones criticas (data.logs). | `/api/gamification/security`<br>`/api/gamification/users`<br>`/api/logs` | identidad, gamificacion |
 
 ---
@@ -411,17 +411,8 @@ Reporte de desempeno para RH con exportacion CSV/PDF, reportes automaticos progr
 - **Tablas propias:** `reportes.report_exports`, `reportes.report_schedules`, `reportes.report_history`, `reportes.report_notifications`, `reportes.org_kpi_snapshots`, `reportes.org_report_access_log`
 - **Publica:** `report.export_requested`, `report.scheduled_run`, `report.auto_generated`
 - **Consume:** `report.export_requested`, `report.scheduled_run`, `report.auto_generated`
-- **Depende de (por contrato interno):** gamificacion, notificaciones, seguridad
+- **Depende de (por contrato interno):** identidad, cursos, evaluaciones, gamificacion, notificaciones, seguridad
 - **Procesos de fondo:** Scheduler de reportes programados; Job de KPIs organizacionales
-
-**Acceso declarado a datos de otros servicios** (verificado por las pruebas de arquitectura):
-
-| Tipo | Tablas | Dueno | Motivo |
-|------|--------|-------|--------|
-| lee | `identidad.users`, `identidad.teams` | identidad | Servicio de lectura analitica: los reportes agregan por persona y por equipo en SQL. Solo lee; no escribe nunca fuera de sus tablas. |
-| lee | `gamificacion.points_ledger` | gamificacion | Los snapshots organizacionales se recalculan por un job sobre el historial de puntos. |
-| lee | `evaluaciones.quiz_attempts` | evaluaciones | Tasa de aprobacion por periodo y por equipo. |
-| lee | `cursos.courses`, `cursos.course_assignments`, `cursos.lesson_progress` | cursos | Avance y cumplimiento de cursos por periodo y por equipo. |
 
 ### Endpoints
 
@@ -464,6 +455,7 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 
 **application/** — Application / Service: casos de uso
 
+- `application/actividad.js` — Actividad de los usuarios, armada con los contratos de los servicios que la registran.
 - `application/orgReports.service.js` — Resultados organizacionales consolidados.
 - `application/reportExports.service.js` — Exportacion de reportes a CSV y PDF.
 - `application/reports.service.js` — Reportes de desempeno para RH.
@@ -476,10 +468,12 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
+- `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde reportes.
+- `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde reportes.
 - `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde reportes.
+- `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde reportes.
 - `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde reportes.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde reportes.
-- `infrastructure/persistence/desempeno.repositorio.js` — Repositorio del reporte de desempeno para RH (servicio de reportes).
 - `infrastructure/persistence/exportaciones.repositorio.js` — Repositorio de exportaciones de reportes (servicio de reportes).
 - `infrastructure/persistence/organizacional.repositorio.js` — Repositorio del reporte organizacional (servicio de reportes).
 - `infrastructure/persistence/programados.repositorio.js` — Repositorio de reportes programados (servicio de reportes).

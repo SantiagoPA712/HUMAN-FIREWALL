@@ -79,6 +79,8 @@ function aplanar(fila) {
 // escaparCSV se movio a compartido/utils/csv.js (tambien la usa seguridad).
 const { escaparCSV } = require('../../../compartido/utils/csv');
 const repo = require('../infrastructure/persistence/exportaciones.repositorio');
+const identidad = require('../infrastructure/client/identidad.cliente');
+const cursos = require('../infrastructure/client/cursos.cliente');
 
 function generarCSV(filas) {
     const lineas = [COLUMNAS.map(c => escaparCSV(c.titulo)).join(',')];
@@ -210,15 +212,14 @@ async function marcarFallido(exportUid, mensaje) {
 /** Nombres legibles del equipo y el curso filtrados, para el encabezado del PDF. */
 async function resolverNombres(filtros) {
     const nombres = {};
+    // Equipos y cursos viven en otras bases: se piden por su contrato.
     if (filtros.teamId) {
-        const teamId = filtros.teamId;
-        const rows = await repo.nombreDeEquipo(teamId);
-        if (rows[0]) nombres.equipo = rows[0].name;
+        const equipo = await identidad.buscarEquipo(filtros.teamId);
+        if (equipo) nombres.equipo = equipo.name;
     }
     if (filtros.courseId) {
-        const courseId = filtros.courseId;
-        const rows = await repo.tituloDeCurso(courseId);
-        if (rows[0]) nombres.curso = rows[0].title;
+        const curso = await cursos.obtenerTitulo(filtros.courseId);
+        if (curso) nombres.curso = curso.title;
     }
     return nombres;
 }

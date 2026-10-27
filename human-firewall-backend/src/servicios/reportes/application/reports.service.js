@@ -26,7 +26,11 @@
  * archivo no se toca.
  */
 
-const repo = require('../infrastructure/persistence/desempeno.repositorio');
+// Cuentas, equipos, cursos e intentos viven en las bases de sus servicios:
+// el reporte se arma con sus contratos y se filtra, ordena y agrega en memoria.
+const identidad = require('../infrastructure/client/identidad.cliente');
+const cursosCliente = require('../infrastructure/client/cursos.cliente');
+const { accionesPorUsuario, ultimaActividad, diaSiguiente } = require('./actividad');
 // Puntos, niveles y recompensas se piden a gamificacion por su contrato.
 const gamificacion = require('../infrastructure/client/gamificacion.cliente');
 
@@ -107,7 +111,10 @@ async function validarFiltros(query = {}) {
             continue;
         }
 
-        if (!(await repo.existeReferencia(ref.etiqueta, id))) {
+        const existe = ref.etiqueta === 'equipo'
+            ? await identidad.buscarEquipo(id)
+            : await cursosCliente.obtenerTitulo(id);
+        if (!existe) {
             errores.push({
                 campo: ref.campo,
                 detalle: `No existe ningun ${ref.etiqueta} con id ${id}.`
@@ -132,8 +139,37 @@ function normalizarPaginacion(query = {}) {
 // Consulta base
 // ---------------------------------------------------------------------
 
+/**
+ * Usuarios que entran en el reporte, ya ordenados (mas puntos primero; el id
+ * desempata para que el orden sea estable entre paginas).
+ *
+ * El filtro por curso NO limita los puntos a ese curso: selecciona a los
+ * usuarios que tienen el curso asignado. El filtro de fechas restringe QUE
+ * USUARIOS aparecen: solo los que tuvieron actividad (puntos, intentos o
+ * lecciones) dentro del rango, con el "hasta" inclusivo (todo ese dia).
+ */
+async function usuariosDelReporte(filtros) {
+    let usuarios = await identidad.usuariosActivos();
+
+    if (filtros.teamId) usuarios = usuarios.filter(u => u.team_id === filtros.teamId);
+
+    if (filtros.courseId) {
+        const asignados = new Set(await cursosCliente.usuariosAsignadosA(filtros.courseId));
+        usuarios = usuarios.filter(u => asignados.has(u.id));
+    }
+
+    if (filtros.from || filtros.to) {
+        const activos = await accionesPorUsuario(filtros.from, filtros.to ? diaSiguiente(filtros.to) : null);
+        usuarios = usuarios.filter(u => activos.has(u.id));
+    }
+
+    return usuarios.sort((a, b) => (b.total_points - a.total_points) || (a.id - b.id));
+}
+
 /** Cuantos usuarios entran en el reporte con estos filtros. */
-const contarUsuarios = (filtros) => repo.contarUsuarios(filtros);
+async function contarUsuarios(filtros) {
+    return (await usuariosDelReporte(filtros)).length;
+}
 
 /**
  * Ultima actividad de cada usuario.
@@ -149,10 +185,7 @@ async function obtenerUltimaActividad(userIds) {
     const resultado = new Map();
     if (userIds.length === 0) return resultado;
 
-    const rows = await repo.ultimaActividad(userIds);
-
-    for (const r of rows) resultado.set(r.user_id, r.ultima);
-    return resultado;
+    return ultimaActividad(userIds);
 }
 
 // ---------------------------------------------------------------------
@@ -167,7 +200,7 @@ async function obtenerUltimaActividad(userIds) {
  */
 async function obtenerFilas(filtros, { page, pageSize }) {
     const offset = (page - 1) * pageSize;
-    const usuarios = await repo.usuariosDePagina(filtros, { limit: pageSize, offset });
+    const usuarios = (await usuariosDelReporte(filtros)).slice(offset, offset + pageSize);
 
     if (usuarios.length === 0) return [];
 
@@ -222,10 +255,47 @@ async function obtenerFilas(filtros, { page, pageSize }) {
  * pagina visible: un total que cambiara al pasar de pagina no seria un total.
  */
 async function obtenerAgregados(filtros) {
-    const [porEquipo, porCurso] = await Promise.all([
-        repo.agregadoPorEquipo(filtros),
-        repo.agregadoPorCurso(filtros)
+    const usuarios = await usuariosDelReporte(filtros);
+    const ids = usuarios.map(u => u.id);
+
+    // Puntos del rango (no la cache total_points, que es del historial
+    // completo y con un filtro de fechas mentiria) y asignaciones de cursos.
+    const [puntos, asignaciones] = await Promise.all([
+        gamificacion.obtenerTotalesPorUsuarios(ids, { from: filtros.from, to: filtros.to }),
+        cursosCliente.asignacionesDe(ids)
     ]);
+
+    // Por equipo
+    const equipos = new Map();
+    for (const u of usuarios) {
+        const clave = u.team_id ?? null;
+        if (!equipos.has(clave)) equipos.set(clave, { equipo: u.equipo || 'Sin equipo', team_id: clave, usuarios: 0, puntos: 0 });
+        const e = equipos.get(clave);
+        e.usuarios += 1;
+        e.puntos += (puntos.get(u.id)?.total || 0);
+    }
+    const porEquipo = [...equipos.values()]
+        .map(e => ({ ...e, promedio_puntos: e.usuarios > 0 ? Math.round((e.puntos / e.usuarios) * 10) / 10 : null }))
+        .sort((a, b) => b.puntos - a.puntos);
+
+    // Por curso
+    const porCursoMapa = new Map();
+    for (const a of asignaciones) {
+        if (!porCursoMapa.has(a.course_id)) porCursoMapa.set(a.course_id, { usuarios: new Set(), completados: new Set() });
+        const c = porCursoMapa.get(a.course_id);
+        c.usuarios.add(a.user_id);
+        if (a.status === 'completed') c.completados.add(a.user_id);
+    }
+    const titulos = new Map((await cursosCliente.obtenerTitulos([...porCursoMapa.keys()])).map(c => [c.id, c.title]));
+    const porCurso = [...porCursoMapa.entries()]
+        .filter(([courseId]) => titulos.has(courseId))
+        .map(([courseId, c]) => ({
+            course_id: courseId,
+            curso: titulos.get(courseId),
+            usuarios: c.usuarios.size,
+            completados: c.completados.size
+        }))
+        .sort((a, b) => (b.usuarios - a.usuarios) || a.curso.localeCompare(b.curso));
 
     return {
         por_equipo: porEquipo,
@@ -289,7 +359,7 @@ async function obtenerTodasLasFilas(filtros) {
 
 /** Opciones para el panel de filtros: equipos y cursos existentes. */
 async function obtenerOpcionesDeFiltro() {
-    const [equipos, cursos] = await Promise.all([repo.equiposActivos(), repo.cursos()]);
+    const [equipos, cursos] = await Promise.all([identidad.equiposActivos(), cursosCliente.titulosOrdenados()]);
     return { equipos, cursos };
 }
 

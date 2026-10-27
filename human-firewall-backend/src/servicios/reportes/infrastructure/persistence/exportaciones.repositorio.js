@@ -43,18 +43,6 @@ async function marcarFallida(exportUid, mensaje) {
     );
 }
 
-/** Nombre del equipo, para el encabezado del archivo. */
-async function nombreDeEquipo(teamId) {
-    const { rows } = await db.query('SELECT name FROM identidad.teams WHERE id = $1', [teamId]);
-    return rows;
-}
-
-/** Titulo del curso, para el encabezado del archivo. */
-async function tituloDeCurso(courseId) {
-    const { rows } = await db.query('SELECT title FROM cursos.courses WHERE id = $1', [courseId]);
-    return rows;
-}
-
 /** Estado de una exportacion. */
 async function estadoDe(exportUid) {
     const { rows } = await db.query(
@@ -95,8 +83,6 @@ module.exports = {
     insertarSolicitud,
     marcarLista,
     marcarFallida,
-    nombreDeEquipo,
-    tituloDeCurso,
     estadoDe,
     marcarProcesando,
     buscar,

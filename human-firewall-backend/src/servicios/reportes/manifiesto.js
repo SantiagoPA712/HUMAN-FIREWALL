@@ -13,26 +13,12 @@ module.exports = {
     ],
     publica: ['report.export_requested', 'report.scheduled_run', 'report.auto_generated'],
     consume: ['report.export_requested', 'report.scheduled_run', 'report.auto_generated'],
-    dependeDe: ['gamificacion', 'notificaciones', 'seguridad'],
-    lecturasCompartidas: [
-        {
-            tablas: ['identidad.users', 'identidad.teams'], servicio: 'identidad',
-            motivo: 'Servicio de lectura analitica: los reportes agregan por persona y por equipo ' +
-                    'en SQL. Solo lee; no escribe nunca fuera de sus tablas.'
-        },
-        {
-            tablas: ['gamificacion.points_ledger'], servicio: 'gamificacion',
-            motivo: 'Los snapshots organizacionales se recalculan por un job sobre el historial de puntos.'
-        },
-        {
-            tablas: ['evaluaciones.quiz_attempts'], servicio: 'evaluaciones',
-            motivo: 'Tasa de aprobacion por periodo y por equipo.'
-        },
-        {
-            tablas: ['cursos.courses', 'cursos.course_assignments', 'cursos.lesson_progress'], servicio: 'cursos',
-            motivo: 'Avance y cumplimiento de cursos por periodo y por equipo.'
-        }
-    ],
+    dependeDe: ['identidad', 'cursos', 'evaluaciones', 'gamificacion', 'notificaciones', 'seguridad'],
+    // Base de datos por servicio: reportes es de lectura analitica, pero ya no
+    // hace JOIN con tablas ajenas. Cuentas y equipos los da identidad; puntos,
+    // gamificacion; intentos, evaluaciones; asignaciones y lecciones, cursos.
+    // Todo por contrato, y se agrega en memoria (application/actividad.js).
+    lecturasCompartidas: [],
     escriturasCompartidas: [],
     procesos: ['Scheduler de reportes programados', 'Job de KPIs organizacionales']
 };

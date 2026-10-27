@@ -71,6 +71,7 @@ const { DIR_STORAGE } = require('../../../compartido/config/rutas');
 const { conTransaccion } = require('../../../compartido/config/transaccion');
 const { TIPOS, FRECUENCIAS, FORMATOS, semanaISO, calcularPeriodo, calcularProximaEjecucion } = require('../domain/programacion');
 const repo = require('../infrastructure/persistence/programados.repositorio');
+const identidad = require('../infrastructure/client/identidad.cliente');
 const DIR_REPORTES = path.join(DIR_STORAGE, 'reports');
 
 /** Roles que pueden estar suscritos. Mismo catalogo que el CHECK de users. */
@@ -333,9 +334,12 @@ async function encolarAvisos(historyId, kind = 'ready') {
         return [];
     }
 
-    const rows = await repo.encolarAvisos(historyId, kind, MAX_INTENTOS_AVISO, roles);
+    // Las cuentas son de identidad (otra base): se piden los destinatarios por
+    // su contrato y se encola un aviso por cada uno.
+    const destinatarios = await identidad.activosConRoles(roles);
+    if (destinatarios.length === 0) return [];
 
-    return rows;
+    return repo.encolarAvisos(historyId, kind, MAX_INTENTOS_AVISO, destinatarios);
 }
 
 /** Arma el texto del aviso. */

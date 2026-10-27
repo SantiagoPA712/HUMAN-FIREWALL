@@ -347,28 +347,23 @@ Y lecturas puntuales de tablas ajenas pasaron a ser llamadas al dueno: el
 titulo de un curso, el correo y el idioma de un usuario, los RH de su equipo,
 los conteos que usan las recompensas, la existencia de un usuario.
 
-Quedan **excepciones declaradas**, cada una con su motivo en el manifiesto:
+Ya **no quedan excepciones**: ningun servicio lee ni escribe tablas de otro
+(paso previo a la base de datos por servicio que pide el material, secciones
+1, 11 y 14: "No compartir base de datos entre servicios"). Lo que antes se
+resolvia con un JOIN ahora se pide por contrato:
 
-- **Lecturas analiticas:** reportes agrega datos de varios servicios en SQL.
+| Antes (JOIN o UPDATE sobre otro esquema) | Ahora (contrato) |
+|------------------------------------------|------------------|
+| gamificacion escribia `identidad.users.total_points` / `level` | `identidad.guardarCacheDePuntos`, `guardarCacheDeNivel` |
+| ranking y estado leian `identidad.users` | `identidad.rankingPorPuntos`, `cacheDeGamificacion` |
+| recomendaciones unian intentos y cursos | `evaluaciones.resultadosConsolidados`, `pendientesDe`, `serieDeIntentos`; `cursos.avanceDe`, `leccionesPendientes` |
+| seguridad leia `gamificacion.points_ledger` | `gamificacion.movimientosEnVentana`, `usuariosConMovimientosRecientes`, `ultimosMovimientos` |
+| seguridad y reportes mostraban correos con JOIN a `identidad.users` | `identidad.resumenesDe`, `usuariosActivos` |
+| reportes agregaba puntos, intentos y lecciones en SQL | `accionesPorUsuarioEntre` y `ultimaActividadDe` de gamificacion, evaluaciones y cursos, sumados en `reportes/application/actividad.js` |
+| reportes leia equipos y asignaciones | `identidad.buscarEquipo`, `equiposActivos`; `cursos.usuariosAsignadosA`, `asignacionesDe`, `cursosCompletadosPorUsuarioEntre` |
 
-Gamificacion ya no tiene ninguna (paso 1 hacia una base de datos por
-servicio, como pide el material): la cache `total_points`/`level` de la
-cuenta la escribe identidad cuando gamificacion se lo pide por su contrato
-(`guardarCacheDePuntos`, `guardarCacheDeNivel`), el ranking se lee de
-identidad, y el resumen de desempeno pide los intentos a evaluaciones y el
-avance a cursos (`resultadosConsolidados`, `pendientesDe`, `avanceDe`,
-`leccionesPendientes`).
-
-Seguridad tampoco (paso 2a): las ventanas del historial de puntos se piden a
-gamificacion (`movimientosEnVentana`, `usuariosConMovimientosRecientes`,
-`ultimosMovimientos`) y los correos de los listados a identidad
-(`resumenesDe`, una sola llamada por pagina en `application/cuentas.js`).
-
-Son lecturas, nunca escrituras, y la prueba de arquitectura impide que
-aparezca una nueva sin declararla. Con los esquemas, el siguiente paso hacia
-una base por servicio es mecanico: cada esquema se lleva a su propia base y
-cada una de estas lecturas se reemplaza por una proyeccion propia alimentada
-por eventos.
+La prueba de arquitectura falla si una consulta usa el esquema de otro
+servicio o si un manifiesto declara una lectura o escritura ajena.
 
 ---
 

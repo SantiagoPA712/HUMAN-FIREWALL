@@ -213,6 +213,18 @@ for (const f of todos) for (const t of [...f.lecturas, ...f.escrituras]) if (!t.
 check('todo el SQL de los servicios nombra las tablas con su esquema (identidad.users)', sinEsquema.length === 0,
     lista([...new Set(sinEsquema)]));
 
+// Base de datos por servicio (material, secciones 1, 11 y 14: "No compartir
+// base de datos entre servicios"): ninguna consulta toca el esquema de otro
+// servicio, ni para leer. Lo que se necesita de otro se pide por su contrato.
+const esquemaAjeno = [];
+for (const nombre of NOMBRES) for (const f of analisis[nombre]) for (const t of [...f.lecturas, ...f.escrituras]) {
+    if (t.includes('.') && !manifiestos[nombre].esquemas.includes(t.split('.')[0])) esquemaAjeno.push(`${f.relativo} usa ${t}`);
+}
+check('ninguna consulta usa el esquema de otro servicio (cada servicio solo ve su base)', esquemaAjeno.length === 0,
+    lista(esquemaAjeno));
+const conExcepciones = NOMBRES.filter(n => manifiestos[n].lecturasCompartidas.length || manifiestos[n].escriturasCompartidas.length);
+check('ningun manifiesto declara lecturas o escrituras en bases ajenas', conExcepciones.length === 0, lista(conExcepciones));
+
 const huerfanas = new Set();
 for (const f of todos) for (const t of [...f.lecturas, ...f.escrituras]) if (!dueno.has(t)) huerfanas.add(`${t} (${f.relativo})`);
 check('toda tabla usada en el SQL tiene un servicio dueno', huerfanas.size === 0, lista([...huerfanas]));

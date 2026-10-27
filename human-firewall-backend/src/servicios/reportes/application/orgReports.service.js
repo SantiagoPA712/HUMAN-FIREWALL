@@ -41,6 +41,11 @@ const config = require('../config/configuracion');
 const gamificacion = require('../infrastructure/client/gamificacion.cliente');
 const { FORMATO_PERIODO, esPeriodoValido, periodoDe, periodoAnterior, rangoDePeriodo, calcularVariacion } = require('../domain/periodo');
 const repo = require('../infrastructure/persistence/organizacional.repositorio');
+// Cuentas, areas, puntos, intentos y cursos viven en las bases de sus
+// servicios: los KPIs se calculan con sus contratos y se agrupan en memoria.
+const identidad = require('../infrastructure/client/identidad.cliente');
+const cursos = require('../infrastructure/client/cursos.cliente');
+const { accionesPorUsuario, agruparPorArea } = require('./actividad');
 
 /**
  * Cada cuanto recalcula el job. Criterio tecnico 3: configurable, diaria por
@@ -114,7 +119,8 @@ function normalizarGrupos(rows) {
 
 /** Participacion: activos / padron * 100. */
 async function calcularParticipacion(inicio, fin) {
-    const rows = await repo.participacionPorArea(inicio, fin);
+    const [usuarios, acciones] = await Promise.all([identidad.usuariosActivos(), accionesPorUsuario(inicio, fin)]);
+    const rows = agruparPorArea(usuarios, u => ({ padron: 1, activos: acciones.get(u.id) > 0 ? 1 : 0 }));
 
     return normalizarGrupos(rows).map(r => ({
         areaId: r.areaId,
@@ -136,10 +142,14 @@ async function calcularParticipacion(inicio, fin) {
  * periodo: el nivel es una posicion alcanzada, no una produccion mensual.
  */
 async function calcularProgresoPromedio(inicio, fin) {
-    const [{ rows: usuarios }, escalera] = await Promise.all([
-        repo.puntosPorUsuarioHasta(fin),
+    const [activos, puntosHasta, escalera] = await Promise.all([
+        identidad.usuariosActivos(),
+        gamificacion.puntosPorUsuarioHasta(fin),
         gamificacion.obtenerEscalera()
     ]);
+    const puntos = new Map(puntosHasta.map(p => [p.user_id, p.puntos]));
+    // Todos los activos cuentan, tengan puntos o no (antes era un LEFT JOIN).
+    const usuarios = activos.map(u => ({ id: u.id, team_id: u.team_id, puntos: puntos.get(u.id) || 0 }));
 
     // Acumuladores: uno por area, mas el de toda la organizacion (clave null).
     const acumulado = new Map([[null, { suma: 0, usuarios: 0 }]]);
@@ -170,7 +180,15 @@ async function calcularProgresoPromedio(inicio, fin) {
 
 /** Cursos completados dentro del periodo. */
 async function calcularCursosCompletados(inicio, fin) {
-    const rows = await repo.cursosCompletadosPorArea(inicio, fin);
+    const [usuarios, completados] = await Promise.all([
+        identidad.usuariosActivos(),
+        cursos.cursosCompletadosPorUsuarioEntre(inicio, fin)
+    ]);
+    const porUsuario = new Map(completados.map(c => [c.user_id, c.cursos]));
+    const rows = agruparPorArea(usuarios, u => {
+        const n = porUsuario.get(u.id) || 0;
+        return { cursos: n, personas: n > 0 ? 1 : 0 };
+    });
 
     return normalizarGrupos(rows).map(r => ({
         areaId: r.areaId,
@@ -189,7 +207,8 @@ async function calcularCursosCompletados(inicio, fin) {
  * un KPI que finge medir lo que no mide es peor que no tenerlo.
  */
 async function calcularEngagement(inicio, fin) {
-    const rows = await repo.engagementPorArea(inicio, fin);
+    const [usuarios, acciones] = await Promise.all([identidad.usuariosActivos(), accionesPorUsuario(inicio, fin)]);
+    const rows = agruparPorArea(usuarios, u => ({ acciones: acciones.get(u.id) || 0, padron: 1 }));
 
     return normalizarGrupos(rows).map(r => ({
         areaId: r.areaId,
@@ -353,7 +372,9 @@ async function validarArea(areaId) {
         throw error;
     }
 
-    const rows = await repo.buscarArea(id);
+    // Las areas son los equipos de identidad (otra base): por su contrato.
+    const area = await identidad.buscarEquipo(id);
+    const rows = area ? [area] : [];
 
     // Un area desactivada se trata igual que una inexistente: el criterio pide
     // "que exista y este activa". La diferencia se explica en el mensaje, para
@@ -377,8 +398,7 @@ async function validarArea(areaId) {
 
 /** Areas activas, para el selector del dashboard. */
 async function obtenerAreas() {
-    const rows = await repo.areasActivas();
-    return rows;
+    return identidad.equiposActivos();
 }
 
 /**
