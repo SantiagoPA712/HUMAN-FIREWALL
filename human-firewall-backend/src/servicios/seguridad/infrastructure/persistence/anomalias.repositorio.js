@@ -36,13 +36,12 @@ async function contarAnomalias(filtros) {
 async function paginaDeAnomalias(filtros, { limit, offset }) {
     const { where, params } = filtroDeAnomalias(filtros);
     const { rows } = await db.query(
-        `SELECT a.id, a.user_id, u.email, a.rule_triggered, a.severity, a.status,
+        `SELECT a.id, a.user_id, a.rule_triggered, a.severity, a.status,
                 a.detected_at,
                 (a.evidence->>'total_en_ventana')::int AS total_en_ventana,
                 (a.evidence->>'umbral')::int            AS umbral,
                 jsonb_array_length(a.evidence->'movimientos') AS movimientos
            FROM seguridad.anomaly_events a
-           JOIN identidad.users u ON u.id = a.user_id
            ${where}
           ORDER BY
                 -- Lo grave y sin revisar primero: es el orden en que el area
@@ -92,20 +91,6 @@ async function reglasActivas() {
     return rows;
 }
 
-/** Movimientos de puntos del usuario dentro de la ventana que termina en `hasta` (o ahora). */
-async function movimientosEnVentana(userId, ventanaMinutos, hasta) {
-    const { rows } = await db.query(
-        `SELECT id, source_type, source_id, points, rule_code, created_at
-           FROM gamificacion.points_ledger
-          WHERE user_id = $1
-            AND created_at >  COALESCE($3::timestamptz, now()) - ($2 || ' minutes')::interval
-            AND created_at <= COALESCE($3::timestamptz, now())
-          ORDER BY created_at ASC, id ASC`,
-        [userId, String(ventanaMinutos), hasta]
-    );
-    return rows;
-}
-
 /** Registra una anomalia. Idempotente por dedupe_key. */
 async function insertarAnomalia(userId, regla, evidencia, disparadorId, dedupeKey) {
     const { rows } = await db.query(
@@ -116,17 +101,6 @@ async function insertarAnomalia(userId, regla, evidencia, disparadorId, dedupeKe
          RETURNING id, user_id, rule_triggered, severity, status, detected_at`,
         [userId, regla.code, JSON.stringify(evidencia), regla.severity,
          String(disparadorId), dedupeKey]
-    );
-    return rows;
-}
-
-/** Usuarios con movimientos de puntos en los ultimos N minutos. */
-async function usuariosConMovimientosRecientes(lookback) {
-    const { rows } = await db.query(
-        `SELECT DISTINCT user_id
-           FROM gamificacion.points_ledger
-          WHERE created_at > now() - ($1 || ' minutes')::interval`,
-        [String(lookback)]
     );
     return rows;
 }
@@ -143,12 +117,11 @@ async function resumenPorEstadoYSeveridad() {
 /** Anomalia con el usuario y la regla que la disparo. */
 async function buscarAnomalia(id) {
     const { rows } = await db.query(
-        `SELECT a.id, a.user_id, u.email, u.role, a.rule_triggered, a.evidence,
+        `SELECT a.id, a.user_id, a.rule_triggered, a.evidence,
                 a.severity, a.status, a.source_id, a.detected_at,
                 r.description AS regla_descripcion,
                 r.window_minutes, r.max_points
            FROM seguridad.anomaly_events a
-           JOIN identidad.users u ON u.id = a.user_id
            LEFT JOIN seguridad.anomaly_rules r ON r.code = a.rule_triggered
           WHERE a.id = $1`,
         [id]
@@ -159,25 +132,11 @@ async function buscarAnomalia(id) {
 /** Cambios de estado de la anomalia, del mas reciente al mas antiguo. */
 async function historialDeEstados(id) {
     return db.query(
-            `SELECT h.previous_status, h.new_status, h.note, h.changed_at,
-                    u.email AS changed_by_email
+            `SELECT h.previous_status, h.new_status, h.note, h.changed_at, h.changed_by
                FROM seguridad.anomaly_status_history h
-               JOIN identidad.users u ON u.id = h.changed_by
               WHERE h.anomaly_id = $1
               ORDER BY h.changed_at DESC`,
             [id]
-        );
-}
-
-/** Ultimos 50 movimientos de puntos del usuario. */
-async function lineaDeTiempo(afectadoId) {
-    return db.query(
-            `SELECT id, source_type, source_id, points, rule_code, created_at
-               FROM gamificacion.points_ledger
-              WHERE user_id = $1
-              ORDER BY created_at DESC
-              LIMIT 50`,
-            [afectadoId]
         );
 }
 
@@ -185,9 +144,8 @@ async function lineaDeTiempo(afectadoId) {
 async function ajustesManuales(afectadoId) {
     return db.query(
             `SELECT l.change_type, l.previous_value, l.new_value, l.reason,
-                    l.created_at, a.email AS actor_email
+                    l.created_at, l.actor_id
                FROM seguridad.audit_log l
-               JOIN identidad.users a ON a.id = l.actor_id
               WHERE l.target_user_id = $1
               ORDER BY l.created_at DESC
               LIMIT 20`,
@@ -202,12 +160,9 @@ module.exports = {
     actualizarEstado,
     registrarCambioDeEstado,
     reglasActivas,
-    movimientosEnVentana,
     insertarAnomalia,
-    usuariosConMovimientosRecientes,
     resumenPorEstadoYSeveridad,
     buscarAnomalia,
     historialDeEstados,
-    lineaDeTiempo,
     ajustesManuales
 };

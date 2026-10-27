@@ -31,6 +31,9 @@ const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { ESTADOS } = require('../domain/anomalia');
 const { conTransaccion } = require('../../../compartido/config/transaccion');
 const repo = require('../infrastructure/persistence/anomalias.repositorio');
+// El historial de puntos y las cuentas viven en otras bases: se piden por contrato.
+const gamificacion = require('../infrastructure/client/gamificacion.cliente');
+const { conCuentas } = require('./cuentas');
 
 /** Cada cuanto corre el job de respaldo. Configurable (criterio tecnico 6). */
 const INTERVALO_JOB_MS =
@@ -52,8 +55,8 @@ async function obtenerReglas() {
  * esos puntos" (criterio de aceptacion 1).
  */
 async function movimientosEnVentana(userId, ventanaMinutos, hasta = null) {
-    const rows = await repo.movimientosEnVentana(userId, ventanaMinutos, hasta);
-    return rows;
+    // El historial de puntos es de gamificacion (otra base): se pide por contrato.
+    return gamificacion.movimientosEnVentana(userId, ventanaMinutos, hasta);
 }
 
 /**
@@ -185,10 +188,10 @@ async function ejecutarJob(minutosHaciaAtras = null) {
 
     // Solo los usuarios con movimientos recientes: no tiene sentido recorrer
     // el padron entero.
-    const usuarios = await repo.usuariosConMovimientosRecientes(lookback);
+    const usuarios = await gamificacion.usuariosConMovimientosRecientes(lookback);
 
     let detectadas = 0;
-    for (const { user_id } of usuarios) {
+    for (const user_id of usuarios) {
         // Sin disparador explicito: evaluarUsuario toma el ultimo movimiento
         // de la ventana, que es la misma clave que habria usado el camino en
         // tiempo real.
@@ -229,7 +232,10 @@ async function listarAnomalias({ status = null, severity = null, userId = null,
                                  page = 1, pageSize = 25 } = {}) {
     const filtros = { status, severity, userId };
     const total = await repo.contarAnomalias(filtros);
-    const rows = await repo.paginaDeAnomalias(filtros, { limit: pageSize, offset: (page - 1) * pageSize });
+    const rows = await conCuentas(
+        await repo.paginaDeAnomalias(filtros, { limit: pageSize, offset: (page - 1) * pageSize }),
+        [{ campoId: 'user_id', correo: 'email', obligatoria: true }]
+    );
 
     return {
         paginacion: { page, page_size: pageSize, total, total_paginas: Math.max(1, Math.ceil(total / pageSize)) },
@@ -263,7 +269,8 @@ async function obtenerResumen() {
  * alerta y no en otra pantalla.
  */
 async function obtenerAnomalia(id) {
-    const rows = await repo.buscarAnomalia(id);
+    const rows = await conCuentas(await repo.buscarAnomalia(id),
+        [{ campoId: 'user_id', correo: 'email', rol: 'role', obligatoria: true }]);
     if (rows.length === 0) return null;
 
     const anomalia = rows[0];
@@ -271,15 +278,20 @@ async function obtenerAnomalia(id) {
 
     const [historial, linea, ajustes] = await Promise.all([
         repo.historialDeEstados(id),
-        repo.lineaDeTiempo(afectadoId),
+        gamificacion.ultimosMovimientos(afectadoId, 50),
         repo.ajustesManuales(afectadoId)
+    ]);
+
+    const [historialConCorreos, ajustesConCorreos] = await Promise.all([
+        conCuentas(historial.rows, [{ campoId: 'changed_by', correo: 'changed_by_email', obligatoria: true }]),
+        conCuentas(ajustes.rows, [{ campoId: 'actor_id', correo: 'actor_email', obligatoria: true }])
     ]);
 
     return {
         ...anomalia,
-        historial_estados: historial.rows,
-        linea_de_tiempo: linea.rows,
-        ajustes_manuales: ajustes.rows
+        historial_estados: historialConCorreos.map(({ changed_by, ...h }) => h),
+        linea_de_tiempo: linea,
+        ajustes_manuales: ajustesConCorreos.map(({ actor_id, ...a }) => a)
     };
 }
 

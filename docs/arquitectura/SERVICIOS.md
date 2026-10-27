@@ -271,7 +271,7 @@ Puntos (historial inmutable y reglas), recompensas e insignias, niveles, ranking
 
 ### Contrato interno (index.js)
 
-Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `yaOtorgado`, `obtenerTotalesPorUsuarios`, `obtenerResumenPorUsuarios`, `obtenerEscalera`, `calcularProgreso`, `obtenerPuntos`, `obtenerNivelDeUsuario`, `contarRecompensasDe`, `buscarRecompensa`, `registrarMovimiento`, `otorgarRecompensa`.
+Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infrastructure/client/`: `yaOtorgado`, `obtenerTotalesPorUsuarios`, `obtenerResumenPorUsuarios`, `obtenerEscalera`, `calcularProgreso`, `obtenerPuntos`, `obtenerNivelDeUsuario`, `contarRecompensasDe`, `buscarRecompensa`, `accionesPorUsuarioEntre`, `ultimaActividadDe`, `puntosPorUsuarioHasta`, `movimientosEnVentana`, `usuariosConMovimientosRecientes`, `ultimosMovimientos`, `registrarMovimiento`, `otorgarRecompensa`.
 
 ### Estructura
 
@@ -501,13 +501,6 @@ Deteccion de abuso de puntos (anomalias), auditoria de ajustes manuales y regist
 - **Depende de (por contrato interno):** identidad, gamificacion
 - **Procesos de fondo:** Job de respaldo de deteccion de anomalias; Job de retencion de data.logs
 
-**Acceso declarado a datos de otros servicios** (verificado por las pruebas de arquitectura):
-
-| Tipo | Tablas | Dueno | Motivo |
-|------|--------|-------|--------|
-| lee | `gamificacion.points_ledger` | gamificacion | La deteccion de anomalias analiza ventanas de movimientos del historial de puntos. Solo lee: los ajustes manuales se aplican por el contrato de gamificacion. |
-| lee | `identidad.users` | identidad | Los listados del panel muestran el correo del actor y del afectado con un JOIN. |
-
 ### Endpoints
 
 | Metodo | Ruta | Acceso | Descripcion |
@@ -551,6 +544,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 - `application/anomalies.service.js` — Deteccion de anomalias en la asignacion de puntos.
 - `application/audit.service.js` — Auditoria de ajustes manuales.
+- `application/cuentas.js` — Correos de las cuentas para los listados de seguridad.
 - `application/dataLogs.service.js` — Registro centralizado de logs de auditoria (data.logs).
 
 **domain/** — Domain: entidades y reglas de negocio

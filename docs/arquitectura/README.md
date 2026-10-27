@@ -349,8 +349,7 @@ los conteos que usan las recompensas, la existencia de un usuario.
 
 Quedan **excepciones declaradas**, cada una con su motivo en el manifiesto:
 
-- **Lecturas analiticas:** reportes agrega datos de varios servicios en SQL;
-  seguridad analiza ventanas de `points_ledger` y muestra correos con un JOIN.
+- **Lecturas analiticas:** reportes agrega datos de varios servicios en SQL.
 
 Gamificacion ya no tiene ninguna (paso 1 hacia una base de datos por
 servicio, como pide el material): la cache `total_points`/`level` de la
@@ -359,6 +358,11 @@ cuenta la escribe identidad cuando gamificacion se lo pide por su contrato
 identidad, y el resumen de desempeno pide los intentos a evaluaciones y el
 avance a cursos (`resultadosConsolidados`, `pendientesDe`, `avanceDe`,
 `leccionesPendientes`).
+
+Seguridad tampoco (paso 2a): las ventanas del historial de puntos se piden a
+gamificacion (`movimientosEnVentana`, `usuariosConMovimientosRecientes`,
+`ultimosMovimientos`) y los correos de los listados a identidad
+(`resumenesDe`, una sola llamada por pagina en `application/cuentas.js`).
 
 Son lecturas, nunca escrituras, y la prueba de arquitectura impide que
 aparezca una nueva sin declararla. Con los esquemas, el siguiente paso hacia

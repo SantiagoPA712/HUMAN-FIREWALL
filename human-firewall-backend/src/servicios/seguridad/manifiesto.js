@@ -14,17 +14,9 @@ module.exports = {
     publica: ['audit.log_recorded'],
     consume: ['points_assigned', 'audit.log_recorded'],
     dependeDe: ['identidad', 'gamificacion'],
-    lecturasCompartidas: [
-        {
-            tablas: ['gamificacion.points_ledger'], servicio: 'gamificacion',
-            motivo: 'La deteccion de anomalias analiza ventanas de movimientos del historial de puntos. ' +
-                    'Solo lee: los ajustes manuales se aplican por el contrato de gamificacion.'
-        },
-        {
-            tablas: ['identidad.users'], servicio: 'identidad',
-            motivo: 'Los listados del panel muestran el correo del actor y del afectado con un JOIN.'
-        }
-    ],
+    // Base de datos por servicio: el historial de puntos se pide a gamificacion
+    // y los correos de las cuentas a identidad, por su contrato.
+    lecturasCompartidas: [],
     escriturasCompartidas: [],
     procesos: ['Job de respaldo de deteccion de anomalias', 'Job de retencion de data.logs']
 };

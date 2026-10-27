@@ -5,5 +5,7 @@ module.exports = {
     /** Correo de una cuenta, o null. */
     correoDe: (userId) => identidad().correoDe(userId),
     /** Id de la cuenta con ese correo, o null. */
-    idPorCorreo: (email) => identidad().idPorCorreo(email)
+    idPorCorreo: (email) => identidad().idPorCorreo(email),
+    /** [{ id, email, role }] de varias cuentas, para mostrar correos en los listados. */
+    resumenesDe: (ids) => identidad().resumenesDe(ids)
 };

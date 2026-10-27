@@ -31,6 +31,7 @@
  */
 
 const repo = require('../infrastructure/persistence/auditoria.repositorio');
+const { conCuentas } = require('./cuentas');
 // Los puntos, niveles e insignias son de gamificacion: este servicio los
 // AUDITA y aplica los ajustes manuales por el contrato de gamificacion, sin
 // tocar sus tablas.
@@ -193,7 +194,13 @@ async function listar({ actorId = null, targetUserId = null, changeType = null,
                         page = 1, pageSize = 25 } = {}) {
     const filtros = { actorId, targetUserId, changeType };
     const total = await repo.contar(filtros);
-    const rows = await repo.pagina(filtros, { limit: pageSize, offset: (page - 1) * pageSize });
+    const rows = await conCuentas(
+        await repo.pagina(filtros, { limit: pageSize, offset: (page - 1) * pageSize }),
+        [
+            { campoId: 'actor_id', correo: 'actor_email', obligatoria: true },
+            { campoId: 'target_user_id', correo: 'target_email' }
+        ]
+    );
 
     return {
         paginacion: {

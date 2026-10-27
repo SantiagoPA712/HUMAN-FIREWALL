@@ -43,16 +43,13 @@ async function contar(filtros) {
     return rows[0].total;
 }
 
-/** Pagina del log, de lo mas reciente a lo mas antiguo, con los correos de actor y objetivo. */
+/** Pagina del log, de lo mas reciente a lo mas antiguo. Los correos los agrega application. */
 async function pagina(filtros, { limit, offset }) {
     const { where, params } = filtroDeAuditoria(filtros);
     const { rows } = await db.query(
         `SELECT l.id, l.change_type, l.previous_value, l.new_value, l.reason, l.created_at,
-                l.actor_id,  a.email AS actor_email,
-                l.target_user_id, t.email AS target_email
+                l.actor_id, l.target_user_id
            FROM seguridad.audit_log l
-           JOIN identidad.users a ON a.id = l.actor_id
-           LEFT JOIN identidad.users t ON t.id = l.target_user_id
            ${where}
           ORDER BY l.created_at DESC, l.id DESC
           LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
