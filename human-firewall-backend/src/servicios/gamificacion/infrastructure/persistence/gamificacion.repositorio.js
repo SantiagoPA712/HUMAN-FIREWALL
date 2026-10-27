@@ -7,7 +7,7 @@
  * identidad por su contrato.
  */
 
-const db = require('../../../../compartido/config/db');
+const db = require('./conexion');
 
 /** Insignias ganadas, desde el snapshot de user_rewards (no del catalogo). */
 async function insigniasDe(userId) {

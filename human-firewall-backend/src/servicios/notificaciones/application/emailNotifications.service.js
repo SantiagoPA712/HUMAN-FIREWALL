@@ -33,7 +33,7 @@
  */
 
 const config = require('../config/configuracion');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const identidad = require('../infrastructure/client/identidad.cliente');
 const cursos = require('../infrastructure/client/cursos.cliente');
 const { esCorreoValido } = require('../../../compartido/utils/correo');

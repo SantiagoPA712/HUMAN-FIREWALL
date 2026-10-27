@@ -14,7 +14,7 @@
  * para entornos donde se quiera otra.
  */
 require('dotenv').config();
-const db = require('../../../compartido/config/db');
+const db = require('./persistence/conexion');
 const { hashPassword } = require('../../../compartido/utils/hash');
 const entorno = require('../../../compartido/config/entorno');
 

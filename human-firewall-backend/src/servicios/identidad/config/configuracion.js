@@ -9,9 +9,17 @@
  */
 
 const entorno = require('../../../compartido/config/entorno');
+const bases = require('../../../compartido/config/bases');
 
 module.exports = {
     nombre: 'identidad',
+
+    /**
+     * Base de datos propia del servicio (el spring.datasource.url del
+     * application.yml del material): IDENTIDAD_DATABASE_URL, o la de DATABASE_URL con el
+     * sufijo _identidad cuando BASES_POR_SERVICIO=true.
+     */
+    get baseDeDatos() { return entorno.texto('IDENTIDAD_DATABASE_URL', bases.urlPorDefecto('identidad')); },
 
     /** Horas de vigencia del enlace de una invitacion. */
     get horasDeVigenciaInvitacion() { return entorno.numero('INVITATION_EXPIRY_HOURS', 72); },

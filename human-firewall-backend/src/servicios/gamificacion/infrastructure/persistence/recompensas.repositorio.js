@@ -5,7 +5,7 @@
  * Capa Infrastructure / Persistence (seccion 11 del material).
  */
 
-const db = require('../../../../compartido/config/db');
+const db = require('./conexion');
 
 const q = (tx) => tx || db;
 

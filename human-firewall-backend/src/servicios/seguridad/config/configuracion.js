@@ -5,6 +5,7 @@
  */
 
 const entorno = require('../../../compartido/config/entorno');
+const bases = require('../../../compartido/config/bases');
 
 /** Entero positivo del entorno; si el valor es invalido avisa y usa el defecto. */
 function entero(nombre, porDefecto) {
@@ -21,6 +22,13 @@ function entero(nombre, porDefecto) {
 
 module.exports = {
     nombre: 'seguridad',
+
+    /**
+     * Base de datos propia del servicio (el spring.datasource.url del
+     * application.yml del material): SEGURIDAD_DATABASE_URL, o la de DATABASE_URL con el
+     * sufijo _seguridad cuando BASES_POR_SERVICIO=true.
+     */
+    get baseDeDatos() { return entorno.texto('SEGURIDAD_DATABASE_URL', bases.urlPorDefecto('seguridad')); },
 
     /** Cada cuanto corre el job de respaldo de deteccion de anomalias. */
     get minutosEntreRevisionesDeAnomalias() { return entorno.numero('ANOMALY_JOB_INTERVAL_MINUTES', 15); },

@@ -13,7 +13,7 @@ const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const cursos = require('../infrastructure/client/cursos.cliente');
 const identidad = require('../infrastructure/client/identidad.cliente');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { calcularPuntos } = require('../domain/puntos');
 const repo = require('../infrastructure/persistence/puntos.repositorio');
 

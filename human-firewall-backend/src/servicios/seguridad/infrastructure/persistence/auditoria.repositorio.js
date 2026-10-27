@@ -6,7 +6,7 @@
  * reciben `tx`; sin `tx` usan el pool.
  */
 
-const db = require('../../../../compartido/config/db');
+const db = require('./conexion');
 
 const q = (tx) => tx || db;
 

@@ -14,7 +14,7 @@
 
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { calcularProgreso } = require('../domain/nivel');
 const repo = require('../infrastructure/persistence/niveles.repositorio');
 const identidad = require('../infrastructure/client/identidad.cliente');

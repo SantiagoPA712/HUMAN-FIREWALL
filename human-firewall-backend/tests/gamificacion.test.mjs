@@ -39,7 +39,7 @@ require_.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: 
 
 // Esquema + migraciones
 await pg.exec(readFileSync(`${DIR}schema.sql`, 'utf8'));
-for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_tracking','004_event_outbox','005_rol_rh','006_rewards_catalog','007_user_rewards','008_desafios_faltantes','090_esquemas_por_servicio'])
+for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_tracking','004_event_outbox','005_rol_rh','006_rewards_catalog','007_user_rewards','008_desafios_faltantes','090_esquemas_por_servicio','091_vista_puntos_por_servicio'])
   await pg.exec(readFileSync(`${DIR}migrations/${f}.sql`, 'utf8'));
 console.log('Esquema y migraciones listos\n');
 

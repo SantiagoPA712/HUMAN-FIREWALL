@@ -11,7 +11,7 @@
  * usan el pool.
  */
 
-const db = require('../../../../compartido/config/db');
+const db = require('./conexion');
 
 const q = (ejecutor) => ejecutor || db;
 

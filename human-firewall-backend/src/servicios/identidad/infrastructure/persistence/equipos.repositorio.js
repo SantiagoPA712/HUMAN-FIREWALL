@@ -5,7 +5,7 @@
  * identidad.teams. Reportes los pide por el contrato de identidad.
  */
 
-const db = require('../../../../compartido/config/db');
+const db = require('./conexion');
 
 /** { id, name, is_active } o null. */
 async function buscar(id) {

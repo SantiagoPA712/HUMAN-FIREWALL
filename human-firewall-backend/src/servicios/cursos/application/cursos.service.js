@@ -10,7 +10,7 @@
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { ErrorHttp } = require('../../../compartido/http/errores');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const config = require('../config/configuracion');
 const curso = require('../domain/curso');
 const repo = require('../infrastructure/persistence/cursos.repositorio');

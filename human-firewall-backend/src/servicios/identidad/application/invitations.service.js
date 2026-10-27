@@ -35,7 +35,7 @@
 const crypto = require('crypto');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { esCorreoValido } = require('../../../compartido/utils/correo');
 const { hashPassword } = require('../../../compartido/utils/hash');
 const { generateToken } = require('../../../compartido/utils/token');

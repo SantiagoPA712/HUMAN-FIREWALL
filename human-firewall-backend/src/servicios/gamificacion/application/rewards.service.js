@@ -15,7 +15,7 @@ const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const cursos = require('../infrastructure/client/cursos.cliente');
 const evaluaciones = require('../infrastructure/client/evaluaciones.cliente');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { umbralDe } = require('../domain/recompensa');
 const repo = require('../infrastructure/persistence/recompensas.repositorio');
 

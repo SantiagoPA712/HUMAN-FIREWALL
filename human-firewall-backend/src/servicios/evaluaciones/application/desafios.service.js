@@ -11,7 +11,7 @@
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { ErrorHttp } = require('../../../compartido/http/errores');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const repo = require('../infrastructure/persistence/evaluaciones.repositorio');
 const { normalizarResultadoDesafio, PUNTAJE_MINIMO } = require('../domain/puntaje');
 

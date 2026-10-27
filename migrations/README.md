@@ -46,6 +46,28 @@ Para las migraciones nuevas:
 - La tabla nueva se declara en el `manifiesto.js` del servicio, con su
   esquema.
 
+## Base de datos por servicio (`migrations/servicios/`)
+
+Cada microservicio tiene su carpeta con las migraciones de **su propia base**:
+
+```
+migrations/servicios/
+|-- identidad/001_base.sql
+|-- cursos/001_base.sql
+|-- ...
+```
+
+`001_base.sql` es la estructura completa del servicio despues de todo el
+historial (000 a 091), sin llaves foraneas hacia otros servicios y con su
+propia `event_outbox`. Los cambios nuevos de un servicio van en esa carpeta:
+`cursos/002_etiquetas.sql`, `cursos/003_...`.
+
+- Con `BASES_POR_SERVICIO=true`, `npm run migrate` crea la base de cada
+  servicio (`<base>_identidad`, `<base>_cursos`...), le aplica sus
+  migraciones y la primera vez le copia los datos desde la base compartida.
+- Con `BASES_POR_SERVICIO=false`, se aplican sobre la base compartida (la
+  `001_base` ya esta cubierta por el historial).
+
 ## Reglas
 
 1. Una migracion ya mergeada a `main` **no se edita jamas**. Si algo salio mal, se

@@ -18,8 +18,12 @@
 
 const db = require('./db');
 
-async function conTransaccion(trabajo) {
-    const client = await db.connect();
+/**
+ * @param {(tx: object) => Promise<*>} trabajo
+ * @param {object} [base]  pool de la base del servicio (por defecto, la compartida)
+ */
+async function conTransaccion(trabajo, base = db) {
+    const client = await base.connect();
     try {
         await client.query('BEGIN');
         const resultado = await trabajo(client);

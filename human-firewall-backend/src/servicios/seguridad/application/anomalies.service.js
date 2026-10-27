@@ -29,7 +29,7 @@ const config = require('../config/configuracion');
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { ESTADOS } = require('../domain/anomalia');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const repo = require('../infrastructure/persistence/anomalias.repositorio');
 // El historial de puntos y las cuentas viven en otras bases: se piden por contrato.
 const gamificacion = require('../infrastructure/client/gamificacion.cliente');

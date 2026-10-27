@@ -59,7 +59,8 @@ for (const nombre of NOMBRES) {
     // Las capas de la seccion 11 del material: controller, application,
     // domain, infrastructure y la configuracion propia del servicio.
     const faltan = ['index.js', 'manifiesto.js', 'README.md', 'controller', 'application', 'domain', 'infrastructure',
-                    'config/configuracion.js', 'contract/openapi.js', 'controller/dto.js']
+                    'config/configuracion.js', 'infrastructure/persistence/conexion.js',
+                    `../../../../migrations/servicios/${nombre}/001_base.sql`, 'contract/openapi.js', 'controller/dto.js']
         .filter(p => !existsSync(path.join(base, p)));
     check(`${nombre}: tiene index, manifiesto, README, controller, application, domain, infrastructure, config, DTO y contrato`,
         faltan.length === 0, `(faltan: ${faltan.join(', ')})`);
@@ -107,6 +108,16 @@ const sqlFueraDePersistencia = todos.filter(f => (f.lecturas.length || f.escritu
     !f.relativo.includes('/infrastructure/persistence/') && !f.relativo.endsWith('/infrastructure/seed_admin.js'));
 check('el SQL de cada servicio esta solo en infrastructure/persistence/', sqlFueraDePersistencia.length === 0,
     lista(sqlFueraDePersistencia.map(f => f.relativo)));
+
+// Base de datos por servicio: cada repositorio usa la conexion de SU servicio
+// (infrastructure/persistence/conexion.js, que toma la URL de su config/), no
+// el pool compartido; y cada config declara su baseDeDatos.
+const persistenciaConPoolCompartido = todos.filter(f => f.relativo.includes('/infrastructure/') &&
+    !f.relativo.endsWith('/conexion.js') && f.requires.some(r => r.destino === DB));
+check('los repositorios usan la conexion de su propio servicio, no el pool compartido',
+    persistenciaConPoolCompartido.length === 0, lista(persistenciaConPoolCompartido.map(f => f.relativo)));
+const sinBasePropia = NOMBRES.filter(n => !('baseDeDatos' in require_(`./servicios/${n}/config/configuracion`)));
+check('cada servicio declara su base de datos en config/ (baseDeDatos)', sinBasePropia.length === 0, lista(sinBasePropia));
 
 const dominioConSql = todos.filter(f => f.capa === 'domain' && (f.lecturas.length || f.escrituras.length));
 check('la capa de dominio no tiene SQL', dominioConSql.length === 0, lista(dominioConSql.map(f => f.relativo)));

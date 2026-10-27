@@ -13,7 +13,7 @@
 
 const eventBus = require('../../../compartido/eventos/eventBus');
 const { EVENTOS } = require('../../../compartido/eventos/catalogo');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { comparePassword, hashPassword } = require('../../../compartido/utils/hash');
 const { generateToken } = require('../../../compartido/utils/token');
 const { ErrorHttp } = require('../../../compartido/http/errores');

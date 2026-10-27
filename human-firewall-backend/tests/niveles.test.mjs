@@ -33,7 +33,7 @@ await pg.exec(`INSERT INTO users (email,password,role) VALUES ('nivel@hf.com','x
 
 for (const f of ['001_points_ledger','002_points_rules','003_lesson_quiz_tracking',
                  '004_event_outbox','005_rol_rh','006_rewards_catalog','007_user_rewards',
-                 '008_desafios_faltantes','020_levels_config','021_user_level_history','090_esquemas_por_servicio']) {
+                 '008_desafios_faltantes','020_levels_config','021_user_level_history','090_esquemas_por_servicio','091_vista_puntos_por_servicio']) {
   try { await pg.exec(readFileSync(`${DIR}migrations/${f}.sql`, 'utf8')); }
   catch (e) { console.log(`ERROR en ${f}: ${msg(e)}`); fallos++; }
 }

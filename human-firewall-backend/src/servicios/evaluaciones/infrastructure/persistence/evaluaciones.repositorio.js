@@ -6,7 +6,7 @@
  * quiz_attempts). Lo que necesita de cursos lo pide por el cliente.
  */
 
-const db = require('../../../../compartido/config/db');
+const db = require('./conexion');
 
 const q = (ejecutor) => ejecutor || db;
 

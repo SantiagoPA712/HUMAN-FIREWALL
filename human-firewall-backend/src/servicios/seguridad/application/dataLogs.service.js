@@ -48,7 +48,7 @@ const { EVENTOS } = require('../../../compartido/eventos/catalogo');
 const { escaparCSV } = require('../../../compartido/utils/csv');
 const identidad = require('../infrastructure/client/identidad.cliente');
 const { CLAVE_SENSIBLE, VALOR_SENSIBLE, REDACTADO, enmascarar } = require('../domain/registro');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const repo = require('../infrastructure/persistence/logs.repositorio');
 
 // ---------------------------------------------------------------------

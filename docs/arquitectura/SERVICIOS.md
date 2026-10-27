@@ -99,6 +99,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde identidad.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde identidad.
 - `infrastructure/passport.js` — Integracion con Google OAuth (passport).
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de identidad.
 - `infrastructure/persistence/equipos.repositorio.js` — Repositorio de equipos (areas) del servicio de identidad.
 - `infrastructure/persistence/invitaciones.repositorio.js` — Repositorio de invitaciones (esquema identidad).
 - `infrastructure/persistence/recuperacion.repositorio.js` — Repositorio de tokens de recuperacion de contrasena (esquema identidad).
@@ -165,6 +166,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 **infrastructure/** — Infrastructure: persistencia (repositorios), clientes de otros servicios e integraciones
 
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de cursos.
 - `infrastructure/persistence/cursos.repositorio.js` — Repositorio de cursos: el unico archivo del servicio que escribe SQL.
 
 **contract/** — Contrato publico OpenAPI
@@ -233,6 +235,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 
 - `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde evaluaciones.
 - `infrastructure/client/gamificacion.cliente.js` — Cliente del servicio de gamificacion, visto desde evaluaciones.
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de evaluaciones.
 - `infrastructure/persistence/evaluaciones.repositorio.js` — Repositorio de evaluaciones: simulaciones, desafios e intentos.
 
 **contract/** — Contrato publico OpenAPI
@@ -311,6 +314,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde gamificacion.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde gamificacion.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde gamificacion.
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de gamificacion.
 - `infrastructure/persistence/gamificacion.repositorio.js` — Repositorio de las consultas de los endpoints de gamificacion (insignias, catalogo de recompensas, reglas de puntos).
 - `infrastructure/persistence/niveles.repositorio.js` — Repositorio de niveles: levels_config, user_level_history y la cache users.level.
 - `infrastructure/persistence/puntos.repositorio.js` — Repositorio de puntos: points_rules, points_ledger (historial inmutable), la vista v_user_points y la cache users.total_points.
@@ -392,6 +396,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/cursos.cliente.js` — Cliente del servicio de cursos, visto desde notificaciones.
 - `infrastructure/client/evaluaciones.cliente.js` — Cliente del servicio de evaluaciones, visto desde notificaciones.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde notificaciones.
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de notificaciones.
 - `infrastructure/persistence/correos.repositorio.js` — Repositorio de la cola de correos (servicio de notificaciones).
 - `infrastructure/persistence/notificaciones.repositorio.js` — Repositorio de la bandeja de notificaciones (servicio de notificaciones).
 - `infrastructure/persistence/plantillas.repositorio.js` — Repositorio de plantillas de correo (servicio de notificaciones).
@@ -474,6 +479,7 @@ No expone funciones a otros servicios: su unico contrato es la API HTTP.
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde reportes.
 - `infrastructure/client/notificaciones.cliente.js` — Cliente del servicio de notificaciones, visto desde reportes.
 - `infrastructure/client/seguridad.cliente.js` — Cliente del servicio de seguridad, visto desde reportes.
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de reportes.
 - `infrastructure/persistence/exportaciones.repositorio.js` — Repositorio de exportaciones de reportes (servicio de reportes).
 - `infrastructure/persistence/organizacional.repositorio.js` — Repositorio del reporte organizacional (servicio de reportes).
 - `infrastructure/persistence/programados.repositorio.js` — Repositorio de reportes programados (servicio de reportes).
@@ -552,6 +558,7 @@ Lo que otros servicios pueden usar, siempre a traves de un cliente en su `infras
 - `infrastructure/client/identidad.cliente.js` — Cliente del servicio de identidad, visto desde seguridad.
 - `infrastructure/persistence/anomalias.repositorio.js` — Repositorio de anomalias (servicio de seguridad).
 - `infrastructure/persistence/auditoria.repositorio.js` — Repositorio de auditoria de ajustes manuales (servicio de seguridad).
+- `infrastructure/persistence/conexion.js` — Conexion a la base de datos propia del servicio de seguridad.
 - `infrastructure/persistence/logs.repositorio.js` — Repositorio del registro de actividad (servicio de seguridad).
 
 **contract/** — Contrato publico OpenAPI

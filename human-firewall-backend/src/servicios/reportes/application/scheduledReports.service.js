@@ -68,7 +68,7 @@ const ROLES_TECNICOS = config.rolesTecnicos;
 
 /** Donde quedan los archivos generados. Fuera del control de versiones. */
 const { DIR_STORAGE } = require('../../../compartido/config/rutas');
-const { conTransaccion } = require('../../../compartido/config/transaccion');
+const { conTransaccion } = require('../infrastructure/persistence/conexion');
 const { TIPOS, FRECUENCIAS, FORMATOS, semanaISO, calcularPeriodo, calcularProximaEjecucion } = require('../domain/programacion');
 const repo = require('../infrastructure/persistence/programados.repositorio');
 const identidad = require('../infrastructure/client/identidad.cliente');
